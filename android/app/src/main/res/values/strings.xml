@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vĩnh Lộc Drive</string>
+    <string name="title_activity_main">Vĩnh Lộc Drive</string>
+    <string name="package_name">com.vinhloc.drive</string>
+    <string name="custom_url_scheme">com.vinhloc.drive</string>
+</resources>

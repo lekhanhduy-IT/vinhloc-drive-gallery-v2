@@ -1,1 +1,0 @@
-# vinhloc-drive-gallery-app
