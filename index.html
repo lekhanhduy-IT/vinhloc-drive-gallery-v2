@@ -19,7 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
-        body { -webkit-tap-highlight-color: transparent; background-color: #f3f4f6; }
+        body { -webkit-tap-highlight-color: transparent; background-color: #f4f7f6; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
@@ -37,10 +37,11 @@
         .sidebar-item { padding: 15px 20px; font-weight: 700; color: #4b5563; border-left: 4px solid transparent; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 12px; }
         .sidebar-item.active { background: #eff6ff; color: var(--primary-blue); border-left-color: var(--primary-blue); }
 
-        /* LIST CSS MEGA ROW SÁT NHAU */
+        /* LIST & GRID CSS */
         .mega-row { background: white; border-bottom: 1px solid #e5e7eb; display: flex; flex-direction: column; }
         .mega-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #1f2937; font-size: 15px; cursor: pointer; }
-        .subfolder-row { padding: 12px 16px 12px 24px; display: flex; align-items: center; gap: 12px; border-top: 1px solid #f3f4f6; background: #fafafa; cursor: pointer; }
+        .subfolder-row { padding: 12px 16px 12px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; background: #f9fafb; cursor: pointer; }
+        .subfolder-row:active { background: #f3f4f6; }
         
         .masonry-grid { column-count: 2; column-gap: 10px; }
         .image-card { break-inside: avoid; margin-bottom: 10px; position: relative; background: #e5e7eb; width: 100%; overflow: hidden; border-radius: 12px; }
@@ -107,9 +108,6 @@
         .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; }
         .wm-item img { max-width: 90%; max-height: 90%; object-fit: contain; }
         .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; z-index: 10; }
-        
-        .dropdown-menu { display: none; position: absolute; right: 0; top: 100%; background: var(--bg-white); box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; min-width: 160px; z-index: 1000; }
-        .dropdown-menu.show { display: block; }
     </style>
 </head>
 
@@ -148,8 +146,8 @@
     </div>
 
     <main class="flex-1 overflow-y-auto relative bg-gray-100" id="contentArea">
-        <div id="folderList" class="flex flex-col mb-4"></div>
-        <div id="fileList" class="grid grid-cols-2 gap-3 p-3"></div>
+        <div id="folderList" class="flex flex-col mb-4 bg-white"></div>
+        <div id="fileList" class="grid grid-cols-2 gap-3 px-3"></div>
     </main>
 
     <div class="absolute bottom-6 right-6 flex flex-col-reverse items-end gap-3 z-30">
@@ -209,9 +207,6 @@
                         <i class="fas fa-camera text-2xl mb-1"></i>
                         <span class="text-xs font-medium">Bấm để tải ảnh lên</span>
                     </div>
-                    <div id="infoCoverLoader" class="hidden absolute inset-0 bg-white/70 flex-col items-center justify-center backdrop-blur-[2px] z-10">
-                        <div class="loader mb-2 border-blue-600"></div><span class="text-xs font-bold text-blue-600">Đang Up...</span>
-                    </div>
                 </div>
                 <input type="file" id="infoCoverInput" class="hidden" accept="image/*" onchange="handleCoverUpload(event)">
             </div>
@@ -230,7 +225,7 @@
             <input type="text" id="modalInput" class="hidden" />
             <div class="flex justify-end gap-3">
                 <button onclick="closeModal()" class="px-5 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl">Hủy</button>
-                <button id="modalConfirmBtn" class="px-5 py-2 bg-red-600 text-white font-bold rounded-xl">Xác nhận</button>
+                <button id="modalConfirmBtn" class="px-5 py-2 bg-red-600 text-white font-bold rounded-xl">Xóa</button>
             </div>
         </div>
     </div>
@@ -254,11 +249,11 @@
                     <div class="dropdown-menu" id="layer-menu"></div>
                 </div>
                 <i class="fa-solid fa-download" id="save-all-btn"></i>
-                <div class="dropdown relative">
-                    <i class="fa-solid fa-ellipsis-vertical" id="menu-btn-design"></i>
-                    <div class="dropdown-menu absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-lg border z-50 overflow-hidden" id="dropdown-menu-design">
-                        <div id="select-all-btn" class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-medium border-b border-gray-100 text-gray-700">Chọn tất cả</div>
-                        <div id="delete-selected-btn" class="px-4 py-3 hover:bg-red-50 cursor-pointer font-medium text-red-600">Xóa ảnh đã chọn</div>
+                <div class="dropdown">
+                    <i class="fa-solid fa-ellipsis-vertical" id="menu-btn"></i>
+                    <div class="dropdown-menu" id="dropdown-menu">
+                        <div id="select-all-btn" class="menu-item">Chọn tất cả</div>
+                        <div id="delete-selected-btn" class="menu-item text-red">Xóa ảnh đã chọn</div>
                     </div>
                 </div>
             </div>
@@ -387,7 +382,7 @@
             <div class="alert-box">
                 <div class="loader mx-auto mb-3" id="alert-loader"></div>
                 <p id="alert-msg" class="font-medium text-gray-700"></p>
-                <button id="alert-btn" class="mt-4 w-full bg-blue-600 font-bold rounded-xl py-2" onclick="document.getElementById('custom-alert').style.display='none'">Đã hiểu</button>
+                <button id="alert-btn" class="mt-4 w-full bg-blue-600 font-bold" onclick="document.getElementById('custom-alert').style.display='none'">Đã hiểu</button>
             </div>
         </div>
     </div> 
@@ -420,15 +415,17 @@
         let currentFolderId = folderStack[folderStack.length - 1].id;
         
         let currentDriveItems = [];
-        let subFolderCache = {}; 
+        let subFolderCache = {}; // Cache thư mục con của mega rows
         
-        // Trạng thái sổ ra của Mega Row
-        let accState = JSON.parse(localStorage.getItem('vinhloc_accordion')) || {};
-        
-        // Lấy Metadata
-        function getMeta(item) { 
-            if(item && item.meta) return item.meta;
-            return { type: 'Triển khai', desc: '', cover: '' };
+        // HỆ THỐNG DATABASE LOCAL CHO METADATA
+        let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
+        function saveMeta() { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); }
+        function getMeta(id) { 
+            if(!appMeta[id]) {
+                appMeta[id] = { type: 'Triển khai', desc: '', cover: '' };
+                saveMeta();
+            }
+            return appMeta[id];
         }
 
         let currentCategory = 'Triển khai';
@@ -447,7 +444,7 @@
         const sidebarOverlay = document.getElementById('sidebar-overlay');
         const btnOpenDesign = document.getElementById('btn-open-design');
 
-        // Bật tắt Sidebar
+        // ==== ĐIỀU KHIỂN UI CƠ BẢN ====
         function toggleSidebar() {
             sidebar.classList.toggle('open');
             sidebarOverlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
@@ -463,12 +460,12 @@
             toggleSidebar();
             currentFolderName.textContent = cat;
             
+            // Xóa stack về root
             folderStack = [{ id: ROOT_FOLDER_ID, name: cat }];
             localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
             loadFolder(ROOT_FOLDER_ID, cat);
         }
 
-        // FAB Menu
         fabMain.addEventListener('click', () => {
             fabMenu.classList.toggle('hidden');
             fabMenu.classList.toggle('flex');
@@ -478,7 +475,6 @@
             fabIcon.style.transition = '0.3s';
         });
 
-        // Nút Back
         btnBack.addEventListener('click', () => {
             if (folderStack.length > 1) {
                 folderStack.pop();
@@ -493,12 +489,12 @@
                 currentFolderName.textContent = currentCategory;
                 btnBack.classList.add('hidden');
                 btnMenu.classList.remove('hidden');
-                btnOpenDesign.classList.add('hidden'); 
+                btnOpenDesign.classList.add('hidden'); // Giấu design ở root
             } else {
                 currentFolderName.textContent = folderStack[folderStack.length - 1].name;
                 btnBack.classList.remove('hidden');
                 btnMenu.classList.add('hidden');
-                btnOpenDesign.classList.remove('hidden'); 
+                btnOpenDesign.classList.remove('hidden'); // Hiện design khi vào trong
             }
         }
 
@@ -515,7 +511,7 @@
             }
         }
 
-        // TẢI FOLDER
+        // TẢI THƯ MỤC CHÍNH
         async function loadFolder(folderId, folderName, isNewNavigation = false) {
             currentFolderId = folderId;
             if (isNewNavigation) { 
@@ -544,13 +540,14 @@
             }
         }
 
+        // TÌM KIẾM
         searchInput.addEventListener('input', (e) => {
             const keyword = e.target.value.toLowerCase();
             const filtered = currentDriveItems.filter(item => item.name.toLowerCase().includes(keyword));
             renderItems(filtered);
         });
 
-        // Toggle 3-dot Menu
+        // BẬT / TẮT MENU 3 CHẤM
         window.toggleItemMenu = function(id, e) {
             e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(menu => {
@@ -559,15 +556,12 @@
             document.getElementById(`menu-${id}`).classList.toggle('hidden');
         };
 
-        // Close dropdowns on outside click
         document.addEventListener('click', () => {
             document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
-            const dmd = document.getElementById('dropdown-menu-design');
-            if(dmd) dmd.classList.remove('show');
         });
 
         // =====================================
-        // MODAL THÔNG TIN & ĐỒNG BỘ
+        // HỆ THỐNG MODAL THÔNG TIN (SỬA)
         // =====================================
         let currentEditId = null;
         let currentEditLevel = null;
@@ -580,13 +574,13 @@
             currentEditLevel = level;
             currentEditType = itemType;
             
-            let item = currentDriveItems.find(i => i.id === id) || Object.values(subFolderCache).flat().find(i => i.id === id) || {};
-            const meta = getMeta(item);
+            const meta = getMeta(id);
             
             document.getElementById('infoName').value = name;
             document.getElementById('infoType').value = meta.type || 'Triển khai';
             document.getElementById('infoDesc').value = meta.desc || '';
             
+            // Xóa ảnh cũ
             document.getElementById('infoCoverInput').value = '';
             const previewImg = document.getElementById('infoCoverPreview');
             const placeholder = document.getElementById('infoCoverPlaceholder');
@@ -601,17 +595,21 @@
                 placeholder.classList.remove('hidden');
             }
 
+            // Logic Ẩn hiện theo cấp độ
             document.getElementById('info-field-type').classList.add('hidden');
             document.getElementById('info-field-desc').classList.add('hidden');
             document.getElementById('info-field-cover').classList.add('hidden');
             
             if (level === 'mega') {
+                // MEGA ROW: Cho sửa Tên, Loại, Mô tả
                 document.getElementById('info-field-type').classList.remove('hidden');
                 document.getElementById('info-field-desc').classList.remove('hidden');
             } else if (level === 'sub') {
+                // SUBFOLDER: Cho sửa Tên, Mô tả, Ảnh xem trước
                 document.getElementById('info-field-desc').classList.remove('hidden');
                 document.getElementById('info-field-cover').classList.remove('hidden');
-            }
+            } 
+            // File: chỉ cho sửa tên (mặc định hiện infoName)
 
             document.getElementById('infoModal').classList.remove('hidden');
             document.getElementById('infoModal').classList.add('flex');
@@ -622,77 +620,52 @@
             document.getElementById('infoModal').classList.remove('flex');
         }
 
-        // Lưu ảnh bìa của Subfolder thẳng vào Drive
+        // Xử lý nạp Base64 cho ảnh xem trước
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            
-            // Hiện loading trong nút
-            document.getElementById('infoCoverLoader').classList.remove('hidden');
-            document.getElementById('infoCoverLoader').classList.add('flex');
-            
-            reader.onload = async function(e) {
+            reader.onload = function(e) {
                 const b64 = e.target.result;
-                const base64Data = b64.split(',')[1];
-                
-                // Upload thẳng vào thư mục con đó
-                const res = await apiCall('upload', { folderId: currentEditId, filename: 'Cover_' + file.name, mimeType: file.type, data: base64Data });
-                
-                document.getElementById('infoCoverLoader').classList.add('hidden');
-                document.getElementById('infoCoverLoader').classList.remove('flex');
-
-                if (res && res.success) {
-                    const coverUrl = `https://drive.google.com/thumbnail?id=${res.id || res.fileId}&sz=w400`;
-                    document.getElementById('infoCoverPreview').src = coverUrl;
-                    document.getElementById('infoCoverPreview').classList.remove('hidden');
-                    document.getElementById('infoCoverPlaceholder').classList.add('hidden');
-                } else {
-                    alert("Lỗi tải ảnh bìa lên Drive!");
-                }
+                document.getElementById('infoCoverPreview').src = b64;
+                document.getElementById('infoCoverPreview').classList.remove('hidden');
+                document.getElementById('infoCoverPlaceholder').classList.add('hidden');
             };
             reader.readAsDataURL(file);
         };
 
-        // Bấm Lưu Thông Tin
+        // Lưu thông tin
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
             if(!currentEditId) return closeInfoModal();
             
+            const meta = getMeta(currentEditId);
             const newName = document.getElementById('infoName').value.trim();
-            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
-
-            if(!oldItem.meta) oldItem.meta = {};
+            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || 
+                            Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
 
             if (currentEditLevel === 'mega') {
-                oldItem.meta.type = document.getElementById('infoType').value;
-                oldItem.meta.desc = document.getElementById('infoDesc').value.trim();
+                meta.type = document.getElementById('infoType').value;
+                meta.desc = document.getElementById('infoDesc').value.trim();
             } else if (currentEditLevel === 'sub') {
-                oldItem.meta.desc = document.getElementById('infoDesc').value.trim();
+                meta.desc = document.getElementById('infoDesc').value.trim();
                 const coverSrc = document.getElementById('infoCoverPreview').src;
-                if(coverSrc && coverSrc !== window.location.href) {
-                    oldItem.meta.cover = coverSrc;
+                if(coverSrc && coverSrc.startsWith('data:')) {
+                    meta.cover = coverSrc;
                 }
             }
+            saveMeta();
 
-            // Gọi API Update Meta ngầm
-            apiCall('updateMeta', { itemId: currentEditId, meta: oldItem.meta });
-
-            // Đổi tên Drive
+            // Nếu đổi tên, cần báo Drive
             if (newName && newName !== oldItem.name) {
                 oldItem.name = newName;
                 apiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
             }
 
-            if (currentEditLevel === 'sub') {
-                for(let megaId in subFolderCache) renderSubFolders(megaId, subFolderCache[megaId]);
-            } else {
-                renderItems(currentDriveItems); 
-            }
-            localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+            renderItems(currentDriveItems); // Render lại để lấy thay đổi UI lập tức
             closeInfoModal();
         });
 
-        // Xóa Tệp/Thư mục
+        // XÓA (Giữ nguyên Custom Modal đỏ)
         window.handleDelete = function(id, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
@@ -703,14 +676,15 @@
             document.getElementById('modalInput').classList.add('hidden');
             
             document.getElementById('modalConfirmBtn').onclick = () => {
+                // Xóa UI
                 currentDriveItems = currentDriveItems.filter(i => i.id !== id);
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
-                    renderSubFolders(megaId, subFolderCache[megaId]); 
                 }
                 renderItems(currentDriveItems);
                 closeModal();
                 
+                // Chạy ngầm API
                 apiCall('delete', { id: id, type: type }).then(res => {
                     if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                 });
@@ -729,7 +703,7 @@
         // RENDER: MEGA ROW, SUBFOLDERS, FILES
         // =====================================
         
-        // Mở/Đóng Folder con & Lưu State
+        // Mở / Đóng Accordion (Folder Mega)
         window.toggleAccordion = async function(id) {
             const body = document.getElementById(`acc-${id}`);
             const icon = document.getElementById(`icon-${id}`);
@@ -737,13 +711,13 @@
             if(body.classList.contains('hidden')) {
                 body.classList.remove('hidden');
                 icon.style.transform = 'rotate(90deg)';
-                accState[id] = true; // Lưu state Mở
                 
+                // Nếu chưa có cache cho Mega Row này, gọi API
                 if(!subFolderCache[id]) {
                     body.innerHTML = '<div class="text-center text-blue-400 py-3 text-sm"><div class="loader mx-auto border-blue-400 mb-1" style="width:16px;height:16px;"></div>Tải...</div>';
                     const res = await apiCall('list', { folderId: id });
                     if(res && res.success) {
-                        subFolderCache[id] = res.data.filter(i => i.type === 'folder'); 
+                        subFolderCache[id] = res.data.filter(i => i.type === 'folder'); // Chỉ lấy folder con
                         renderSubFolders(id, subFolderCache[id]);
                     } else {
                         body.innerHTML = '<div class="text-center text-gray-400 py-3 text-sm">Lỗi tải dữ liệu</div>';
@@ -754,27 +728,25 @@
             } else {
                 body.classList.add('hidden');
                 icon.style.transform = 'rotate(0deg)';
-                accState[id] = false; // Lưu state Đóng
             }
-            localStorage.setItem('vinhloc_accordion', JSON.stringify(accState));
         };
 
         function renderSubFolders(megaId, subFolders) {
             const container = document.getElementById(`acc-${megaId}`);
-            if(!container) return;
             if(subFolders.length === 0) {
                 container.innerHTML = '<div class="pl-14 py-3 text-sm text-gray-400 italic">Trống</div>';
                 return;
             }
             
             container.innerHTML = subFolders.map(item => {
-                const meta = getMeta(item);
+                const meta = getMeta(item.id);
+                // Ảnh Cover hoặc icon mặc định
                 const imgHtml = meta.cover 
-                    ? `<img src="${meta.cover}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm border border-gray-200">`
+                    ? `<img src="${meta.cover}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm">`
                     : `<div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-500 text-xl"><i class="fas fa-folder"></i></div>`;
                 
                 return `
-                <div class="subfolder-row group hover:bg-gray-100 transition" onclick="loadFolder('${item.id}', '${item.name}', true)">
+                <div class="subfolder-row group" onclick="loadFolder('${item.id}', '${item.name}', true)">
                     ${imgHtml}
                     <div class="flex-1 overflow-hidden">
                         <h4 class="text-sm font-bold text-gray-800 truncate">${item.name}</h4>
@@ -782,9 +754,9 @@
                     </div>
                     <div class="relative" onclick="event.stopPropagation()">
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                         </div>
                     </div>
                 </div>`;
@@ -800,65 +772,67 @@
                 return;
             }
 
+            // Nếu đang ở Root (Mega Row)
             if (folderStack.length === 1) {
-                const megaRows = items.filter(i => i.type === 'folder' && getMeta(i).type === currentCategory);
+                const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
                 if (megaRows.length === 0) {
                     folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Chưa có dữ liệu trong mục ${currentCategory}</div>`;
                     return;
                 }
                 
-                // Màn hình Root: Dòng cứng Mega Rows
                 folderListEl.innerHTML = megaRows.map(item => {
-                    const meta = getMeta(item);
+                    const meta = getMeta(item.id);
                     return `
                     <div class="mega-row">
-                        <div class="mega-header hover:bg-gray-50 transition" onclick="window.toggleAccordion('${item.id}')">
+                        <div class="mega-header" onclick="window.toggleAccordion('${item.id}')">
                             <div class="flex items-center gap-3 overflow-hidden">
                                 <i id="icon-${item.id}" class="fas fa-chevron-right text-gray-400 text-sm transition-transform duration-200 w-4 text-center"></i>
                                 <div class="flex flex-col overflow-hidden">
-                                    <span class="truncate uppercase text-blue-800 text-base">${item.name}</span>
+                                    <span class="truncate uppercase text-blue-800">${item.name}</span>
                                     ${meta.desc ? `<span class="text-[11px] font-normal text-gray-500 truncate mt-1">${meta.desc}</span>` : ''}
                                 </div>
                             </div>
                             <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
-                                <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
+                                <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                                 <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                                    <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                                    <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
                             </div>
                         </div>
-                        <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100"></div>
+                        <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100">
+                            </div>
                     </div>`;
                 }).join('');
                 
-                megaRows.forEach(row => {
-                    if(accState[row.id]) window.toggleAccordion(row.id);
-                });
+                // Tự động bung các Mega Row khi vừa render xong (Trải nghiệm siêu mượt)
+                megaRows.forEach(row => window.toggleAccordion(row.id));
 
             } 
+            // Đang ở bên trong Subfolder (Level 2+) -> Hiển thị File Grid + Subfolder thường
             else {
-                // Bên trong Thư mục: Folder List và File Grid
                 const folders = items.filter(i => i.type === 'folder');
                 const files = items.filter(i => i.type !== 'folder');
 
+                // Render Subfolders
                 if(folders.length > 0) {
                     folderListEl.innerHTML = folders.map(item => `
-                    <div class="bg-white p-4 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition" onclick="loadFolder('${item.id}', '${item.name}', true)">
+                    <div class="bg-white p-4 border-b border-gray-200 flex items-center justify-between cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)">
                         <div class="flex items-center gap-3">
                             <i class="fas fa-folder text-blue-500 text-2xl"></i>
                             <span class="font-bold text-gray-800">${item.name}</span>
                         </div>
                         <div class="relative" onclick="event.stopPropagation()">
-                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                                <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
-                                <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
+                                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)">Sửa</div>
+                                <div class="px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer" onclick="window.handleDelete('${item.id}', '${item.type}', event)">Xóa</div>
                             </div>
                         </div>
                     </div>`).join('');
                 }
 
+                // Render Files Grid
                 fileListEl.innerHTML = files.map(item => {
                     let isImage = item.mimeType.includes('image');
                     let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
@@ -875,9 +849,9 @@
                         ${isTemp}
                         <div class="absolute top-2 right-2 z-20">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                                <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa tên</div>
-                                <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                                <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                             </div>
                         </div>
                         
@@ -904,9 +878,12 @@
                 const val = document.getElementById('modalInput').value.trim(); 
                 if (val) {
                     const fakeId = 'temp_folder_' + Date.now();
-                    const metaObj = folderStack.length === 1 ? { type: currentCategory, desc: '', cover: '' } : {};
-                    const newItem = { id: fakeId, name: val, type: 'folder', meta: metaObj };
-                    
+                    const newItem = { id: fakeId, name: val, type: 'folder' };
+                    // Nếu đang ở Root, lưu meta mặc định là Category hiện tại
+                    if(folderStack.length === 1) {
+                        appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
+                        saveMeta();
+                    }
                     currentDriveItems.unshift(newItem);
                     renderItems(currentDriveItems);
                     
@@ -916,7 +893,11 @@
                             const idx = currentDriveItems.findIndex(i => i.id === fakeId);
                             if(idx > -1) currentDriveItems[idx].id = realId;
                             
-                            apiCall('updateMeta', { itemId: realId, meta: metaObj });
+                            if(folderStack.length === 1) {
+                                appMeta[realId] = appMeta[fakeId];
+                                delete appMeta[fakeId];
+                                saveMeta();
+                            }
                             localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                         }
                     });
@@ -928,7 +909,6 @@
             setTimeout(() => document.getElementById('modalInput').focus(), 100); 
         }
 
-        // UP ẢNH VÀ VIDEO TÁCH BIỆT NHAU
         async function handleMultipleFileUpload(event) {
             closeFab();
             const files = event.target.files; 
@@ -939,7 +919,7 @@
                 let file = files[i];
                 let fakeId = 'temp_file_' + Date.now() + i;
                 let tempUrl = URL.createObjectURL(file); 
-                let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl, meta: {} };
+                let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
                 tempFilesToUpload.push({ file: file, item: newItem });
                 currentDriveItems.push(newItem); 
             }
@@ -988,9 +968,8 @@
         window.getDriveImages = () => {
             let images = [];
             document.querySelectorAll('.drive-img-item').forEach((imgNode) => {
-                let nameNode = imgNode.closest('.image-card').querySelector('.drive-img-name');
-                let urlToUse = imgNode.dataset.url || imgNode.src;
-                images.push({ url: urlToUse, name: nameNode ? nameNode.textContent : 'Image' });
+                let nameNode = imgNode.closest('div.bg-white').querySelector('.drive-img-name');
+                images.push({ url: imgNode.dataset.url || imgNode.src, name: nameNode.textContent });
             });
             return images;
         };
@@ -1006,15 +985,15 @@
         const mainContainerOverlay = document.getElementById('main-container-overlay');
         const overlayContainer = document.getElementById('watermark-overlay-container');
         
+        const showAlert = (msg, isLoading = false) => { document.getElementById('alert-msg').innerText = msg; document.getElementById('alert-loader').style.display = isLoading ? 'block' : 'none'; document.getElementById('alert-btn').style.display = isLoading ? 'none' : 'inline-block'; document.getElementById('custom-alert').style.display = 'flex'; };
+        const closeAlert = () => document.getElementById('custom-alert').style.display = 'none';
         function generateId() { return Math.random().toString(36).substr(2, 9); }
         function getTargetImages() { const selected = state.images.filter(img => img.selected); return selected.length > 0 ? selected : state.images; }
-        function cleanUpLayerOrder() { state.layerOrder = state.layerOrder.filter(layer => { return state.images.some(img => { if (layer.type === 'text') return img.texts.some(t => t.id === layer.id); return img.wms.some(w => w.id === layer.id); }); }); }
         
-        // Sửa lỗi hiển thị dropdown bên trong Design
-        document.getElementById('menu-btn-design').addEventListener('click', (e) => { 
-            e.stopPropagation();
-            document.getElementById('dropdown-menu-design').classList.toggle('show'); 
-        });
+        function cleanUpLayerOrder() { state.layerOrder = state.layerOrder.filter(layer => { return state.images.some(img => { if (layer.type === 'text') return img.texts.some(t => t.id === layer.id); return img.wms.some(w => w.id === layer.id); }); }); }
+        function loadStorageWMs() { try { const data = localStorage.getItem('vinhloc_wms_v2'); if (data) state.savedWatermarks = JSON.parse(data); } catch (e) {} }
+        function saveStorageWMs() { try { localStorage.setItem('vinhloc_wms_v2', JSON.stringify(state.savedWatermarks)); } catch (e) {} }
+        loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
             const driveImages = window.getDriveImages();
@@ -1032,174 +1011,6 @@
         });
 
         document.getElementById('btn-close-design').addEventListener('click', () => { overlayContainer.style.display = 'none'; });
-
-        // Khắc phục thanh cuộn Design
-        let scrollInterval = null;
-        function startScroll(dir) { 
-            if(scrollInterval) clearInterval(scrollInterval); 
-            scrollInterval = setInterval(() => {
-                mainContainerOverlay.scrollTop += dir * 25; 
-            }, 16); 
-        }
-        function stopScroll() { if(scrollInterval) { clearInterval(scrollInterval); scrollInterval = null; } }
-        ['touchstart', 'mousedown'].forEach(evt => { 
-            document.getElementById('scroll-up-btn').addEventListener(evt, (e) => { e.preventDefault(); startScroll(-1); }); 
-            document.getElementById('scroll-down-btn').addEventListener(evt, (e) => { e.preventDefault(); startScroll(1); }); 
-        });
-        ['touchend', 'mouseup', 'mouseleave'].forEach(evt => { 
-            document.getElementById('scroll-up-btn').addEventListener(evt, stopScroll); 
-            document.getElementById('scroll-down-btn').addEventListener(evt, stopScroll); 
-        });
-
-        document.querySelectorAll('.nav-item').forEach(item => { item.addEventListener('click', () => { const tP = document.getElementById(item.dataset.panel); if(item.classList.contains('active')){ item.classList.remove('active'); tP.classList.remove('active'); } else { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); item.classList.add('active'); tP.classList.add('active'); if(item.dataset.panel==='panel-rename') window.renderRenameList(); } }); });
-
-        function renderLayers() {
-            const menu = document.getElementById('layer-menu'); menu.innerHTML = '<div class="layer-title">Thứ tự Z-Index</div>';
-            if(state.layerOrder.length === 0) { menu.innerHTML += '<div style="padding:15px; font-size:13px; text-align:center;">Trống</div>'; return; }
-            [...state.layerOrder].reverse().forEach((layer, revIdx) => {
-                const realIndex = state.layerOrder.length - 1 - revIdx;
-                const itemDiv = document.createElement('div'); itemDiv.className = `layer-item ${state.activeElementId === layer.id ? 'active-layer' : ''}`; itemDiv.draggable = true;
-                let cHTML = layer.type === 'text' ? `<i class="fa-solid fa-font" style="color:red"></i> <span>Chữ</span>` : `<i class="fa-solid fa-image"></i> <span>Ảnh</span>`;
-                itemDiv.innerHTML = `<div class="layer-info" onclick="window.selectLayer('${layer.id}', '${layer.type}')">${cHTML}</div>
-                    <div class="layer-controls"><i class="fa-solid fa-chevron-up" onclick="window.moveLayer(${realIndex}, 1, event)"></i><i class="fa-solid fa-chevron-down" onclick="window.moveLayer(${realIndex}, -1, event)"></i><i class="fa-solid fa-trash text-red" onclick="window.deleteLayer('${layer.id}', '${layer.type}', event)"></i></div>`;
-                itemDiv.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', realIndex); });
-                itemDiv.addEventListener('dragover', e => { e.preventDefault(); itemDiv.style.background = '#f5f5f5'; });
-                itemDiv.addEventListener('dragleave', e => itemDiv.style.background = '');
-                itemDiv.addEventListener('drop', e => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain')); if(fromIdx !== realIndex){ const [mv] = state.layerOrder.splice(fromIdx, 1); state.layerOrder.splice(realIndex, 0, mv); renderImages(); renderLayers(); } });
-                menu.appendChild(itemDiv);
-            });
-        }
-
-        window.selectLayer = function(id, type) { state.activeElementId = id; state.activeEditTarget = type; document.querySelector(`input[name="adjust-target"][value="${type}"]`).checked = true; renderImages(); renderLayers(); syncSliders(); const ap = document.querySelector('.nav-item[data-panel="panel-adjust"]'); if(!ap.classList.contains('active')) ap.click(); };
-        window.moveLayer = function(idx, dir, e) { e.stopPropagation(); const nIdx = idx + dir; if(nIdx < 0 || nIdx >= state.layerOrder.length) return; const t = state.layerOrder[idx]; state.layerOrder[idx] = state.layerOrder[nIdx]; state.layerOrder[nIdx] = t; renderImages(); renderLayers(); };
-        window.deleteLayer = function(id, type, e) { if(e) e.stopPropagation(); getTargetImages().forEach(img => { if(type === 'text') img.texts = img.texts.filter(t => t.id !== id); else img.wms = img.wms.filter(w => w.id !== id); }); cleanUpLayerOrder(); if (state.activeElementId === id) state.activeElementId = null; renderImages(); renderLayers(); };
-        
-        document.getElementById('layer-btn').addEventListener('click', (e) => { e.stopPropagation(); renderLayers(); document.getElementById('layer-menu').classList.toggle('show'); document.getElementById('dropdown-menu-design').classList.remove('show'); });
-        
-        window.updateProp = function(key, val) { getTargetImages().forEach(img => { (state.activeEditTarget === 'text' ? img.texts : img.wms).forEach(item => { if(state.activeElementId){ if(item.id === state.activeElementId) item[key] = val; } else item[key] = val; }); }); renderImages(); };
-        window.applyRatio = function(r) { getTargetImages().forEach(img => img.ratio = r); renderImages(); };
-        window.toggleStyle = function(p, v1, v2) { let tg = getTargetImages(); if(tg.length===0) return; let cur = v1; if(tg[0].texts.length>0) { let t = tg[0].texts.find(x=>x.id===state.activeElementId) || tg[0].texts[tg[0].texts.length-1]; if(t) cur = t[p]; } window.updateProp(p, cur===v1?v2:v1); };
-        
-        window.renderRenameList = function() {
-            const cont = document.getElementById('rename-list-container'); cont.innerHTML = '';
-            const tg = getTargetImages(); if(tg.length===0) { cont.innerHTML = '<div style="text-align:center;color:#777;margin-top:20px; font-style:italic;">Chưa chọn ảnh</div>'; return; }
-            tg.forEach(img => {
-                const d = document.createElement('div'); d.className = 'rename-item';
-                d.innerHTML = `<img src="${img.src}"><input type="text" value="${img.customName||''}" placeholder="Nhập tên mới...">`;
-                d.querySelector('input').addEventListener('input', e => img.customName = e.target.value); cont.appendChild(d);
-            });
-        };
-        
-        document.getElementById('btn-apply-batch-name').addEventListener('click', function() { 
-            const bn = document.getElementById('batch-name-input').value.trim(); if(!bn) return; 
-            getTargetImages().forEach((img, idx) => img.customName = `${bn}_${idx+1}`); 
-            window.renderRenameList(); 
-            const originalHTML = this.innerHTML; this.innerHTML = '<i class="fa-solid fa-check"></i> Đã áp dụng'; this.classList.replace('btn-blue', 'bg-green-600');
-            setTimeout(() => { this.innerHTML = originalHTML; this.classList.replace('bg-green-600', 'btn-blue'); }, 1500);
-        });
-
-        function renderImages() {
-            grid.innerHTML = '';
-            state.images.forEach(imgData => {
-                const card = document.createElement('div'); card.className = `image-card ${imgData.selected ? 'selected' : ''}`; card.dataset.id = imgData.id; card.style.aspectRatio = imgData.ratio !== 'auto' ? imgData.ratio : 'auto';
-                card.innerHTML = `<i class="fa-solid fa-circle-check check-icon"></i><i class="fa-solid fa-thumbtack pin-icon" onclick="event.stopPropagation(); const idx=state.images.findIndex(i=>i.id==='${imgData.id}'); if(idx>0){ const [it]=state.images.splice(idx,1); state.images.unshift(it); renderImages(); }"></i>`;
-                const img = document.createElement('img'); img.className = 'base-img'; img.src = imgData.src;
-                if(imgData.ratio !== 'auto') {
-                    img.style.height = '100%'; img.style.objectFit = 'cover'; img.style.objectPosition = `${imgData.panX}% ${imgData.panY}%`;
-                    let isP = false, sX, sY, iX, iY;
-                    img.addEventListener('touchstart', e => { isP=false; sX=e.touches[0].clientX; sY=e.touches[0].clientY; iX=imgData.panX; iY=imgData.panY; }, {passive:true});
-                    img.addEventListener('touchmove', e => { const dx=e.touches[0].clientX-sX; const dy=e.touches[0].clientY-sY; if(Math.abs(dx)>5||Math.abs(dy)>5) isP=true; const pR=img.parentElement.getBoundingClientRect(); imgData.panX=Math.max(0,Math.min(100,iX-(dx/pR.width)*100)); imgData.panY=Math.max(0,Math.min(100,iY-(dy/pR.height)*100)); img.style.objectPosition=`${imgData.panX}% ${imgData.panY}%`; }, {passive:true});
-                    img.addEventListener('touchend', e => { if(isP) e.stopPropagation(); });
-                }
-                card.appendChild(img);
-                
-                state.layerOrder.forEach(layer => {
-                    if(layer.type === 'wm') {
-                        const wI = imgData.wms.find(w=>w.id===layer.id); if(!wI) return;
-                        const wDiv = document.createElement('div'); wDiv.className = `overlay-item ${state.activeElementId===wI.id?'active':''}`;
-                        wDiv.style.left=`${wI.x}%`; wDiv.style.top=`${wI.y}%`; wDiv.style.width=`${wI.scale}%`; wDiv.style.opacity=wI.opacity/100; wDiv.style.transform=`translate(-50%,-50%) rotate(${wI.rotation||0}deg)`;
-                        wDiv.innerHTML = `<img class="overlay-img" src="${wI.src}"><div class="ctrl-btn ctrl-delete"><i class="fa-solid fa-times"></i></div><div class="ctrl-btn ctrl-scale-rotate"><i class="fa-solid fa-arrows-up-down-left-right"></i></div>`;
-                        setupTouchDrag(wDiv, imgData, wI, 'wm'); card.appendChild(wDiv);
-                    } else {
-                        const tI = imgData.texts.find(t=>t.id===layer.id); if(!tI) return;
-                        const tDiv = document.createElement('div'); tDiv.className = `overlay-item text-layer ${state.activeElementId===tI.id?'active':''}`;
-                        tDiv.style.left=`${tI.x}%`; tDiv.style.top=`${tI.y}%`; tDiv.style.fontSize=`${tI.scale/5}cqw`; tDiv.style.color=tI.color; tDiv.style.opacity=tI.opacity/100; tDiv.style.transform=`translate(-50%,-50%) rotate(${tI.rotation||0}deg)`;
-                        tDiv.style.fontFamily=tI.fontFamily; tDiv.style.fontWeight=tI.fontWeight; tDiv.style.fontStyle=tI.fontStyle; tDiv.style.textShadow=tI.textShadow; tDiv.style.webkitTextStroke=tI.stroke!=='transparent'?`4px ${tI.stroke}`:'0px transparent';
-                        tDiv.innerHTML = `<span>${tI.val}</span><div class="ctrl-btn ctrl-delete"><i class="fa-solid fa-times"></i></div><div class="ctrl-btn ctrl-scale-rotate"><i class="fa-solid fa-arrows-up-down-left-right"></i></div>`;
-                        setupTouchDrag(tDiv, imgData, tI, 'text'); card.appendChild(tDiv);
-                    }
-                });
-
-                card.addEventListener('click', e => { if(e.target.closest('.overlay-item')||e.target.closest('.pin-icon')) return; imgData.selected=!imgData.selected; state.activeElementId=null; renderImages(); renderLayers(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
-                grid.appendChild(card);
-            });
-        }
-
-        function setupTouchDrag(el, iD, itD, ty) {
-            let isD=false, isS=false, sX, sY, iX, iY, iSc, iR, cX, cY, sA;
-            el.addEventListener('touchstart', e => {
-                state.activeElementId=itD.id; state.activeEditTarget=ty; document.querySelector(`input[name="adjust-target"][value="${ty}"]`).checked=true;
-                if(e.target.closest('.ctrl-delete')){ window.deleteLayer(itD.id, ty, e); return; }
-                const t=e.touches[0];
-                if(e.target.closest('.ctrl-scale-rotate')){
-                    isS=true; const r=el.getBoundingClientRect(); cX=r.left+r.width/2; cY=r.top+r.height/2; iSc=itD.scale; iR=itD.rotation||0; sX=t.clientX; sY=t.clientY; sA=Math.atan2(sY-cY,sX-cX);
-                } else { isD=true; sX=t.clientX; sY=t.clientY; iX=itD.x; iY=itD.y; }
-                document.querySelectorAll('.overlay-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); syncSliders(); renderLayers();
-            }, {passive:true});
-            el.addEventListener('touchmove', e => {
-                if(!isD && !isS) return; e.preventDefault(); const t=e.touches[0];
-                if(isD){ const pR=el.parentElement.getBoundingClientRect(); itD.x=iX+((t.clientX-sX)/pR.width)*100; itD.y=iY+((t.clientY-sY)/pR.height)*100; el.style.left=`${itD.x}%`; el.style.top=`${itD.y}%`; document.getElementById('slider-x').value=itD.x; document.getElementById('slider-y').value=itD.y; }
-                else if(isS){ const dist=Math.sqrt(Math.pow(t.clientX-cX,2)+Math.pow(t.clientY-cY,2)); itD.scale=iSc*(dist/(Math.sqrt(Math.pow(sX-cX,2)+Math.pow(sY-cY,2))||1)); itD.rotation=iR+((Math.atan2(t.clientY-cY,t.clientX-cX)-sA)*(180/Math.PI)); el.style.transform=`translate(-50%,-50%) rotate(${itD.rotation}deg)`; if(ty==='text') el.style.fontSize=`${itD.scale/5}cqw`; else el.style.width=`${itD.scale}%`; document.getElementById('slider-scale').value=itD.scale; }
-            });
-            el.addEventListener('touchend', () => { isD=false; isS=false; const tg=getTargetImages(); if(tg.length>1||(!iD.selected && tg.length===state.images.length)){ tg.forEach(i=>{ const match=(ty==='text'?i.texts:i.wms).find(x=>x.id===state.activeElementId); if(match&&match!==itD){ match.x=itD.x; match.y=itD.y; match.scale=itD.scale; match.rotation=itD.rotation; } }); renderImages(); } });
-        }
-
-        document.getElementById('select-all-btn').addEventListener('click', e => { let aSel=!state.images[0]?.selected; state.images.forEach(i=>i.selected=aSel); e.target.innerText=aSel?'Bỏ chọn':'Chọn tất cả'; renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); document.getElementById('dropdown-menu-design').classList.remove('show'); });
-        document.getElementById('delete-selected-btn').addEventListener('click', () => { state.images=state.images.filter(i=>!i.selected); renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); document.getElementById('dropdown-menu-design').classList.remove('show');});
-
-        function syncSliders() { const tg=getTargetImages(); if(tg.length>0){ const items=state.activeEditTarget==='text'?tg[0].texts:tg[0].wms; let ref=items.find(i=>i.id===state.activeElementId)||items[items.length-1]; if(ref){ document.getElementById('slider-scale').value=ref.scale; document.getElementById('slider-x').value=ref.x; document.getElementById('slider-y').value=ref.y; document.getElementById('slider-opacity').value=ref.opacity; } } }
-        document.querySelectorAll('input[name="adjust-target"]').forEach(r => r.addEventListener('change', e => { state.activeEditTarget=e.target.value; state.activeElementId=null; syncSliders(); renderLayers(); }));
-        document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach((btn, idx) => { btn.addEventListener('click', () => { document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('#adjust-sliders .slider-row').forEach((d,i)=>d.style.display=i===idx?'flex':'none'); }); });
-        ['scale','x','y','opacity'].forEach(p => document.getElementById(`slider-${p}`).addEventListener('input', e => window.updateProp(p, e.target.value)));
-
-        const colorContainer = document.getElementById('color-picker-container');
-        ['#10adee','#ffffff','#000000','#d32f2f','#0056b3','#4caf50','#ffeb3b','#ff9800','#9c27b0','#795548','#e91e63'].forEach(c => { for(let i=0;i<4;i++){ const d=document.createElement('div'); d.className='color-dot'; d.style.background=c; d.addEventListener('click',()=>window.updateProp(state.colorMode,c)); colorContainer.appendChild(d); } });
-
-        document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const tg=btn.dataset.target; document.getElementById('color-picker-container').style.display=(tg==='color'||tg==='stroke')?'flex':'none'; document.getElementById('font-picker-container').style.display=tg==='font'?'flex':'none'; document.getElementById('style-picker-container').style.display=tg==='style'?'flex':'none'; if(tg==='color') state.colorMode='color'; if(tg==='stroke') state.colorMode='stroke'; }); });
-
-        document.getElementById('btn-open-input').addEventListener('click', () => { if(state.activeElementId && state.activeEditTarget==='text'){ const t=getTargetImages()[0]?.texts.find(x=>x.id===state.activeElementId); document.getElementById('main-text-input').value=t?t.val:''; } else document.getElementById('main-text-input').value=''; document.getElementById('input-overlay').style.display='flex'; document.getElementById('main-text-input').focus(); });
-        document.getElementById('btn-close-input').addEventListener('click', () => document.getElementById('input-overlay').style.display='none');
-        document.getElementById('btn-apply-input').addEventListener('click', () => { const v=document.getElementById('main-text-input').value.trim(); if(!v) return; if(state.activeElementId && state.activeEditTarget==='text') window.updateProp('val', v); else { const sI=generateId(); getTargetImages().forEach(i=>i.texts.push(createText(v,sI))); state.layerOrder.push({id:sI,type:'text'}); state.activeElementId=sI; state.activeEditTarget='text'; document.querySelector(`input[name="adjust-target"][value="text"]`).checked=true; } renderImages(); renderLayers(); syncSliders(); document.getElementById('input-overlay').style.display='none'; });
-
-        document.getElementById('btn-delete-text').addEventListener('click', () => { getTargetImages().forEach(i=>i.texts=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
-        document.getElementById('btn-delete-wm').addEventListener('click', () => { getTargetImages().forEach(i=>i.wms=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
-
-        document.getElementById('btn-save-text-wm').addEventListener('click', () => {
-            const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showAlert('Không có chữ.');
-            let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
-            const c=document.createElement('canvas'); const cx=c.getContext('2d'); c.width=800; c.height=200;
-            cx.font=`${t.fontStyle} ${t.fontWeight} 60px '${t.fontFamily}'`; cx.fillStyle=t.color; cx.textAlign='center'; cx.textBaseline='middle';
-            if(t.textShadow!=='none'){ cx.shadowColor="rgba(0,0,0,0.8)"; cx.shadowBlur=4; cx.shadowOffsetX=2; cx.shadowOffsetY=2; }
-            if(t.stroke!=='transparent'){ cx.strokeStyle=t.stroke; cx.lineWidth=6; cx.lineJoin="round"; cx.strokeText(t.val,400,100); }
-            cx.shadowColor="transparent"; cx.fillText(t.val,400,100);
-            state.savedWatermarks.push(c.toDataURL()); saveStorageWMs(); renderWMLibrary(); showAlert('Đã lưu thành Watermark');
-        });
-
-        document.getElementById('wm-upload').addEventListener('change', e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ state.savedWatermarks.push(ev.target.result); saveStorageWMs(); const sI=generateId(); getTargetImages().forEach(i=>i.wms.push(createWm(ev.target.result,sI))); state.layerOrder.push({id:sI,type:'wm'}); state.activeElementId=sI; state.activeEditTarget='wm'; document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; renderWMLibrary(); renderImages(); renderLayers(); syncSliders(); }; r.readAsDataURL(f); });
-
-        const wmP = document.getElementById('watermark-popup');
-        document.getElementById('btn-open-wm-library').addEventListener('click', () => { renderWMLibrary(); wmP.style.display='flex'; });
-        document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
-
-        function renderWMLibrary() {
-            const grid=document.getElementById('wm-library-grid'); grid.innerHTML='';
-            state.savedWatermarks.forEach((src,idx) => {
-                const i=document.createElement('div'); i.className='wm-item'; i.innerHTML=`<img src="${src}"><div class="wm-delete-btn"><i class="fa-solid fa-times"></i></div>`;
-                i.querySelector('.wm-delete-btn').addEventListener('click', e => { e.stopPropagation(); state.savedWatermarks.splice(idx,1); saveStorageWMs(); renderWMLibrary(); });
-                i.addEventListener('click', () => { const sI=generateId(); getTargetImages().forEach(im=>im.wms.push(createWm(src,sI))); state.layerOrder.push({id:sI,type:'wm'}); state.activeElementId=sI; state.activeEditTarget='wm'; document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; renderImages(); renderLayers(); syncSliders(); wmP.style.display='none'; });
-                grid.appendChild(i);
-            });
-        }
 
         async function processAllEditedImages() {
             showAlert('Đang xử lý xuất ảnh...', true); state.activeElementId = null; renderImages(); renderLayers();
@@ -1286,7 +1097,7 @@
                     let createRes = await apiCall('createFolder', { name: "ĐÃ CHỈNH SỬA" });
                     newFolderId = createRes.folderId || createRes.id;
                     if (newFolderId) {
-                        currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder", meta: {} });
+                        currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
                         renderItems(currentDriveItems);
                     }
                 }
@@ -1301,6 +1112,176 @@
                 closeAlert(); showAlert(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào thư mục "ĐÃ CHỈNH SỬA"!`);
             } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
+
+        // ĐÃ SỬA LỖI NÚT CUỘN LÊN/XUỐNG CHO GIAO DIỆN DESIGN
+        let scrollInterval = null;
+        function startScroll(dir) { 
+            if(scrollInterval) clearInterval(scrollInterval); 
+            scrollInterval = setInterval(() => {
+                mainContainerOverlay.scrollTop += dir * 25; 
+            }, 16); 
+        }
+        function stopScroll() { if(scrollInterval) { clearInterval(scrollInterval); scrollInterval = null; } }
+        ['touchstart', 'mousedown'].forEach(evt => { 
+            document.getElementById('scroll-up-btn').addEventListener(evt, (e) => { e.preventDefault(); startScroll(-1); }); 
+            document.getElementById('scroll-down-btn').addEventListener(evt, (e) => { e.preventDefault(); startScroll(1); }); 
+        });
+        ['touchend', 'mouseup', 'mouseleave'].forEach(evt => { 
+            document.getElementById('scroll-up-btn').addEventListener(evt, stopScroll); 
+            document.getElementById('scroll-down-btn').addEventListener(evt, stopScroll); 
+        });
+
+        function renderLayers() {
+            const menu = document.getElementById('layer-menu'); menu.innerHTML = '<div class="layer-title">Thứ tự Z-Index</div>';
+            if(state.layerOrder.length === 0) { menu.innerHTML += '<div style="padding:15px; font-size:13px; text-align:center;">Trống</div>'; return; }
+            [...state.layerOrder].reverse().forEach((layer, revIdx) => {
+                const realIndex = state.layerOrder.length - 1 - revIdx;
+                const itemDiv = document.createElement('div'); itemDiv.className = `layer-item ${state.activeElementId === layer.id ? 'active-layer' : ''}`; itemDiv.draggable = true;
+                let cHTML = layer.type === 'text' ? `<i class="fa-solid fa-font" style="color:red"></i> <span>Chữ</span>` : `<i class="fa-solid fa-image"></i> <span>Ảnh</span>`;
+                itemDiv.innerHTML = `<div class="layer-info" onclick="window.selectLayer('${layer.id}', '${layer.type}')">${cHTML}</div>
+                    <div class="layer-controls"><i class="fa-solid fa-chevron-up" onclick="window.moveLayer(${realIndex}, 1, event)"></i><i class="fa-solid fa-chevron-down" onclick="window.moveLayer(${realIndex}, -1, event)"></i><i class="fa-solid fa-trash text-red" onclick="window.deleteLayer('${layer.id}', '${layer.type}', event)"></i></div>`;
+                itemDiv.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', realIndex); });
+                itemDiv.addEventListener('dragover', e => { e.preventDefault(); itemDiv.style.background = '#f5f5f5'; });
+                itemDiv.addEventListener('dragleave', e => itemDiv.style.background = '');
+                itemDiv.addEventListener('drop', e => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain')); if(fromIdx !== realIndex){ const [mv] = state.layerOrder.splice(fromIdx, 1); state.layerOrder.splice(realIndex, 0, mv); renderImages(); renderLayers(); } });
+                menu.appendChild(itemDiv);
+            });
+        }
+
+        window.selectLayer = function(id, type) { state.activeElementId = id; state.activeEditTarget = type; document.querySelector(`input[name="adjust-target"][value="${type}"]`).checked = true; renderImages(); renderLayers(); syncSliders(); const ap = document.querySelector('.nav-item[data-panel="panel-adjust"]'); if(!ap.classList.contains('active')) ap.click(); };
+        window.moveLayer = function(idx, dir, e) { e.stopPropagation(); const nIdx = idx + dir; if(nIdx < 0 || nIdx >= state.layerOrder.length) return; const t = state.layerOrder[idx]; state.layerOrder[idx] = state.layerOrder[nIdx]; state.layerOrder[nIdx] = t; renderImages(); renderLayers(); };
+        window.deleteLayer = function(id, type, e) { if(e) e.stopPropagation(); getTargetImages().forEach(img => { if(type === 'text') img.texts = img.texts.filter(t => t.id !== id); else img.wms = img.wms.filter(w => w.id !== id); }); cleanUpLayerOrder(); if (state.activeElementId === id) state.activeElementId = null; renderImages(); renderLayers(); };
+        
+        document.getElementById('menu-btn').addEventListener('click', () => { document.getElementById('dropdown-menu').classList.toggle('show'); document.getElementById('layer-menu').classList.remove('show'); });
+        document.getElementById('layer-btn').addEventListener('click', () => { renderLayers(); document.getElementById('layer-menu').classList.toggle('show'); document.getElementById('dropdown-menu').classList.remove('show'); });
+        
+        window.updateProp = function(key, val) { getTargetImages().forEach(img => { (state.activeEditTarget === 'text' ? img.texts : img.wms).forEach(item => { if(state.activeElementId){ if(item.id === state.activeElementId) item[key] = val; } else item[key] = val; }); }); renderImages(); };
+        window.applyRatio = function(r) { getTargetImages().forEach(img => img.ratio = r); renderImages(); };
+        window.toggleStyle = function(p, v1, v2) { let tg = getTargetImages(); if(tg.length===0) return; let cur = v1; if(tg[0].texts.length>0) { let t = tg[0].texts.find(x=>x.id===state.activeElementId) || tg[0].texts[tg[0].texts.length-1]; if(t) cur = t[p]; } window.updateProp(p, cur===v1?v2:v1); };
+        
+        window.renderRenameList = function() {
+            const cont = document.getElementById('rename-list-container'); cont.innerHTML = '';
+            const tg = getTargetImages(); if(tg.length===0) { cont.innerHTML = '<div style="text-align:center;color:#777;margin-top:20px; font-style:italic;">Chưa chọn ảnh</div>'; return; }
+            tg.forEach(img => {
+                const d = document.createElement('div'); d.className = 'rename-item';
+                d.innerHTML = `<img src="${img.src}"><input type="text" value="${img.customName||''}" placeholder="Nhập tên mới...">`;
+                d.querySelector('input').addEventListener('input', e => img.customName = e.target.value); cont.appendChild(d);
+            });
+        };
+        
+        document.getElementById('btn-apply-batch-name').addEventListener('click', function() { 
+            const bn = document.getElementById('batch-name-input').value.trim(); if(!bn) return; 
+            getTargetImages().forEach((img, idx) => img.customName = `${bn}_${idx+1}`); 
+            window.renderRenameList(); 
+            const originalHTML = this.innerHTML; this.innerHTML = '<i class="fa-solid fa-check"></i> Đã áp dụng'; this.classList.replace('btn-blue', 'bg-green-600');
+            setTimeout(() => { this.innerHTML = originalHTML; this.classList.replace('bg-green-600', 'btn-blue'); }, 1500);
+        });
+
+        function renderImages() {
+            grid.innerHTML = '';
+            state.images.forEach(imgData => {
+                const card = document.createElement('div'); card.className = `image-card ${imgData.selected ? 'selected' : ''}`; card.dataset.id = imgData.id; card.style.aspectRatio = imgData.ratio !== 'auto' ? imgData.ratio : 'auto';
+                card.innerHTML = `<i class="fa-solid fa-circle-check check-icon"></i><i class="fa-solid fa-thumbtack pin-icon" onclick="event.stopPropagation(); const idx=state.images.findIndex(i=>i.id==='${imgData.id}'); if(idx>0){ const [it]=state.images.splice(idx,1); state.images.unshift(it); renderImages(); }"></i>`;
+                const img = document.createElement('img'); img.className = 'base-img'; img.src = imgData.src;
+                if(imgData.ratio !== 'auto') {
+                    img.style.height = '100%'; img.style.objectFit = 'cover'; img.style.objectPosition = `${imgData.panX}% ${imgData.panY}%`;
+                    let isP = false, sX, sY, iX, iY;
+                    img.addEventListener('touchstart', e => { isP=false; sX=e.touches[0].clientX; sY=e.touches[0].clientY; iX=imgData.panX; iY=imgData.panY; }, {passive:true});
+                    img.addEventListener('touchmove', e => { const dx=e.touches[0].clientX-sX; const dy=e.touches[0].clientY-sY; if(Math.abs(dx)>5||Math.abs(dy)>5) isP=true; const pR=img.parentElement.getBoundingClientRect(); imgData.panX=Math.max(0,Math.min(100,iX-(dx/pR.width)*100)); imgData.panY=Math.max(0,Math.min(100,iY-(dy/pR.height)*100)); img.style.objectPosition=`${imgData.panX}% ${imgData.panY}%`; }, {passive:true});
+                    img.addEventListener('touchend', e => { if(isP) e.stopPropagation(); });
+                }
+                card.appendChild(img);
+                
+                state.layerOrder.forEach(layer => {
+                    if(layer.type === 'wm') {
+                        const wI = imgData.wms.find(w=>w.id===layer.id); if(!wI) return;
+                        const wDiv = document.createElement('div'); wDiv.className = `overlay-item ${state.activeElementId===wI.id?'active':''}`;
+                        wDiv.style.left=`${wI.x}%`; wDiv.style.top=`${wI.y}%`; wDiv.style.width=`${wI.scale}%`; wDiv.style.opacity=wI.opacity/100; wDiv.style.transform=`translate(-50%,-50%) rotate(${wI.rotation||0}deg)`;
+                        wDiv.innerHTML = `<img class="overlay-img" src="${wI.src}"><div class="ctrl-btn ctrl-delete"><i class="fa-solid fa-times"></i></div><div class="ctrl-btn ctrl-scale-rotate"><i class="fa-solid fa-arrows-up-down-left-right"></i></div>`;
+                        setupTouchDrag(wDiv, imgData, wI, 'wm'); card.appendChild(wDiv);
+                    } else {
+                        const tI = imgData.texts.find(t=>t.id===layer.id); if(!tI) return;
+                        const tDiv = document.createElement('div'); tDiv.className = `overlay-item text-layer ${state.activeElementId===tI.id?'active':''}`;
+                        tDiv.style.left=`${tI.x}%`; tDiv.style.top=`${tI.y}%`; tDiv.style.fontSize=`${tI.scale/5}cqw`; tDiv.style.color=tI.color; tDiv.style.opacity=tI.opacity/100; tDiv.style.transform=`translate(-50%,-50%) rotate(${tI.rotation||0}deg)`;
+                        tDiv.style.fontFamily=tI.fontFamily; tDiv.style.fontWeight=tI.fontWeight; tDiv.style.fontStyle=tI.fontStyle; tDiv.style.textShadow=tI.textShadow; tDiv.style.webkitTextStroke=tI.stroke!=='transparent'?`4px ${tI.stroke}`:'0px transparent';
+                        tDiv.innerHTML = `<span>${tI.val}</span><div class="ctrl-btn ctrl-delete"><i class="fa-solid fa-times"></i></div><div class="ctrl-btn ctrl-scale-rotate"><i class="fa-solid fa-arrows-up-down-left-right"></i></div>`;
+                        setupTouchDrag(tDiv, imgData, tI, 'text'); card.appendChild(tDiv);
+                    }
+                });
+
+                card.addEventListener('click', e => { if(e.target.closest('.overlay-item')||e.target.closest('.pin-icon')) return; imgData.selected=!imgData.selected; state.activeElementId=null; renderImages(); renderLayers(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
+                grid.appendChild(card);
+            });
+        }
+
+        function setupTouchDrag(el, iD, itD, ty) {
+            let isD=false, isS=false, sX, sY, iX, iY, iSc, iR, cX, cY, sA;
+            el.addEventListener('touchstart', e => {
+                state.activeElementId=itD.id; state.activeEditTarget=ty; document.querySelector(`input[name="adjust-target"][value="${ty}"]`).checked=true;
+                if(e.target.closest('.ctrl-delete')){ window.deleteLayer(itD.id, ty, e); return; }
+                const t=e.touches[0];
+                if(e.target.closest('.ctrl-scale-rotate')){
+                    isS=true; const r=el.getBoundingClientRect(); cX=r.left+r.width/2; cY=r.top+r.height/2; iSc=itD.scale; iR=itD.rotation||0; sX=t.clientX; sY=t.clientY; sA=Math.atan2(sY-cY,sX-cX);
+                } else { isD=true; sX=t.clientX; sY=t.clientY; iX=itD.x; iY=itD.y; }
+                document.querySelectorAll('.overlay-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); syncSliders(); renderLayers();
+            }, {passive:true});
+            el.addEventListener('touchmove', e => {
+                if(!isD && !isS) return; e.preventDefault(); const t=e.touches[0];
+                if(isD){ const pR=el.parentElement.getBoundingClientRect(); itD.x=iX+((t.clientX-sX)/pR.width)*100; itD.y=iY+((t.clientY-sY)/pR.height)*100; el.style.left=`${itD.x}%`; el.style.top=`${itD.y}%`; document.getElementById('slider-x').value=itD.x; document.getElementById('slider-y').value=itD.y; }
+                else if(isS){ const dist=Math.sqrt(Math.pow(t.clientX-cX,2)+Math.pow(t.clientY-cY,2)); itD.scale=iSc*(dist/(Math.sqrt(Math.pow(sX-cX,2)+Math.pow(sY-cY,2))||1)); itD.rotation=iR+((Math.atan2(t.clientY-cY,t.clientX-cX)-sA)*(180/Math.PI)); el.style.transform=`translate(-50%,-50%) rotate(${itD.rotation}deg)`; if(ty==='text') el.style.fontSize=`${itD.scale/5}cqw`; else el.style.width=`${itD.scale}%`; document.getElementById('slider-scale').value=itD.scale; }
+            });
+            el.addEventListener('touchend', () => { isD=false; isS=false; const tg=getTargetImages(); if(tg.length>1||(!iD.selected && tg.length===state.images.length)){ tg.forEach(i=>{ const match=(ty==='text'?i.texts:i.wms).find(x=>x.id===state.activeElementId); if(match&&match!==itD){ match.x=itD.x; match.y=itD.y; match.scale=itD.scale; match.rotation=itD.rotation; } }); renderImages(); } });
+        }
+
+        let aSel=false;
+        document.getElementById('select-all-btn').addEventListener('click', e => { aSel=!aSel; state.images.forEach(i=>i.selected=aSel); e.target.innerText=aSel?'Bỏ chọn':'Chọn tất cả'; renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
+        document.getElementById('delete-selected-btn').addEventListener('click', () => { state.images=state.images.filter(i=>!i.selected); renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
+
+        document.querySelectorAll('.nav-item').forEach(item => { item.addEventListener('click', () => { const tP = document.getElementById(item.dataset.panel); if(item.classList.contains('active')){ item.classList.remove('active'); tP.classList.remove('active'); } else { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); item.classList.add('active'); tP.classList.add('active'); if(item.dataset.panel==='panel-rename') window.renderRenameList(); } }); });
+
+        function syncSliders() { const tg=getTargetImages(); if(tg.length>0){ const items=state.activeEditTarget==='text'?tg[0].texts:tg[0].wms; let ref=items.find(i=>i.id===state.activeElementId)||items[items.length-1]; if(ref){ document.getElementById('slider-scale').value=ref.scale; document.getElementById('slider-x').value=ref.x; document.getElementById('slider-y').value=ref.y; document.getElementById('slider-opacity').value=ref.opacity; } } }
+        document.querySelectorAll('input[name="adjust-target"]').forEach(r => r.addEventListener('change', e => { state.activeEditTarget=e.target.value; state.activeElementId=null; syncSliders(); renderLayers(); }));
+        document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach((btn, idx) => { btn.addEventListener('click', () => { document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('#adjust-sliders .slider-row').forEach((d,i)=>d.style.display=i===idx?'flex':'none'); }); });
+        ['scale','x','y','opacity'].forEach(p => document.getElementById(`slider-${p}`).addEventListener('input', e => window.updateProp(p, e.target.value)));
+
+        const colorContainer = document.getElementById('color-picker-container');
+        ['#10adee','#ffffff','#000000','#d32f2f','#0056b3','#4caf50','#ffeb3b','#ff9800','#9c27b0','#795548','#e91e63'].forEach(c => { for(let i=0;i<4;i++){ const d=document.createElement('div'); d.className='color-dot'; d.style.background=c; d.addEventListener('click',()=>window.updateProp(state.colorMode,c)); colorContainer.appendChild(d); } });
+
+        document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const tg=btn.dataset.target; document.getElementById('color-picker-container').style.display=(tg==='color'||tg==='stroke')?'flex':'none'; document.getElementById('font-picker-container').style.display=tg==='font'?'flex':'none'; document.getElementById('style-picker-container').style.display=tg==='style'?'flex':'none'; if(tg==='color') state.colorMode='color'; if(tg==='stroke') state.colorMode='stroke'; }); });
+
+        document.getElementById('btn-open-input').addEventListener('click', () => { if(state.activeElementId && state.activeEditTarget==='text'){ const t=getTargetImages()[0]?.texts.find(x=>x.id===state.activeElementId); document.getElementById('main-text-input').value=t?t.val:''; } else document.getElementById('main-text-input').value=''; document.getElementById('input-overlay').style.display='flex'; document.getElementById('main-text-input').focus(); });
+        document.getElementById('btn-close-input').addEventListener('click', () => document.getElementById('input-overlay').style.display='none');
+        document.getElementById('btn-apply-input').addEventListener('click', () => { const v=document.getElementById('main-text-input').value.trim(); if(!v) return; if(state.activeElementId && state.activeEditTarget==='text') window.updateProp('val', v); else { const sI=generateId(); getTargetImages().forEach(i=>i.texts.push(createText(v,sI))); state.layerOrder.push({id:sI,type:'text'}); state.activeElementId=sI; state.activeEditTarget='text'; document.querySelector(`input[name="adjust-target"][value="text"]`).checked=true; } renderImages(); renderLayers(); syncSliders(); document.getElementById('input-overlay').style.display='none'; });
+
+        document.getElementById('btn-delete-text').addEventListener('click', () => { getTargetImages().forEach(i=>i.texts=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
+        document.getElementById('btn-delete-wm').addEventListener('click', () => { getTargetImages().forEach(i=>i.wms=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
+
+        document.getElementById('btn-save-text-wm').addEventListener('click', () => {
+            const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showAlert('Không có chữ.');
+            let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
+            const c=document.createElement('canvas'); const cx=c.getContext('2d'); c.width=800; c.height=200;
+            cx.font=`${t.fontStyle} ${t.fontWeight} 60px '${t.fontFamily}'`; cx.fillStyle=t.color; cx.textAlign='center'; cx.textBaseline='middle';
+            if(t.textShadow!=='none'){ cx.shadowColor="rgba(0,0,0,0.8)"; cx.shadowBlur=4; cx.shadowOffsetX=2; cx.shadowOffsetY=2; }
+            if(t.stroke!=='transparent'){ cx.strokeStyle=t.stroke; cx.lineWidth=6; cx.lineJoin="round"; cx.strokeText(t.val,400,100); }
+            cx.shadowColor="transparent"; cx.fillText(t.val,400,100);
+            state.savedWatermarks.push(c.toDataURL()); saveStorageWMs(); renderWMLibrary(); showAlert('Đã lưu thành Watermark');
+        });
+
+        document.getElementById('wm-upload').addEventListener('change', e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ state.savedWatermarks.push(ev.target.result); saveStorageWMs(); const sI=generateId(); getTargetImages().forEach(i=>i.wms.push(createWm(ev.target.result,sI))); state.layerOrder.push({id:sI,type:'wm'}); state.activeElementId=sI; state.activeEditTarget='wm'; document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; renderWMLibrary(); renderImages(); renderLayers(); syncSliders(); }; r.readAsDataURL(f); });
+
+        const wmP = document.getElementById('watermark-popup');
+        document.getElementById('btn-open-wm-library').addEventListener('click', () => { renderWMLibrary(); wmP.style.display='flex'; });
+        document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
+
+        function renderWMLibrary() {
+            const grid=document.getElementById('wm-library-grid'); grid.innerHTML='';
+            state.savedWatermarks.forEach((src,idx) => {
+                const i=document.createElement('div'); i.className='wm-item'; i.innerHTML=`<img src="${src}"><div class="wm-delete-btn"><i class="fa-solid fa-times"></i></div>`;
+                i.querySelector('.wm-delete-btn').addEventListener('click', e => { e.stopPropagation(); state.savedWatermarks.splice(idx,1); saveStorageWMs(); renderWMLibrary(); });
+                i.addEventListener('click', () => { const sI=generateId(); getTargetImages().forEach(im=>im.wms.push(createWm(src,sI))); state.layerOrder.push({id:sI,type:'wm'}); state.activeElementId=sI; state.activeEditTarget='wm'; document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; renderImages(); renderLayers(); syncSliders(); wmP.style.display='none'; });
+                grid.appendChild(i);
+            });
+        }
 
         function loadImage(src) {
             return new Promise(async (resolve, reject) => {
