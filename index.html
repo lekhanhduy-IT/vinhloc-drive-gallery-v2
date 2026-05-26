@@ -30,33 +30,18 @@
             --header-h: 56px; --bottom-h: 60px; --panel-h: 150px;
         }
 
-        #watermark-overlay-container {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: var(--gray-light); z-index: 9999;
-            display: none; flex-direction: column; font-family: 'Roboto', sans-serif;
-            color: var(--gray-dark);
-        }
+        /* SIDEBAR */
+        #sidebar { position: fixed; top: 0; left: -280px; width: 260px; height: 100vh; background: white; z-index: 9999; transition: 0.3s ease-in-out; box-shadow: 4px 0 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        #sidebar.open { left: 0; }
+        #sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; display: none; backdrop-filter: blur(2px); }
+        .sidebar-item { padding: 15px 20px; font-weight: 700; color: #4b5563; border-left: 4px solid transparent; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 12px; }
+        .sidebar-item.active { background: #eff6ff; color: var(--primary-blue); border-left-color: var(--primary-blue); }
 
-        #watermark-overlay-container header { height: var(--header-h); background: var(--bg-white); display: flex; justify-content: space-between; align-items: center; padding: 0 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 100; flex-shrink: 0; }
-        .header-icons { display: flex; gap: 20px; align-items: center; color: var(--primary-blue); font-size: 22px; }
-        .header-icons i { cursor: pointer; padding: 5px; }
-        .dropdown { position: relative; }
-        .dropdown-menu { display: none; position: absolute; right: 0; top: 100%; background: var(--bg-white); box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; min-width: 160px; z-index: 1000; }
-        .dropdown-menu.show { display: block; }
-        .dropdown-menu div.menu-item { padding: 12px 15px; font-size: 14px; border-bottom: 1px solid #f3f4f6; cursor: pointer; }
-        .dropdown-menu div.menu-item:active { background: var(--gray-light); }
-        .dropdown-menu div.text-red { color: var(--primary-red); }
-
-        #layer-menu { min-width: 250px; max-height: 400px; overflow-y: auto; right: -50px;}
-        .layer-title { padding: 10px; font-weight: bold; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px; }
-        .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: grab; background: white;}
-        .layer-item.active-layer { background: #eff6ff; }
-        .layer-info { display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1; cursor: pointer;}
-        .layer-info img { width: 24px; height: 24px; object-fit: contain; background: #e5e7eb; border-radius: 4px;}
-        .layer-info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; font-size: 14px;}
-        .layer-controls { display: flex; gap: 10px; color: var(--primary-blue); align-items: center;}
-
-        #main-container { flex: 1; overflow-y: auto; padding: 10px; padding-bottom: calc(var(--bottom-h) + var(--panel-h) + 20px); scrollbar-width: none; }
+        /* LIST & GRID CSS */
+        .mega-row { background: white; border-bottom: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+        .mega-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #1f2937; font-size: 15px; cursor: pointer; }
+        .subfolder-row { padding: 12px 16px 12px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; background: #f9fafb; cursor: pointer; }
+        .subfolder-row:active { background: #f3f4f6; }
         
         .masonry-grid { column-count: 2; column-gap: 10px; }
         .image-card { break-inside: avoid; margin-bottom: 10px; position: relative; background: #e5e7eb; width: 100%; overflow: hidden; border-radius: 12px; }
@@ -66,6 +51,12 @@
         .image-card.selected .check-icon { display: block; }
         .pin-icon { position: absolute; top: 8px; left: 8px; color: var(--primary-blue); background: white; border-radius: 50%; font-size: 14px; padding: 6px; z-index: 10; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
 
+        /* DESIGN UI */
+        #watermark-overlay-container { position: fixed; inset: 0; background-color: var(--gray-light); z-index: 9999; display: none; flex-direction: column; font-family: 'Roboto', sans-serif; color: var(--gray-dark); }
+        #watermark-overlay-container header { height: var(--header-h); background: var(--bg-white); display: flex; justify-content: space-between; align-items: center; padding: 0 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 100; flex-shrink: 0; }
+        .header-icons { display: flex; gap: 20px; align-items: center; color: var(--primary-blue); font-size: 22px; }
+        .header-icons i { cursor: pointer; padding: 5px; }
+        #main-container-overlay { flex: 1; overflow-y: auto; padding: 10px; padding-bottom: calc(var(--bottom-h) + var(--panel-h) + 20px); scrollbar-width: none; }
         .overlay-item { position: absolute; transform-origin: center; cursor: move; white-space: nowrap; line-height: 1; z-index: 5; }
         .overlay-img { display: block; width: 100%; height: auto; pointer-events: none; }
         .overlay-item.text-layer { paint-order: stroke fill; }
@@ -81,30 +72,26 @@
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-h); background: var(--bg-white); display: flex; box-shadow: 0 -4px 6px rgba(0,0,0,0.05); z-index: 200; border-top: 1px solid #f3f4f6; }
         .nav-item { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 12px; color: #6b7280; cursor: pointer; transition: 0.2s; }
         .nav-item.active { color: var(--primary-blue); font-weight: 700; }
-
         .control-panel { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: var(--panel-h); background: var(--bg-white); border-top: 1px solid #e5e7eb; z-index: 190; display: none; flex-direction: column; transition: 0.3s; transform: translateY(100%); }
         .control-panel.active { display: flex; transform: translateY(0); }
-        
         .sub-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid #f3f4f6; padding: 10px; gap: 10px; white-space: nowrap; flex-shrink: 0; }
         .sub-tabs::-webkit-scrollbar { display: none; }
         .sub-tab-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; background: none; font-size: 13px; cursor: pointer; color: var(--primary-blue); font-weight: 500; transition: 0.2s; }
         .sub-tab-btn.active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-        
         .panel-content { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; justify-content: center; }
         .slider-row { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #4b5563; }
         .slider-row input[type="range"] { flex: 1; accent-color: var(--primary-blue); }
-
         .color-list { display: flex; overflow-x: auto; gap: 12px; padding: 5px; }
         .color-list::-webkit-scrollbar { display: none; }
         .color-dot { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #e5e7eb; flex-shrink: 0; cursor: pointer; transition: 0.2s; }
         .color-dot:active { transform: scale(0.9); }
-
         .action-row { display: flex; justify-content: center; gap: 12px; }
         .btn { padding: 10px 16px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
         .btn-blue { background: var(--primary-blue); color: white; }
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
 
+        /* RENAME LIST TRONG DESIGN */
         .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
         .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
         .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
@@ -112,8 +99,7 @@
         .rename-item { display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb; flex-shrink: 0;}
         .rename-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db; flex-shrink: 0;}
         .rename-item input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
-        .rename-item input:focus { border-color: var(--primary-blue); }
-
+        
         #input-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); z-index: 500; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
         #main-text-input { width: 100%; max-width: 400px; padding: 16px; font-size: 22px; border: 2px solid var(--primary-blue); border-radius: 12px; text-align: center; outline: none; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.1); }
         
@@ -121,15 +107,34 @@
         .wm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; overflow-y: auto; margin-top: 15px; }
         .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; }
         .wm-item img { max-width: 90%; max-height: 90%; object-fit: contain; }
-        .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10; }
+        .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; z-index: 10; }
     </style>
 </head>
 
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
 
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div id="sidebar">
+        <div class="p-6 border-b flex justify-between items-center bg-blue-50">
+            <h2 class="font-bold text-xl text-blue-600">Danh Mục</h2>
+            <i class="fas fa-times text-2xl text-gray-500 cursor-pointer" onclick="toggleSidebar()"></i>
+        </div>
+        <div class="flex-1 overflow-y-auto py-2">
+            <div class="sidebar-item active" onclick="switchCategory('Triển khai')" id="menu-trienkhai">
+                <i class="fas fa-rocket w-6 text-center"></i> Triển khai
+            </div>
+            <div class="sidebar-item" onclick="switchCategory('Ý tưởng')" id="menu-ytuong">
+                <i class="fas fa-lightbulb w-6 text-center"></i> Ý tưởng
+            </div>
+        </div>
+    </div>
+
     <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-20">
-        <button id="btnBack" class="hidden text-xl p-2 active:bg-blue-700 rounded-full transition"><i class="fas fa-arrow-left"></i></button>
-        <h1 class="text-lg font-bold truncate flex-1 ml-2" id="currentFolderName">06. HÌNH ẢNH CONTENT</h1>
+        <div class="flex items-center gap-3">
+            <i class="fas fa-bars text-xl cursor-pointer p-1" id="btnMenu" onclick="toggleSidebar()"></i>
+            <button id="btnBack" class="hidden text-xl p-1 active:bg-blue-700 rounded-full transition"><i class="fas fa-arrow-left"></i></button>
+            <h1 class="text-lg font-bold truncate" id="currentFolderName">Triển khai</h1>
+        </div>
         <div id="loading" class="hidden loader"></div>
     </header>
 
@@ -140,9 +145,9 @@
         </div>
     </div>
 
-    <main class="flex-1 overflow-y-auto p-4 relative" id="contentArea">
-        <div id="folderList" class="flex flex-col gap-3 mb-6"></div>
-        <div id="fileList" class="grid grid-cols-2 gap-4"></div>
+    <main class="flex-1 overflow-y-auto relative bg-gray-100" id="contentArea">
+        <div id="folderList" class="flex flex-col mb-4 bg-white"></div>
+        <div id="fileList" class="grid grid-cols-2 gap-3 px-3"></div>
     </main>
 
     <div class="absolute bottom-6 right-6 flex flex-col-reverse items-end gap-3 z-30">
@@ -150,31 +155,77 @@
             <i class="fas fa-plus" id="fabIcon"></i>
         </button>
         
-        <button id="btn-open-design" title="Mở trình chỉnh sửa" class="bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl transition transform hover:scale-105 active:scale-95">
+        <button id="btn-open-design" title="Mở trình chỉnh sửa" class="bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl transition transform hover:scale-105 active:scale-95 hidden">
             <i class="fa-solid fa-pen"></i>
         </button>
 
         <div id="fabMenu" class="hidden flex-col gap-3 items-end mb-2 transition-all">
-            <button onclick="uiPrompt('Thư mục mới', 'Nhập tên thư mục...', handleCreateFolder)" class="bg-white text-blue-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold active:bg-gray-50 border border-gray-100">
+            <button onclick="uiPromptFolder()" class="bg-white text-blue-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold active:bg-gray-50 border border-gray-100">
                 <span class="text-sm pl-2">Thư mục mới</span>
                 <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center"><i class="fas fa-folder-plus"></i></div>
             </button>
             <label class="bg-white text-green-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Up File / Ảnh</span>
-                <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center"><i class="fas fa-cloud-upload-alt"></i></div>
-                <input type="file" id="uploadFile" class="hidden" multiple accept="image/*,video/*,application/pdf" onchange="handleMultipleFileUpload(event)">
+                <span class="text-sm pl-2">Up Ảnh</span>
+                <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center"><i class="fas fa-image"></i></div>
+                <input type="file" id="uploadImage" class="hidden" multiple accept="image/*" capture="environment" onchange="handleMultipleFileUpload(event)">
             </label>
+            <label class="bg-white text-purple-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
+                <span class="text-sm pl-2">Up Video</span>
+                <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center"><i class="fas fa-video"></i></div>
+                <input type="file" id="uploadVideo" class="hidden" multiple accept="video/mp4,video/*" capture="environment" onchange="handleMultipleFileUpload(event)">
+            </label>
+        </div>
+    </div>
+
+    <div id="infoModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[9999] transition-opacity backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl transform scale-95 transition-transform max-h-screen overflow-y-auto" id="infoBox">
+            <h3 class="text-xl font-bold mb-4 text-blue-600 border-b pb-2">Thông tin</h3>
+            
+            <div id="info-field-name" class="mb-4">
+                <label class="block text-sm font-bold text-gray-700 mb-1">Tên</label>
+                <input type="text" id="infoName" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50" />
+            </div>
+
+            <div id="info-field-type" class="mb-4 hidden">
+                <label class="block text-sm font-bold text-gray-700 mb-1">Loại</label>
+                <select id="infoType" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50">
+                    <option value="Triển khai">Triển khai</option>
+                    <option value="Ý tưởng">Ý tưởng</option>
+                </select>
+            </div>
+
+            <div id="info-field-desc" class="mb-4 hidden">
+                <label class="block text-sm font-bold text-gray-700 mb-1">Mô tả chi tiết</label>
+                <textarea id="infoDesc" rows="3" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50" placeholder="Ý tưởng, nội dung chứa bên trong..."></textarea>
+            </div>
+
+            <div id="info-field-cover" class="mb-6 hidden">
+                <label class="block text-sm font-bold text-gray-700 mb-1">Ảnh xem trước</label>
+                <div class="w-full h-32 bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden cursor-pointer" onclick="document.getElementById('infoCoverInput').click()">
+                    <img id="infoCoverPreview" src="" class="w-full h-full object-cover hidden">
+                    <div id="infoCoverPlaceholder" class="text-gray-400 flex flex-col items-center">
+                        <i class="fas fa-camera text-2xl mb-1"></i>
+                        <span class="text-xs font-medium">Bấm để tải ảnh lên</span>
+                    </div>
+                </div>
+                <input type="file" id="infoCoverInput" class="hidden" accept="image/*" onchange="handleCoverUpload(event)">
+            </div>
+
+            <div class="flex justify-end gap-3 mt-2">
+                <button onclick="closeInfoModal()" class="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl active:bg-gray-200 transition">Hủy</button>
+                <button id="infoSaveBtn" class="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl active:bg-blue-700 transition shadow-md shadow-blue-600/30">Lưu lại</button>
+            </div>
         </div>
     </div>
 
     <div id="customModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[9999] transition-opacity backdrop-blur-sm">
         <div class="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-2xl transform scale-95 transition-transform" id="modalBox">
-            <h3 id="modalTitle" class="text-lg font-bold mb-2 text-gray-800">Tiêu đề</h3>
-            <p id="modalDesc" class="text-sm text-gray-500 mb-4 hidden"></p>
-            <input type="text" id="modalInput" class="w-full border-2 border-gray-200 p-3.5 rounded-xl mb-6 focus:border-blue-600 outline-none transition font-medium" />
+            <h3 id="modalTitle" class="text-lg font-bold mb-2 text-gray-800">Xác nhận</h3>
+            <p id="modalDesc" class="text-sm text-gray-600 mb-5"></p>
+            <input type="text" id="modalInput" class="hidden" />
             <div class="flex justify-end gap-3">
-                <button onclick="closeModal()" class="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl active:bg-gray-200 transition">Hủy</button>
-                <button id="modalConfirmBtn" class="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl active:bg-blue-700 transition shadow-md shadow-blue-600/30">Xác nhận</button>
+                <button onclick="closeModal()" class="px-5 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl">Hủy</button>
+                <button id="modalConfirmBtn" class="px-5 py-2 bg-red-600 text-white font-bold rounded-xl">Xóa</button>
             </div>
         </div>
     </div>
@@ -360,45 +411,70 @@
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 
         let savedStack = localStorage.getItem('appFolderStack');
-        let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "06. HÌNH ẢNH CONTENT" }];
+        let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "Triển khai" }];
         let currentFolderId = folderStack[folderStack.length - 1].id;
         
-        // TRẠNG THÁI HIỆN TẠI ĐỂ ĐỒNG BỘ NGẦM (Optimistic Sync)
         let currentDriveItems = [];
+        let subFolderCache = {}; // Cache thư mục con của mega rows
+        
+        // HỆ THỐNG DATABASE LOCAL CHO METADATA
+        let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
+        function saveMeta() { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); }
+        function getMeta(id) { 
+            if(!appMeta[id]) {
+                appMeta[id] = { type: 'Triển khai', desc: '', cover: '' };
+                saveMeta();
+            }
+            return appMeta[id];
+        }
+
+        let currentCategory = 'Triển khai';
 
         const folderListEl = document.getElementById('folderList');
         const fileListEl = document.getElementById('fileList');
         const loading = document.getElementById('loading');
         const currentFolderName = document.getElementById('currentFolderName');
         const btnBack = document.getElementById('btnBack');
+        const btnMenu = document.getElementById('btnMenu');
         const fabMain = document.getElementById('fabMain');
         const fabMenu = document.getElementById('fabMenu');
         const fabIcon = document.getElementById('fabIcon');
-        const customModal = document.getElementById('customModal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalDesc = document.getElementById('modalDesc');
-        const modalInput = document.getElementById('modalInput');
-        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
-        const mediaViewer = document.getElementById('mediaViewer');
-        const mediaTitle = document.getElementById('mediaTitle');
-        const mediaContent = document.getElementById('mediaContent');
         const searchInput = document.getElementById('searchInput');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const btnOpenDesign = document.getElementById('btn-open-design');
 
-        // BẬT / TẮT FAB MENU
+        // ==== ĐIỀU KHIỂN UI CƠ BẢN ====
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            sidebarOverlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
+        }
+
+        function switchCategory(cat) {
+            currentCategory = cat;
+            document.getElementById('menu-trienkhai').classList.remove('active');
+            document.getElementById('menu-ytuong').classList.remove('active');
+            if(cat === 'Triển khai') document.getElementById('menu-trienkhai').classList.add('active');
+            else document.getElementById('menu-ytuong').classList.add('active');
+            
+            toggleSidebar();
+            currentFolderName.textContent = cat;
+            
+            // Xóa stack về root
+            folderStack = [{ id: ROOT_FOLDER_ID, name: cat }];
+            localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+            loadFolder(ROOT_FOLDER_ID, cat);
+        }
+
         fabMain.addEventListener('click', () => {
             fabMenu.classList.toggle('hidden');
             fabMenu.classList.toggle('flex');
             fabIcon.classList.toggle('fa-plus');
             fabIcon.classList.toggle('fa-times');
-            if(!fabMenu.classList.contains('hidden')) {
-                fabIcon.style.transform = 'rotate(135deg)';
-                fabIcon.style.transition = '0.3s';
-            } else {
-                fabIcon.style.transform = 'rotate(0deg)';
-            }
+            fabIcon.style.transform = fabMenu.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(135deg)';
+            fabIcon.style.transition = '0.3s';
         });
 
-        // QUAY LẠI THƯ MỤC CHA
         btnBack.addEventListener('click', () => {
             if (folderStack.length > 1) {
                 folderStack.pop();
@@ -410,10 +486,15 @@
 
         function updateBreadcrumbs() {
             if (folderStack.length === 1) {
-                currentFolderName.textContent = folderStack[0].name;
+                currentFolderName.textContent = currentCategory;
+                btnBack.classList.add('hidden');
+                btnMenu.classList.remove('hidden');
+                btnOpenDesign.classList.add('hidden'); // Giấu design ở root
             } else {
-                const pathString = folderStack.map(f => f.name).join(' > ');
-                currentFolderName.textContent = pathString;
+                currentFolderName.textContent = folderStack[folderStack.length - 1].name;
+                btnBack.classList.remove('hidden');
+                btnMenu.classList.add('hidden');
+                btnOpenDesign.classList.remove('hidden'); // Hiện design khi vào trong
             }
         }
 
@@ -430,7 +511,7 @@
             }
         }
 
-        // TẢI THƯ MỤC CÓ TỐI ƯU TRẢI NGHIỆM (Optimistic UI)
+        // TẢI THƯ MỤC CHÍNH
         async function loadFolder(folderId, folderName, isNewNavigation = false) {
             currentFolderId = folderId;
             if (isNewNavigation) { 
@@ -438,23 +519,19 @@
                 localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
             }
             updateBreadcrumbs(); 
-            btnBack.classList.toggle('hidden', folderStack.length <= 1);
             searchInput.value = ''; 
             
-            // Xóa rỗng trước khi nạp data mới để tránh dính DOM cũ
             folderListEl.innerHTML = '';
             fileListEl.innerHTML = '';
 
-            // Render nhanh từ LocalStorage nếu có
             const cachedData = localStorage.getItem(`folder_${folderId}`);
             if (cachedData) {
                 currentDriveItems = JSON.parse(cachedData);
                 renderItems(currentDriveItems);
             } else {
-                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full col-span-2"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang đồng bộ dữ liệu gốc...</div>';
+                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
             }
 
-            // Gọi API nền để lấy data mới nhất và Update
             const res = await apiCall('list');
             if (res && res.success) { 
                 currentDriveItems = res.data;
@@ -463,14 +540,14 @@
             }
         }
 
-        // TÌM KIẾM REALTIME
+        // TÌM KIẾM
         searchInput.addEventListener('input', (e) => {
             const keyword = e.target.value.toLowerCase();
             const filtered = currentDriveItems.filter(item => item.name.toLowerCase().includes(keyword));
             renderItems(filtered);
         });
 
-        // BẬT / TẮT MENU 3 CHẤM CỦA MỖI ITEM
+        // BẬT / TẮT MENU 3 CHẤM
         window.toggleItemMenu = function(id, e) {
             e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(menu => {
@@ -479,240 +556,420 @@
             document.getElementById(`menu-${id}`).classList.toggle('hidden');
         };
 
-        // ĐÓNG MENU 3 CHẤM KHI BẤM RA NGOÀI
         document.addEventListener('click', () => {
             document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
         });
 
-        // SỬA TÊN (Optimistic UI)
-        window.handleRename = function(id, oldName, type, e) {
+        // =====================================
+        // HỆ THỐNG MODAL THÔNG TIN (SỬA)
+        // =====================================
+        let currentEditId = null;
+        let currentEditLevel = null;
+        let currentEditType = null;
+        
+        window.openInfo = function(id, name, itemType, level, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
-            uiPrompt('Đổi tên tệp/thư mục', oldName, (newName) => {
-                if (newName && newName !== oldName) {
-                    // 1. Cập nhật UI ngay lập tức
-                    const item = currentDriveItems.find(i => i.id === id);
-                    if (item) item.name = newName;
-                    renderItems(currentDriveItems);
-                    
-                    // 2. Chạy ngầm API
-                    apiCall('rename', { id: id, newName: newName, type: type }).then(res => {
-                        if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
-                    });
-                }
-            });
+            currentEditId = id;
+            currentEditLevel = level;
+            currentEditType = itemType;
+            
+            const meta = getMeta(id);
+            
+            document.getElementById('infoName').value = name;
+            document.getElementById('infoType').value = meta.type || 'Triển khai';
+            document.getElementById('infoDesc').value = meta.desc || '';
+            
+            // Xóa ảnh cũ
+            document.getElementById('infoCoverInput').value = '';
+            const previewImg = document.getElementById('infoCoverPreview');
+            const placeholder = document.getElementById('infoCoverPlaceholder');
+            
+            if (meta.cover) {
+                previewImg.src = meta.cover;
+                previewImg.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            } else {
+                previewImg.src = '';
+                previewImg.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+            }
+
+            // Logic Ẩn hiện theo cấp độ
+            document.getElementById('info-field-type').classList.add('hidden');
+            document.getElementById('info-field-desc').classList.add('hidden');
+            document.getElementById('info-field-cover').classList.add('hidden');
+            
+            if (level === 'mega') {
+                // MEGA ROW: Cho sửa Tên, Loại, Mô tả
+                document.getElementById('info-field-type').classList.remove('hidden');
+                document.getElementById('info-field-desc').classList.remove('hidden');
+            } else if (level === 'sub') {
+                // SUBFOLDER: Cho sửa Tên, Mô tả, Ảnh xem trước
+                document.getElementById('info-field-desc').classList.remove('hidden');
+                document.getElementById('info-field-cover').classList.remove('hidden');
+            } 
+            // File: chỉ cho sửa tên (mặc định hiện infoName)
+
+            document.getElementById('infoModal').classList.remove('hidden');
+            document.getElementById('infoModal').classList.add('flex');
         };
 
-        // XÓA (Optimistic UI)
+        function closeInfoModal() {
+            document.getElementById('infoModal').classList.add('hidden');
+            document.getElementById('infoModal').classList.remove('flex');
+        }
+
+        // Xử lý nạp Base64 cho ảnh xem trước
+        window.handleCoverUpload = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const b64 = e.target.result;
+                document.getElementById('infoCoverPreview').src = b64;
+                document.getElementById('infoCoverPreview').classList.remove('hidden');
+                document.getElementById('infoCoverPlaceholder').classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        };
+
+        // Lưu thông tin
+        document.getElementById('infoSaveBtn').addEventListener('click', () => {
+            if(!currentEditId) return closeInfoModal();
+            
+            const meta = getMeta(currentEditId);
+            const newName = document.getElementById('infoName').value.trim();
+            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || 
+                            Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
+
+            if (currentEditLevel === 'mega') {
+                meta.type = document.getElementById('infoType').value;
+                meta.desc = document.getElementById('infoDesc').value.trim();
+            } else if (currentEditLevel === 'sub') {
+                meta.desc = document.getElementById('infoDesc').value.trim();
+                const coverSrc = document.getElementById('infoCoverPreview').src;
+                if(coverSrc && coverSrc.startsWith('data:')) {
+                    meta.cover = coverSrc;
+                }
+            }
+            saveMeta();
+
+            // Nếu đổi tên, cần báo Drive
+            if (newName && newName !== oldItem.name) {
+                oldItem.name = newName;
+                apiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
+            }
+
+            renderItems(currentDriveItems); // Render lại để lấy thay đổi UI lập tức
+            closeInfoModal();
+        });
+
+        // XÓA (Giữ nguyên Custom Modal đỏ)
         window.handleDelete = function(id, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
-            uiConfirm('Xóa vĩnh viễn', 'Bạn có chắc chắn muốn xóa mục này? Hành động này sẽ được thực hiện ngay lập tức và không thể hoàn tác.', () => {
-                // 1. Cập nhật UI ngay lập tức
+            
+            document.getElementById('modalTitle').textContent = 'Xác nhận xóa';
+            document.getElementById('modalDesc').textContent = 'Bạn có chắc chắn muốn xóa mục này? Hành động này không thể hoàn tác.';
+            document.getElementById('modalDesc').classList.remove('hidden');
+            document.getElementById('modalInput').classList.add('hidden');
+            
+            document.getElementById('modalConfirmBtn').onclick = () => {
+                // Xóa UI
                 currentDriveItems = currentDriveItems.filter(i => i.id !== id);
+                for(let megaId in subFolderCache) {
+                    subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
+                }
                 renderItems(currentDriveItems);
+                closeModal();
                 
-                // 2. Chạy ngầm API
+                // Chạy ngầm API
                 apiCall('delete', { id: id, type: type }).then(res => {
                     if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                 });
-            });
+            };
+            
+            document.getElementById('customModal').classList.remove('hidden');
+            document.getElementById('customModal').classList.add('flex');
         };
 
-        // PHÂN CHIA HIỂN THỊ: MEGA ROW (THƯ MỤC) - LƯỚI (FILE)
-        function renderItems(items) {
-            const folders = items.filter(i => i.type === 'folder');
-            const files = items.filter(i => i.type !== 'folder');
+        function closeModal() {
+            document.getElementById('customModal').classList.add('hidden');
+            document.getElementById('customModal').classList.remove('flex');
+        }
 
+        // =====================================
+        // RENDER: MEGA ROW, SUBFOLDERS, FILES
+        // =====================================
+        
+        // Mở / Đóng Accordion (Folder Mega)
+        window.toggleAccordion = async function(id) {
+            const body = document.getElementById(`acc-${id}`);
+            const icon = document.getElementById(`icon-${id}`);
+            
+            if(body.classList.contains('hidden')) {
+                body.classList.remove('hidden');
+                icon.style.transform = 'rotate(90deg)';
+                
+                // Nếu chưa có cache cho Mega Row này, gọi API
+                if(!subFolderCache[id]) {
+                    body.innerHTML = '<div class="text-center text-blue-400 py-3 text-sm"><div class="loader mx-auto border-blue-400 mb-1" style="width:16px;height:16px;"></div>Tải...</div>';
+                    const res = await apiCall('list', { folderId: id });
+                    if(res && res.success) {
+                        subFolderCache[id] = res.data.filter(i => i.type === 'folder'); // Chỉ lấy folder con
+                        renderSubFolders(id, subFolderCache[id]);
+                    } else {
+                        body.innerHTML = '<div class="text-center text-gray-400 py-3 text-sm">Lỗi tải dữ liệu</div>';
+                    }
+                } else {
+                    renderSubFolders(id, subFolderCache[id]);
+                }
+            } else {
+                body.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        };
+
+        function renderSubFolders(megaId, subFolders) {
+            const container = document.getElementById(`acc-${megaId}`);
+            if(subFolders.length === 0) {
+                container.innerHTML = '<div class="pl-14 py-3 text-sm text-gray-400 italic">Trống</div>';
+                return;
+            }
+            
+            container.innerHTML = subFolders.map(item => {
+                const meta = getMeta(item.id);
+                // Ảnh Cover hoặc icon mặc định
+                const imgHtml = meta.cover 
+                    ? `<img src="${meta.cover}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm">`
+                    : `<div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-500 text-xl"><i class="fas fa-folder"></i></div>`;
+                
+                return `
+                <div class="subfolder-row group" onclick="loadFolder('${item.id}', '${item.name}', true)">
+                    ${imgHtml}
+                    <div class="flex-1 overflow-hidden">
+                        <h4 class="text-sm font-bold text-gray-800 truncate">${item.name}</h4>
+                        <p class="text-[11px] text-gray-500 truncate mt-0.5">${meta.desc || 'Chưa có mô tả'}</p>
+                    </div>
+                    <div class="relative" onclick="event.stopPropagation()">
+                        <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
+                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderItems(items) {
+            folderListEl.innerHTML = '';
+            fileListEl.innerHTML = '';
+            
             if (items.length === 0) {
                 folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Thư mục trống</div>';
-                fileListEl.innerHTML = '';
                 return;
             }
 
-            // XỬ LÝ MEGA ROW CHO THƯ MỤC
-            folderListEl.innerHTML = folders.map(item => {
-                return `
-                <div class="bg-white p-4 rounded-[20px] shadow-sm border border-gray-100 flex items-center gap-4 relative hover:shadow-md transition cursor-pointer group" onclick="loadFolder('${item.id}', '${item.name}', true)">
-                    
-                    <div class="w-14 h-14 bg-blue-50/50 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 transition">
-                        <i class="fas fa-folder text-blue-500 text-3xl"></i>
-                    </div>
-                    
-                    <div class="flex-1 overflow-hidden">
-                        <h3 class="text-[15px] font-bold text-gray-800 truncate pr-6 mb-1">${item.name}</h3>
-                        <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider"><i class="fas fa-layer-group mr-1.5"></i>Thư mục con</p>
-                    </div>
-
-                    <div class="absolute top-1/2 -translate-y-1/2 right-3 z-10" onclick="event.stopPropagation()">
-                        <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa tên</div>
-                            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
-
-            // XỬ LÝ LƯỚI GRID CHO FILE
-            fileListEl.innerHTML = files.map(item => {
-                let isImage = item.mimeType.includes('image');
-                
-                // Hỗ trợ hiển thị URL tạm thời khi vừa chọn upload xong
-                let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
-                let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
-                
-                let visualEl = isImage 
-                    ? `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy">` 
-                    : `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-file-video text-gray-400 text-4xl"></i></div>`;
-                
-                let isTemp = item.tempUrl ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` : '';
-
-                return `
-                <div class="bg-white p-2.5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative hover:shadow-md transition">
-                    ${isTemp}
-                    <div class="absolute top-2 right-2 z-20">
-                        <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
-                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
-                            <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa tên</div>
-                            <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
-                        </div>
-                    </div>
-                    
-                    <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}', '${fullImgUrl}')">
-                        ${visualEl}
-                    </div>
-                    
-                    <div class="px-1 flex flex-col justify-center flex-1">
-                        <span class="text-[13px] font-bold text-gray-800 line-clamp-2 leading-tight drive-img-name" title="${item.name}">${item.name}</span>
-                        <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        // TẠO FOLDER (Optimistic UI)
-        function handleCreateFolder(name) {
-            // 1. Phản hồi tức thì
-            const fakeId = 'temp_folder_' + Date.now();
-            currentDriveItems.unshift({ id: fakeId, name: name, type: 'folder' });
-            renderItems(currentDriveItems);
-            
-            // 2. Chạy ngầm
-            apiCall('createFolder', { name: name }).then(res => { 
-                if (res.success) {
-                    const idx = currentDriveItems.findIndex(i => i.id === fakeId);
-                    if(idx > -1) {
-                        currentDriveItems[idx].id = res.folderId || res.id;
-                        localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
-                    }
+            // Nếu đang ở Root (Mega Row)
+            if (folderStack.length === 1) {
+                const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
+                if (megaRows.length === 0) {
+                    folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Chưa có dữ liệu trong mục ${currentCategory}</div>`;
+                    return;
                 }
-            });
+                
+                folderListEl.innerHTML = megaRows.map(item => {
+                    const meta = getMeta(item.id);
+                    return `
+                    <div class="mega-row">
+                        <div class="mega-header" onclick="window.toggleAccordion('${item.id}')">
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <i id="icon-${item.id}" class="fas fa-chevron-right text-gray-400 text-sm transition-transform duration-200 w-4 text-center"></i>
+                                <div class="flex flex-col overflow-hidden">
+                                    <span class="truncate uppercase text-blue-800">${item.name}</span>
+                                    ${meta.desc ? `<span class="text-[11px] font-normal text-gray-500 truncate mt-1">${meta.desc}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
+                                <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
+                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                                    <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100">
+                            </div>
+                    </div>`;
+                }).join('');
+                
+                // Tự động bung các Mega Row khi vừa render xong (Trải nghiệm siêu mượt)
+                megaRows.forEach(row => window.toggleAccordion(row.id));
+
+            } 
+            // Đang ở bên trong Subfolder (Level 2+) -> Hiển thị File Grid + Subfolder thường
+            else {
+                const folders = items.filter(i => i.type === 'folder');
+                const files = items.filter(i => i.type !== 'folder');
+
+                // Render Subfolders
+                if(folders.length > 0) {
+                    folderListEl.innerHTML = folders.map(item => `
+                    <div class="bg-white p-4 border-b border-gray-200 flex items-center justify-between cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-folder text-blue-500 text-2xl"></i>
+                            <span class="font-bold text-gray-800">${item.name}</span>
+                        </div>
+                        <div class="relative" onclick="event.stopPropagation()">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
+                                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)">Sửa</div>
+                                <div class="px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer" onclick="window.handleDelete('${item.id}', '${item.type}', event)">Xóa</div>
+                            </div>
+                        </div>
+                    </div>`).join('');
+                }
+
+                // Render Files Grid
+                fileListEl.innerHTML = files.map(item => {
+                    let isImage = item.mimeType.includes('image');
+                    let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
+                    let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
+                    
+                    let visualEl = isImage 
+                        ? `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy">` 
+                        : `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-play-circle text-gray-400 text-4xl"></i></div>`;
+                    
+                    let isTemp = item.tempUrl ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` : '';
+
+                    return `
+                    <div class="bg-white p-2.5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative hover:shadow-md transition">
+                        ${isTemp}
+                        <div class="absolute top-2 right-2 z-20">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                                <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            </div>
+                        </div>
+                        
+                        <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}', '${fullImgUrl}')">
+                            ${visualEl}
+                        </div>
+                        
+                        <div class="px-1 flex flex-col justify-center flex-1">
+                            <span class="text-[13px] font-bold text-gray-800 line-clamp-2 leading-tight drive-img-name" title="${item.name}">${item.name}</span>
+                            <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
         }
 
-        // UP NHIỀU FILE & TỐI ƯU HIỂN THỊ TỨC THÌ (Optimistic UI)
+        function uiPromptFolder() {
+            closeFab(); document.getElementById('modalTitle').textContent = 'Thư mục mới';
+            document.getElementById('modalDesc').classList.add('hidden'); 
+            document.getElementById('modalInput').classList.remove('hidden'); 
+            document.getElementById('modalInput').value = ''; document.getElementById('modalInput').placeholder = "Nhập tên thư mục..."; 
+            
+            document.getElementById('modalConfirmBtn').onclick = () => { 
+                const val = document.getElementById('modalInput').value.trim(); 
+                if (val) {
+                    const fakeId = 'temp_folder_' + Date.now();
+                    const newItem = { id: fakeId, name: val, type: 'folder' };
+                    // Nếu đang ở Root, lưu meta mặc định là Category hiện tại
+                    if(folderStack.length === 1) {
+                        appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
+                        saveMeta();
+                    }
+                    currentDriveItems.unshift(newItem);
+                    renderItems(currentDriveItems);
+                    
+                    apiCall('createFolder', { name: val }).then(res => { 
+                        if (res.success) {
+                            const realId = res.folderId || res.id;
+                            const idx = currentDriveItems.findIndex(i => i.id === fakeId);
+                            if(idx > -1) currentDriveItems[idx].id = realId;
+                            
+                            if(folderStack.length === 1) {
+                                appMeta[realId] = appMeta[fakeId];
+                                delete appMeta[fakeId];
+                                saveMeta();
+                            }
+                            localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                        }
+                    });
+                    closeModal(); 
+                } 
+            }; 
+            document.getElementById('customModal').classList.remove('hidden');
+            document.getElementById('customModal').classList.add('flex');
+            setTimeout(() => document.getElementById('modalInput').focus(), 100); 
+        }
+
         async function handleMultipleFileUpload(event) {
             closeFab();
             const files = event.target.files; 
             if (!files || files.length === 0) return;
-            
             let tempFilesToUpload = [];
 
-            // BƯỚC 1: Render ngay lập tức ra màn hình bằng Blob URL
             for (let i = 0; i < files.length; i++) {
                 let file = files[i];
                 let fakeId = 'temp_file_' + Date.now() + i;
                 let tempUrl = URL.createObjectURL(file); 
-                
-                let newItem = {
-                    id: fakeId,
-                    name: file.name,
-                    mimeType: file.type,
-                    type: 'file',
-                    tempUrl: tempUrl // Cờ báo hiệu đang là file tạm
-                };
-                
+                let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
                 tempFilesToUpload.push({ file: file, item: newItem });
-                currentDriveItems.push(newItem); // Push vào cuối hoặc unshift tùy ý
+                currentDriveItems.push(newItem); 
             }
-            
-            renderItems(currentDriveItems); // Màn hình load ngay mượt mà!
+            renderItems(currentDriveItems);
 
-            // BƯỚC 2: Bắt đầu vòng lặp Upload ngầm từng file lên Drive
             for (let obj of tempFilesToUpload) {
                 let reader = new FileReader();
                 reader.onload = async function(e) {
                     let base64Data = e.target.result.split(',')[1];
                     let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
-                    
                     if (res && res.success) {
-                        // Cập nhật lại ID thật và xóa cờ tempUrl
                         let idx = currentDriveItems.findIndex(i => i.id === obj.item.id);
                         if(idx > -1) {
                             currentDriveItems[idx].id = res.fileId || res.id;
                             delete currentDriveItems[idx].tempUrl;
                             localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
-                            renderItems(currentDriveItems); // Render lại để tắt icon loading trên ảnh đó
+                            renderItems(currentDriveItems); 
                         }
                     }
                 };
                 reader.readAsDataURL(obj.file);
             }
-            
-            event.target.value = ''; // Reset input
+            event.target.value = ''; 
         }
 
         function openMedia(id, mimeType, name, tempUrlFull = null) {
-            closeFab(); 
-            mediaTitle.textContent = name;
-            mediaViewer.classList.remove('hidden'); 
-            mediaViewer.classList.add('flex');
-            
+            closeFab(); mediaTitle.textContent = name;
+            mediaViewer.classList.remove('hidden'); mediaViewer.classList.add('flex');
             if (mimeType.includes('image')) { 
                 let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
                 mediaContent.innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`; 
-            } 
-            else { 
-                mediaContent.innerHTML = `<p class="text-white bg-gray-800 p-4 rounded-xl font-medium shadow-lg">Video/File không hỗ trợ xem trước ở đây.</p>`; 
+            } else { 
+                mediaContent.innerHTML = `<video controls class="max-w-full max-h-full rounded-lg" src="${tempUrlFull || ''}"><p class="text-white">Video cần tải về để xem.</p></video>`; 
             }
         }
 
         function closeMedia() { mediaViewer.classList.add('hidden'); mediaViewer.classList.remove('flex'); mediaContent.innerHTML = ''; }
-        
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
-        function showModalUI() { 
-            customModal.classList.remove('hidden'); customModal.classList.add('flex'); 
-            setTimeout(() => { document.getElementById('modalBox').classList.remove('scale-95'); document.getElementById('modalBox').classList.add('scale-100'); }, 10); 
-        }
-        function closeModal() { 
-            document.getElementById('modalBox').classList.remove('scale-100'); document.getElementById('modalBox').classList.add('scale-95'); 
-            setTimeout(() => { customModal.classList.add('hidden'); customModal.classList.remove('flex'); }, 150); 
-        }
-        
-        function uiPrompt(title, defaultText, callback) { 
-            closeFab(); modalTitle.textContent = title; modalDesc.classList.add('hidden'); modalInput.classList.remove('hidden'); 
-            modalInput.value = (defaultText.includes('Nhập')) ? '' : defaultText; modalInput.placeholder = "Nhập nội dung mới..."; 
-            modalConfirmBtn.onclick = () => { const val = modalInput.value.trim(); if (val) { callback(val); closeModal(); } }; 
-            showModalUI(); setTimeout(() => modalInput.focus(), 100); 
-        }
-        function uiConfirm(title, desc, callback) { 
-            closeFab(); modalTitle.textContent = title; modalDesc.textContent = desc; modalDesc.classList.remove('hidden'); modalInput.classList.add('hidden'); 
-            modalConfirmBtn.onclick = () => { callback(); closeModal(); }; 
-            showModalUI(); 
-        }
-        function uiAlert(title, desc) { uiConfirm(title, desc, () => {}); }
-
-        window.onload = () => loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
+        window.onload = () => {
+            if(folderStack.length === 1) switchCategory('Triển khai');
+            else loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
+        };
         
         window.getDriveFolderInfo = () => ({ id: currentFolderId, name: folderStack[folderStack.length-1].name });
         window.getDriveImages = () => {
             let images = [];
             document.querySelectorAll('.drive-img-item').forEach((imgNode) => {
                 let nameNode = imgNode.closest('div.bg-white').querySelector('.drive-img-name');
-                let urlToUse = imgNode.dataset.url || imgNode.src;
-                // Nếu lấy từ file tạm (Blob), phải render thẳng blob đó qua design
-                images.push({ url: urlToUse, name: nameNode.textContent });
+                images.push({ url: imgNode.dataset.url || imgNode.src, name: nameNode.textContent });
             });
             return images;
         };
@@ -720,13 +977,12 @@
         // ==========================================
         // KHỐI LOGIC DESIGN WATERMARK GỘP CHUNG
         // ==========================================
-        
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
 
         const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 30, rotation: 0, color: '#ffffff', stroke: 'transparent', fontFamily: 'Roboto', fontWeight: 'normal', fontStyle: 'normal', textShadow: 'none', opacity: 100 });
         const createWm = (src, id = generateId()) => ({ id, src, x: 50, y: 50, scale: 30, rotation: 0, opacity: 100 });
         const grid = document.getElementById('image-grid');
-        const mainContainer = document.getElementById('main-container-overlay');
+        const mainContainerOverlay = document.getElementById('main-container-overlay');
         const overlayContainer = document.getElementById('watermark-overlay-container');
         
         const showAlert = (msg, isLoading = false) => { document.getElementById('alert-msg').innerText = msg; document.getElementById('alert-loader').style.display = isLoading ? 'block' : 'none'; document.getElementById('alert-btn').style.display = isLoading ? 'none' : 'inline-block'; document.getElementById('custom-alert').style.display = 'flex'; };
@@ -740,20 +996,15 @@
         loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
-            const driveInfo = window.getDriveFolderInfo();
             const driveImages = window.getDriveImages();
-            
             if(driveImages.length === 0) {
                 closeFab();
-                return uiAlert("Thông báo", "Thư mục hiện tại không có ảnh nào để chỉnh sửa!");
+                alert("Thư mục hiện tại không có ảnh nào để chỉnh sửa!");
+                return;
             }
-
             state.images = []; state.layerOrder = []; state.activeElementId = null;
             driveImages.forEach(img => {
-                state.images.push({
-                    id: generateId(), src: img.url, ratio: 'auto', panX: 50, panY: 50,
-                    selected: false, customName: '', texts: [], wms: [] 
-                });
+                state.images.push({ id: generateId(), src: img.url, ratio: 'auto', panX: 50, panY: 50, selected: false, customName: '', texts: [], wms: [] });
             });
             renderImages();
             overlayContainer.style.display = 'flex';
@@ -816,8 +1067,6 @@
             try {
                 const editedImages = await processAllEditedImages();
                 const safeFolderName = (window.getDriveFolderInfo().name || 'VinhLoc').replace(/[\/\\?%*:|"<>]/g, '');
-                
-                // Fallback tải web trực tiếp
                 for (let i = 0; i < editedImages.length; i++) {
                     const img = editedImages[i];
                     const link = document.createElement('a');
@@ -828,8 +1077,7 @@
                     document.body.removeChild(link);
                     await new Promise(r => setTimeout(r, 400));
                 }
-                closeAlert();
-                showAlert(`✅ Đã tải lần lượt ${editedImages.length} ảnh về máy!`);
+                closeAlert(); showAlert(`✅ Đã tải lần lượt ${editedImages.length} ảnh về máy!`);
             } catch (error) { closeAlert(); showAlert('❌ Không thể tải ảnh: ' + error.message); }
         });
 
@@ -838,9 +1086,8 @@
             try {
                 const editedImages = await processAllEditedImages(); 
                 if (editedImages.length === 0) return;
-                
-                // KIỂM TRA THƯ MỤC "ĐÃ CHỈNH SỬA" BẰNG STATE LOCAL
                 showAlert('Đang xử lý kết nối Drive...', true);
+                
                 let newFolderId = null;
                 let existingFolder = currentDriveItems.find(i => i.name === "ĐÃ CHỈNH SỬA" && i.type === "folder");
                 
@@ -851,35 +1098,38 @@
                     newFolderId = createRes.folderId || createRes.id;
                     if (newFolderId) {
                         currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
-                        // Render UI ngoài Drive lập tức
-                        folderListEl.innerHTML = renderItems(currentDriveItems); // update local UI
+                        renderItems(currentDriveItems);
                     }
                 }
-
                 if (!newFolderId) throw new Error("Không thể truy cập thư mục lưu trữ.");
-
                 let successCount = 0;
                 for (let i = 0; i < editedImages.length; i++) {
                     showAlert(`Đang tải ảnh lên Drive... (${i + 1}/${editedImages.length})`, true);
                     let img = editedImages[i];
-                    let uploadRes = await window.apiCall('upload', { 
-                        folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data 
-                    });
+                    let uploadRes = await window.apiCall('upload', { folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data });
                     if (uploadRes && uploadRes.success) successCount++;
                 }
-
-                closeAlert();
-                showAlert(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào thư mục "ĐÃ CHỈNH SỬA"!`);
-                // Force sync lần cuối cùng
-                window.loadFolder(window.getDriveFolderInfo().id, window.getDriveFolderInfo().name);
+                closeAlert(); showAlert(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào thư mục "ĐÃ CHỈNH SỬA"!`);
             } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
 
+        // ĐÃ SỬA LỖI NÚT CUỘN LÊN/XUỐNG CHO GIAO DIỆN DESIGN
         let scrollInterval = null;
-        function startScroll(dir) { if(scrollInterval) clearInterval(scrollInterval); scrollInterval = setInterval(() => mainContainer.scrollTop += dir * 25, 16); }
+        function startScroll(dir) { 
+            if(scrollInterval) clearInterval(scrollInterval); 
+            scrollInterval = setInterval(() => {
+                mainContainerOverlay.scrollTop += dir * 25; 
+            }, 16); 
+        }
         function stopScroll() { if(scrollInterval) { clearInterval(scrollInterval); scrollInterval = null; } }
-        ['touchstart', 'mousedown'].forEach(evt => { document.getElementById('scroll-up-btn').addEventListener(evt, (e) => { e.preventDefault(); startScroll(-1); }); document.getElementById('scroll-down-btn').addEventListener(evt, (e) => { e.preventDefault(); startScroll(1); }); });
-        ['touchend', 'mouseup', 'mouseleave'].forEach(evt => { document.getElementById('scroll-up-btn').addEventListener(evt, stopScroll); document.getElementById('scroll-down-btn').addEventListener(evt, stopScroll); });
+        ['touchstart', 'mousedown'].forEach(evt => { 
+            document.getElementById('scroll-up-btn').addEventListener(evt, (e) => { e.preventDefault(); startScroll(-1); }); 
+            document.getElementById('scroll-down-btn').addEventListener(evt, (e) => { e.preventDefault(); startScroll(1); }); 
+        });
+        ['touchend', 'mouseup', 'mouseleave'].forEach(evt => { 
+            document.getElementById('scroll-up-btn').addEventListener(evt, stopScroll); 
+            document.getElementById('scroll-down-btn').addEventListener(evt, stopScroll); 
+        });
 
         function renderLayers() {
             const menu = document.getElementById('layer-menu'); menu.innerHTML = '<div class="layer-title">Thứ tự Z-Index</div>';
@@ -919,20 +1169,12 @@
             });
         };
         
-        // HIỆU ỨNG NÚT ÁP DỤNG TRONG ĐỔI TÊN
         document.getElementById('btn-apply-batch-name').addEventListener('click', function() { 
             const bn = document.getElementById('batch-name-input').value.trim(); if(!bn) return; 
             getTargetImages().forEach((img, idx) => img.customName = `${bn}_${idx+1}`); 
             window.renderRenameList(); 
-            
-            const originalHTML = this.innerHTML;
-            this.innerHTML = '<i class="fa-solid fa-check"></i> Đã áp dụng';
-            this.classList.replace('btn-blue', 'bg-green-600');
-            
-            setTimeout(() => {
-                this.innerHTML = originalHTML;
-                this.classList.replace('bg-green-600', 'btn-blue');
-            }, 1500);
+            const originalHTML = this.innerHTML; this.innerHTML = '<i class="fa-solid fa-check"></i> Đã áp dụng'; this.classList.replace('btn-blue', 'bg-green-600');
+            setTimeout(() => { this.innerHTML = originalHTML; this.classList.replace('bg-green-600', 'btn-blue'); }, 1500);
         });
 
         function renderImages() {
@@ -1050,33 +1292,20 @@
                     img.src = src;
                     return;
                 }
-
-                // Cập nhật lại kho proxy mới nhất mạnh mẽ hơn
-                const urlsToTry = [
-                    src, 
-                    "https://wsrv.nl/?url=" + encodeURIComponent(src), 
-                    "https://corsproxy.io/?" + encodeURIComponent(src), 
-                    "https://api.allorigins.win/raw?url=" + encodeURIComponent(src) 
-                ];
-
+                const urlsToTry = [ src, "https://wsrv.nl/?url=" + encodeURIComponent(src), "https://corsproxy.io/?" + encodeURIComponent(src), "https://api.allorigins.win/raw?url=" + encodeURIComponent(src) ];
                 for (let url of urlsToTry) {
                     try {
                         const response = await fetch(url);
                         if (!response.ok) continue; 
-                        
                         const blob = await response.blob();
                         const objectUrl = URL.createObjectURL(blob);
-                        
                         const img = new Image();
                         img.onload = () => resolve(img);
                         img.onerror = () => reject(new Error('Lỗi chuyển đổi dữ liệu ảnh.'));
                         img.src = objectUrl;
                         return; 
-                    } catch (error) {
-                        console.warn("Thử tải thất bại với URL:", url);
-                    }
+                    } catch (error) { console.warn("Thử tải thất bại với URL:", url); }
                 }
-                
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
