@@ -19,14 +19,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
-        body { -webkit-tap-highlight-color: transparent; background-color: #f3f4f6; }
+        body { -webkit-tap-highlight-color: transparent; background-color: #f4f7f6; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
 
         :root {
-            --primary-blue: #0056b3; --primary-red: #d32f2f; --bg-white: #ffffff;
-            --gray-light: #f5f5f5; --gray-dark: #333333;
+            --primary-blue: #2563eb; --primary-red: #dc2626; --bg-white: #ffffff;
+            --gray-light: #f3f4f6; --gray-dark: #1f2937;
             --header-h: 56px; --bottom-h: 60px; --panel-h: 150px;
         }
 
@@ -41,89 +41,87 @@
         .header-icons { display: flex; gap: 20px; align-items: center; color: var(--primary-blue); font-size: 22px; }
         .header-icons i { cursor: pointer; padding: 5px; }
         .dropdown { position: relative; }
-        .dropdown-menu { display: none; position: absolute; right: 0; top: 100%; background: var(--bg-white); box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden; min-width: 150px; z-index: 1000; }
+        .dropdown-menu { display: none; position: absolute; right: 0; top: 100%; background: var(--bg-white); box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; min-width: 160px; z-index: 1000; }
         .dropdown-menu.show { display: block; }
-        .dropdown-menu div.menu-item { padding: 12px 15px; font-size: 14px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .dropdown-menu div.menu-item { padding: 12px 15px; font-size: 14px; border-bottom: 1px solid #f3f4f6; cursor: pointer; }
         .dropdown-menu div.menu-item:active { background: var(--gray-light); }
         .dropdown-menu div.text-red { color: var(--primary-red); }
 
         #layer-menu { min-width: 250px; max-height: 400px; overflow-y: auto; right: -50px;}
-        .layer-title { padding: 10px; font-weight: bold; background: #f0f0f0; border-bottom: 1px solid #ddd; text-align: center; font-size: 14px; }
-        .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; cursor: grab; background: white;}
-        .layer-item.active-layer { background: #e3f2fd; }
+        .layer-title { padding: 10px; font-weight: bold; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px; }
+        .layer-item { display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f3f4f6; cursor: grab; background: white;}
+        .layer-item.active-layer { background: #eff6ff; }
         .layer-info { display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1; cursor: pointer;}
-        .layer-info img { width: 24px; height: 24px; object-fit: contain; background: #eee; border-radius: 3px;}
+        .layer-info img { width: 24px; height: 24px; object-fit: contain; background: #e5e7eb; border-radius: 4px;}
         .layer-info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; font-size: 14px;}
         .layer-controls { display: flex; gap: 10px; color: var(--primary-blue); align-items: center;}
 
         #main-container { flex: 1; overflow-y: auto; padding: 10px; padding-bottom: calc(var(--bottom-h) + var(--panel-h) + 20px); scrollbar-width: none; }
         
         .masonry-grid { column-count: 2; column-gap: 10px; }
-        .image-card { break-inside: avoid; margin-bottom: 10px; position: relative; background: #ddd; width: 100%; overflow: hidden; container-type: inline-size; }
+        .image-card { break-inside: avoid; margin-bottom: 10px; position: relative; background: #e5e7eb; width: 100%; overflow: hidden; border-radius: 12px; }
         .image-card img.base-img { width: 100%; display: block; pointer-events: auto; }
-        .image-card.selected::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 3px solid var(--primary-red); background: rgba(211, 47, 47, 0.2); pointer-events: none; }
-        .check-icon { display: none; position: absolute; top: 5px; right: 5px; color: var(--primary-red); background: white; border-radius: 50%; font-size: 20px; z-index: 10; pointer-events: none; }
+        .image-card.selected::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 3px solid var(--primary-red); background: rgba(220, 38, 38, 0.2); pointer-events: none; border-radius: 12px; }
+        .check-icon { display: none; position: absolute; top: 8px; right: 8px; color: var(--primary-red); background: white; border-radius: 50%; font-size: 20px; z-index: 10; pointer-events: none; }
         .image-card.selected .check-icon { display: block; }
-        .pin-icon { position: absolute; top: 5px; left: 5px; color: var(--primary-blue); background: white; border-radius: 50%; font-size: 14px; padding: 6px; z-index: 10; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .pin-icon { position: absolute; top: 8px; left: 8px; color: var(--primary-blue); background: white; border-radius: 50%; font-size: 14px; padding: 6px; z-index: 10; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
 
         .overlay-item { position: absolute; transform-origin: center; cursor: move; white-space: nowrap; line-height: 1; z-index: 5; }
         .overlay-img { display: block; width: 100%; height: auto; pointer-events: none; }
         .overlay-item.text-layer { paint-order: stroke fill; }
         .overlay-item.active { border: 2px dashed var(--primary-blue); z-index: 20; }
-        .ctrl-btn { display: none; position: absolute; width: 26px; height: 26px; background: white; border-radius: 50%; border: 1px solid #ccc; justify-content: center; align-items: center; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .ctrl-btn { display: none; position: absolute; width: 28px; height: 28px; background: white; border-radius: 50%; border: 1px solid #d1d5db; justify-content: center; align-items: center; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .overlay-item.active .ctrl-btn { display: flex; }
-        .ctrl-delete { top: -13px; left: -13px; color: var(--primary-red); }
-        .ctrl-scale-rotate { bottom: -13px; right: -13px; color: var(--primary-blue); cursor: nwse-resize; }
+        .ctrl-delete { top: -14px; left: -14px; color: var(--primary-red); }
+        .ctrl-scale-rotate { bottom: -14px; right: -14px; color: var(--primary-blue); cursor: nwse-resize; }
 
         .custom-scroll-container { position: fixed; right: 10px; top: 45%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 15px; z-index: 150; }
-        .scroll-btn { width: 42px; height: 42px; background: rgba(255, 255, 255, 0.9); color: var(--primary-blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 20px; cursor: pointer; border: 1px solid #eee; transition: 0.2s; }
+        .scroll-btn { width: 42px; height: 42px; background: rgba(255, 255, 255, 0.9); color: var(--primary-blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.15); font-size: 20px; cursor: pointer; border: 1px solid #e5e7eb; transition: 0.2s; }
 
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-h); background: var(--bg-white); display: flex; box-shadow: 0 -2px 4px rgba(0,0,0,0.1); z-index: 200; }
-        .nav-item { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 12px; color: #777; cursor: pointer; transition: 0.2s; }
-        .nav-item.active { color: var(--primary-blue); font-weight: bold; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-h); background: var(--bg-white); display: flex; box-shadow: 0 -4px 6px rgba(0,0,0,0.05); z-index: 200; border-top: 1px solid #f3f4f6; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 12px; color: #6b7280; cursor: pointer; transition: 0.2s; }
+        .nav-item.active { color: var(--primary-blue); font-weight: 700; }
 
-        .control-panel { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: var(--panel-h); background: var(--bg-white); border-top: 1px solid #eee; z-index: 190; display: none; flex-direction: column; transition: 0.3s; transform: translateY(100%); }
+        .control-panel { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: var(--panel-h); background: var(--bg-white); border-top: 1px solid #e5e7eb; z-index: 190; display: none; flex-direction: column; transition: 0.3s; transform: translateY(100%); }
         .control-panel.active { display: flex; transform: translateY(0); }
         
-        .sub-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid #eee; padding: 10px; gap: 15px; white-space: nowrap; flex-shrink: 0; }
+        .sub-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid #f3f4f6; padding: 10px; gap: 10px; white-space: nowrap; flex-shrink: 0; }
         .sub-tabs::-webkit-scrollbar { display: none; }
-        .sub-tab-btn { padding: 5px 10px; border-radius: 20px; border: 1px solid #ddd; background: none; font-size: 12px; cursor: pointer; color: var(--primary-blue); }
+        .sub-tab-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; background: none; font-size: 13px; cursor: pointer; color: var(--primary-blue); font-weight: 500; transition: 0.2s; }
         .sub-tab-btn.active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
         
-        .panel-content { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
-        .slider-row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+        .panel-content { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+        .slider-row { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #4b5563; }
         .slider-row input[type="range"] { flex: 1; accent-color: var(--primary-blue); }
 
-        .color-list { display: flex; overflow-x: auto; gap: 10px; padding: 5px; }
+        .color-list { display: flex; overflow-x: auto; gap: 12px; padding: 5px; }
         .color-list::-webkit-scrollbar { display: none; }
-        .color-dot { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #ccc; flex-shrink: 0; cursor: pointer; }
+        .color-dot { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #e5e7eb; flex-shrink: 0; cursor: pointer; transition: 0.2s; }
+        .color-dot:active { transform: scale(0.9); }
 
-        .action-row { display: flex; justify-content: center; gap: 15px; }
-        .btn { padding: 8px 15px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px; transition: 0.2s; }
+        .action-row { display: flex; justify-content: center; gap: 12px; }
+        .btn { padding: 10px 16px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
         .btn-blue { background: var(--primary-blue); color: white; }
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
 
-        .rename-container { display: flex; width: 100%; height: 100%; gap: 10px; align-items: stretch; justify-content: flex-start; }
-        .rename-left { flex: 1; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid #eee; padding-right: 10px; justify-content: center;}
-        .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 5px; justify-content: flex-start;}
+        .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
+        .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
+        .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
         .rename-right::-webkit-scrollbar { display: none; }
-        .rename-item { display: flex; align-items: center; gap: 10px; background: #f9f9f9; padding: 5px; border-radius: 5px; border: 1px solid #eee; flex-shrink: 0;}
-        .rename-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; border: 1px solid #ccc; flex-shrink: 0;}
-        .rename-item input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
+        .rename-item { display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb; flex-shrink: 0;}
+        .rename-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db; flex-shrink: 0;}
+        .rename-item input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
+        .rename-item input:focus { border-color: var(--primary-blue); }
 
-        #input-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); z-index: 500; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
-        #main-text-input { width: 100%; max-width: 400px; padding: 15px; font-size: 24px; border: 2px solid var(--primary-blue); border-radius: 10px; text-align: center; outline: none; margin-bottom: 20px; }
+        #input-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); z-index: 500; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+        #main-text-input { width: 100%; max-width: 400px; padding: 16px; font-size: 22px; border: 2px solid var(--primary-blue); border-radius: 12px; text-align: center; outline: none; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.1); }
         
-        #custom-alert { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 9999; }
-        .alert-box { background: white; padding: 20px; border-radius: 10px; text-align: center; width: 80%; max-width: 300px; }
-        .alert-box button { margin-top: 15px; background: var(--primary-blue); color: white; border: none; padding: 8px 20px; border-radius: 5px; }
-
-        #watermark-popup { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: 50vh; background: white; border-top-left-radius: 20px; border-top-right-radius: 20px; z-index: 300; display: none; flex-direction: column; padding: 15px; box-shadow: 0 -5px 15px rgba(0,0,0,0.2); }
-        .wm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; overflow-y: auto; margin-top: 10px; }
-        .wm-item { position: relative; border: 1px solid #ddd; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#eee 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer;}
-        .wm-item img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .wm-delete-btn { position: absolute; top: 5px; right: 5px; background: var(--primary-red); color: white; width: 22px; height: 22px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10; }
+        #watermark-popup { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: 55vh; background: white; border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 300; display: none; flex-direction: column; padding: 20px; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); }
+        .wm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; overflow-y: auto; margin-top: 15px; }
+        .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; }
+        .wm-item img { max-width: 90%; max-height: 90%; object-fit: contain; }
+        .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10; }
     </style>
 </head>
 
@@ -135,15 +133,16 @@
         <div id="loading" class="hidden loader"></div>
     </header>
 
-    <div class="sticky top-0 z-10 bg-white p-2 border-b shadow-sm">
+    <div class="sticky top-0 z-10 bg-white p-3 border-b border-gray-200 shadow-sm">
         <div class="relative">
-            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-            <input type="text" id="searchInput" placeholder="Tìm kiếm thư mục / file..." class="w-full pl-10 pr-3 py-2 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition">
+            <i class="fas fa-search absolute left-4 top-3 text-gray-400"></i>
+            <input type="text" id="searchInput" placeholder="Tìm kiếm thư mục / file..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition text-sm font-medium">
         </div>
     </div>
 
-    <main class="flex-1 overflow-y-auto p-3 relative" id="contentArea">
-        <div id="itemList" class="flex flex-col gap-3"></div>
+    <main class="flex-1 overflow-y-auto p-4 relative" id="contentArea">
+        <div id="folderList" class="flex flex-col gap-3 mb-6"></div>
+        <div id="fileList" class="grid grid-cols-2 gap-4"></div>
     </main>
 
     <div class="absolute bottom-6 right-6 flex flex-col-reverse items-end gap-3 z-30">
@@ -156,26 +155,26 @@
         </button>
 
         <div id="fabMenu" class="hidden flex-col gap-3 items-end mb-2 transition-all">
-            <button onclick="uiPrompt('Thư mục mới', 'Nhập tên thư mục...', handleCreateFolder)" class="bg-white text-blue-600 p-3 rounded-full shadow-md flex items-center gap-2 font-medium active:bg-gray-50">
-                <span class="text-sm">Thư mục mới</span>
-                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center"><i class="fas fa-folder-plus"></i></div>
+            <button onclick="uiPrompt('Thư mục mới', 'Nhập tên thư mục...', handleCreateFolder)" class="bg-white text-blue-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold active:bg-gray-50 border border-gray-100">
+                <span class="text-sm pl-2">Thư mục mới</span>
+                <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center"><i class="fas fa-folder-plus"></i></div>
             </button>
-            <label class="bg-white text-green-600 p-3 rounded-full shadow-md flex items-center gap-2 font-medium cursor-pointer active:bg-gray-50">
-                <span class="text-sm">Up File / Ảnh</span>
-                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center"><i class="fas fa-upload"></i></div>
+            <label class="bg-white text-green-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
+                <span class="text-sm pl-2">Up File / Ảnh</span>
+                <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center"><i class="fas fa-cloud-upload-alt"></i></div>
                 <input type="file" id="uploadFile" class="hidden" multiple accept="image/*,video/*,application/pdf" onchange="handleMultipleFileUpload(event)">
             </label>
         </div>
     </div>
 
-    <div id="customModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999] transition-opacity backdrop-blur-sm">
-        <div class="bg-white rounded-2xl p-5 w-10/12 max-w-sm shadow-2xl transform scale-95 transition-transform" id="modalBox">
-            <h3 id="modalTitle" class="text-lg font-bold mb-3 text-gray-800">Tiêu đề</h3>
-            <p id="modalDesc" class="text-sm text-gray-500 mb-3 hidden"></p>
-            <input type="text" id="modalInput" class="w-full border-2 border-gray-200 p-3 rounded-xl mb-5 focus:border-blue-500 outline-none" />
+    <div id="customModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[9999] transition-opacity backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-2xl transform scale-95 transition-transform" id="modalBox">
+            <h3 id="modalTitle" class="text-lg font-bold mb-2 text-gray-800">Tiêu đề</h3>
+            <p id="modalDesc" class="text-sm text-gray-500 mb-4 hidden"></p>
+            <input type="text" id="modalInput" class="w-full border-2 border-gray-200 p-3.5 rounded-xl mb-6 focus:border-blue-600 outline-none transition font-medium" />
             <div class="flex justify-end gap-3">
-                <button onclick="closeModal()" class="px-5 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl active:bg-gray-200 transition">Hủy</button>
-                <button id="modalConfirmBtn" class="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-xl active:bg-blue-700 transition">Xác nhận</button>
+                <button onclick="closeModal()" class="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl active:bg-gray-200 transition">Hủy</button>
+                <button id="modalConfirmBtn" class="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl active:bg-blue-700 transition shadow-md shadow-blue-600/30">Xác nhận</button>
             </div>
         </div>
     </div>
@@ -228,15 +227,15 @@
         </div>
 
         <div class="control-panel" id="panel-adjust">
-            <div class="target-selector">
-                <label><input type="radio" name="adjust-target" value="text" checked> Chữ</label>
-                <label><input type="radio" name="adjust-target" value="wm"> Watermark</label>
+            <div class="target-selector" style="display:flex; justify-content:center; gap:20px; padding-top:10px;">
+                <label class="font-bold"><input type="radio" name="adjust-target" value="text" checked> Chữ</label>
+                <label class="font-bold"><input type="radio" name="adjust-target" value="wm"> Hình đóng dấu</label>
             </div>
             <div class="sub-tabs" id="adjust-sub-tabs">
-                <button class="sub-tab-btn active" data-target="scale">Phóng</button>
-                <button class="sub-tab-btn" data-target="x">Ngang</button>
-                <button class="sub-tab-btn" data-target="y">Dọc</button>
-                <button class="sub-tab-btn" data-target="opacity">Mờ</button>
+                <button class="sub-tab-btn active" data-target="scale">Phóng to</button>
+                <button class="sub-tab-btn" data-target="x">Trái/Phải</button>
+                <button class="sub-tab-btn" data-target="y">Lên/Xuống</button>
+                <button class="sub-tab-btn" data-target="opacity">Làm mờ</button>
             </div>
             <div class="panel-content" id="adjust-sliders">
                 <div class="slider-row"><i class="fa-solid fa-compress"></i><input type="range" id="slider-scale" min="10" max="300" value="100"><i class="fa-solid fa-expand"></i></div>
@@ -249,15 +248,15 @@
         <div class="control-panel" id="panel-text">
             <div class="sub-tabs" id="text-sub-tabs">
                 <button class="sub-tab-btn active" data-target="color">Màu chữ</button>
-                <button class="sub-tab-btn" data-target="stroke">Viền</button>
-                <button class="sub-tab-btn" data-target="font">Fonts</button>
-                <button class="sub-tab-btn" data-target="style">Đậm/Nghiêng</button>
+                <button class="sub-tab-btn" data-target="stroke">Viền ngoài</button>
+                <button class="sub-tab-btn" data-target="font">Font chữ</button>
+                <button class="sub-tab-btn" data-target="style">Định dạng</button>
             </div>
             <div class="panel-content">
                 <div class="color-list" id="color-picker-container"></div>
                 <div class="sub-tabs" id="font-picker-container" style="display:none; padding:0; border:none;">
                     <button class="sub-tab-btn" style="font-family:'Arial'" onclick="window.updateProp('fontFamily','Arial')">Arial</button>
-                    <button class="sub-tab-btn" style="font-family:'Times New Roman'" onclick="window.updateProp('fontFamily','Times New Roman')">Times New Roman</button>
+                    <button class="sub-tab-btn" style="font-family:'Times New Roman'" onclick="window.updateProp('fontFamily','Times New Roman')">Times</button>
                     <button class="sub-tab-btn" style="font-family:'Roboto'" onclick="window.updateProp('fontFamily','Roboto')">Roboto</button>
                     <button class="sub-tab-btn" style="font-family:'Saira'" onclick="window.updateProp('fontFamily','Saira')">Saira</button>
                     <button class="sub-tab-btn" style="font-family:'Anton'" onclick="window.updateProp('fontFamily','Anton')">Anton</button>
@@ -280,11 +279,11 @@
             <div class="panel-content">
                 <div class="action-row" style="margin-bottom: 10px;">
                     <label for="wm-upload" class="btn btn-outline" style="flex:1; justify-content:center;">
-                        <i class="fa-solid fa-upload"></i> Tải lên
+                        <i class="fa-solid fa-upload"></i> Up ảnh mới
                     </label>
                     <input type="file" id="wm-upload" accept="image/*" style="display:none;">
                     <button class="btn btn-blue" id="btn-open-wm-library" style="flex:1;">
-                        <i class="fa-solid fa-images"></i> Có sẵn
+                        <i class="fa-solid fa-images"></i> Thư viện
                     </button>
                 </div>
                 <div class="action-row">
@@ -296,60 +295,62 @@
         <div class="control-panel" id="panel-rename">
             <div class="panel-content rename-container">
                 <div class="rename-left">
-                    <span style="font-size: 13px; font-weight: bold; color: var(--primary-blue); text-align: center;">Tên hàng loạt</span>
-                    <input type="text" id="batch-name-input" placeholder="Tên chung..." style="padding: 8px; border: 1px solid #ccc; border-radius: 5px; width: 100%; outline: none; font-family: inherit;">
-                    <button class="btn btn-blue" id="btn-apply-batch-name" style="justify-content: center; padding: 8px;"><i class="fa-solid fa-check-double"></i> Áp dụng</button>
+                    <span style="font-size: 13px; font-weight: bold; color: var(--primary-blue); text-align: center;">Tên chung</span>
+                    <input type="text" id="batch-name-input" placeholder="Nhập tên..." style="padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%; outline: none; font-family: inherit;">
+                    <button class="btn btn-blue transition-colors duration-300" id="btn-apply-batch-name" style="justify-content: center; padding: 10px;"><i class="fa-solid fa-check-double"></i> Áp dụng</button>
                 </div>
                 <div class="rename-right" id="rename-list-container"></div>
             </div>
         </div>
 
         <nav class="bottom-nav">
-            <div class="nav-item" data-panel="panel-ratio"><i class="fa-solid fa-crop-simple"></i>Tỷ lệ</div>
-            <div class="nav-item" data-panel="panel-adjust"><i class="fa-solid fa-sliders"></i>Tùy chỉnh</div>
-            <div class="nav-item" data-panel="panel-text"><i class="fa-solid fa-t"></i>Chữ</div>
-            <div class="nav-item" data-panel="panel-wm"><i class="fa-solid fa-stamp"></i>Watermark</div>
-            <div class="nav-item" data-panel="panel-rename"><i class="fa-solid fa-file-signature"></i>Tên ảnh</div>
+            <div class="nav-item" data-panel="panel-ratio"><i class="fa-solid fa-crop-simple text-lg mb-1"></i>Tỷ lệ</div>
+            <div class="nav-item" data-panel="panel-adjust"><i class="fa-solid fa-sliders text-lg mb-1"></i>Vị trí</div>
+            <div class="nav-item" data-panel="panel-text"><i class="fa-solid fa-t text-lg mb-1"></i>Chữ</div>
+            <div class="nav-item" data-panel="panel-wm"><i class="fa-solid fa-stamp text-lg mb-1"></i>Logo</div>
+            <div class="nav-item" data-panel="panel-rename"><i class="fa-solid fa-file-signature text-lg mb-1"></i>Đổi tên</div>
         </nav>
 
         <div id="input-overlay">
             <input type="text" id="main-text-input" placeholder="Nhập văn bản...">
             <div class="action-row">
                 <button class="btn btn-red" id="btn-close-input">Hủy</button>
-                <button class="btn btn-blue" id="btn-apply-input">OK</button>
+                <button class="btn btn-blue" id="btn-apply-input">Hoàn tất</button>
             </div>
         </div>
 
         <div id="watermark-popup">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:10px;">
-                <h3 style="color:var(--primary-blue);">Watermark Có Sẵn</h3>
-                <i class="fa-solid fa-times" id="btn-close-wm-popup" style="font-size:20px; cursor:pointer;"></i>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:15px;">
+                <h3 style="color:var(--primary-blue); font-weight:bold; font-size:16px;">Thư viện Logo / Chữ</h3>
+                <i class="fa-solid fa-times" id="btn-close-wm-popup" style="font-size:22px; cursor:pointer; color:#6b7280;"></i>
             </div>
             <div class="wm-grid" id="wm-library-grid"></div>
         </div>
 
         <div id="custom-alert">
             <div class="alert-box">
-                <div class="loader" id="alert-loader"></div>
-                <p id="alert-msg"></p>
-                <button id="alert-btn" onclick="document.getElementById('custom-alert').style.display='none'">OK</button>
+                <div class="loader mx-auto mb-3" id="alert-loader"></div>
+                <p id="alert-msg" class="font-medium text-gray-700"></p>
+                <button id="alert-btn" class="mt-4 w-full bg-blue-600 font-bold" onclick="document.getElementById('custom-alert').style.display='none'">Đã hiểu</button>
             </div>
         </div>
     </div> 
     
-    <div id="save-options-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-[10000]">
-        <div class="bg-white rounded-2xl p-5 w-10/12 max-w-sm shadow-2xl text-center">
-            <h3 class="text-blue-600 text-lg font-bold mb-4">
-                <i class="fa-solid fa-floppy-disk"></i> Tùy chọn lưu
-            </h3>
-            <button id="btn-save-local" class="w-full flex justify-center items-center gap-2 bg-blue-600 active:bg-blue-700 text-white font-medium py-3 px-4 rounded-xl mb-3 transition">
-                <i class="fa-solid fa-download"></i> Lưu về máy
+    <div id="save-options-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[10000] backdrop-blur-sm">
+        <div class="bg-white rounded-3xl p-6 w-11/12 max-w-sm shadow-2xl text-center transform transition-all">
+            <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h3 class="text-gray-800 text-xl font-bold mb-6">Tùy chọn xuất file</h3>
+            
+            <button id="btn-save-local" class="w-full flex justify-center items-center gap-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 px-4 rounded-xl mb-3 transition border border-gray-200">
+                <i class="fa-solid fa-mobile-screen-button text-lg"></i> Tải thẳng về máy
             </button>
-            <button id="btn-save-drive" class="w-full flex justify-center items-center gap-2 bg-white border-2 border-blue-600 text-blue-600 active:bg-blue-50 font-medium py-3 px-4 rounded-xl mb-4 transition">
-                <i class="fa-brands fa-google-drive"></i> Lưu tại đây (Drive)
+            <button id="btn-save-drive" class="w-full flex justify-center items-center gap-3 bg-blue-600 active:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl mb-5 transition shadow-lg shadow-blue-600/30">
+                <i class="fa-brands fa-google-drive text-lg"></i> Lưu thẳng lên Drive
             </button>
-            <button onclick="document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');" class="w-full bg-red-500 active:bg-red-600 text-white font-medium py-2.5 rounded-xl transition">
-                Hủy
+            <button onclick="document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');" class="text-gray-400 font-semibold py-2 transition hover:text-gray-600">
+                Hủy bỏ
             </button>
         </div>
     </div>
@@ -362,10 +363,11 @@
         let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "06. HÌNH ẢNH CONTENT" }];
         let currentFolderId = folderStack[folderStack.length - 1].id;
         
-        // State cho UI Drive - Hỗ trợ Optimistic Sync
+        // TRẠNG THÁI HIỆN TẠI ĐỂ ĐỒNG BỘ NGẦM (Optimistic Sync)
         let currentDriveItems = [];
 
-        const itemList = document.getElementById('itemList');
+        const folderListEl = document.getElementById('folderList');
+        const fileListEl = document.getElementById('fileList');
         const loading = document.getElementById('loading');
         const currentFolderName = document.getElementById('currentFolderName');
         const btnBack = document.getElementById('btnBack');
@@ -382,15 +384,21 @@
         const mediaContent = document.getElementById('mediaContent');
         const searchInput = document.getElementById('searchInput');
 
-        // Nút Mở Fab
+        // BẬT / TẮT FAB MENU
         fabMain.addEventListener('click', () => {
             fabMenu.classList.toggle('hidden');
             fabMenu.classList.toggle('flex');
             fabIcon.classList.toggle('fa-plus');
             fabIcon.classList.toggle('fa-times');
+            if(!fabMenu.classList.contains('hidden')) {
+                fabIcon.style.transform = 'rotate(135deg)';
+                fabIcon.style.transition = '0.3s';
+            } else {
+                fabIcon.style.transform = 'rotate(0deg)';
+            }
         });
 
-        // Nút Back Folder
+        // QUAY LẠI THƯ MỤC CHA
         btnBack.addEventListener('click', () => {
             if (folderStack.length > 1) {
                 folderStack.pop();
@@ -431,18 +439,22 @@
             }
             updateBreadcrumbs(); 
             btnBack.classList.toggle('hidden', folderStack.length <= 1);
-            searchInput.value = ''; // Reset search khi chuyển folder
+            searchInput.value = ''; 
             
+            // Xóa rỗng trước khi nạp data mới để tránh dính DOM cũ
+            folderListEl.innerHTML = '';
+            fileListEl.innerHTML = '';
+
             // Render nhanh từ LocalStorage nếu có
             const cachedData = localStorage.getItem(`folder_${folderId}`);
             if (cachedData) {
                 currentDriveItems = JSON.parse(cachedData);
                 renderItems(currentDriveItems);
             } else {
-                itemList.innerHTML = '<div class="text-center text-gray-400 mt-10 w-full"><div class="loader mx-auto mb-2"></div>Đang tải dữ liệu...</div>';
+                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full col-span-2"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang đồng bộ dữ liệu gốc...</div>';
             }
 
-            // Gọi API nền để lấy data mới nhất
+            // Gọi API nền để lấy data mới nhất và Update
             const res = await apiCall('list');
             if (res && res.success) { 
                 currentDriveItems = res.data;
@@ -476,12 +488,13 @@
         window.handleRename = function(id, oldName, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
-            uiPrompt('Đổi tên', oldName, (newName) => {
+            uiPrompt('Đổi tên tệp/thư mục', oldName, (newName) => {
                 if (newName && newName !== oldName) {
-                    // 1. Đổi ngay trên UI
+                    // 1. Cập nhật UI ngay lập tức
                     const item = currentDriveItems.find(i => i.id === id);
                     if (item) item.name = newName;
                     renderItems(currentDriveItems);
+                    
                     // 2. Chạy ngầm API
                     apiCall('rename', { id: id, newName: newName, type: type }).then(res => {
                         if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
@@ -494,10 +507,11 @@
         window.handleDelete = function(id, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
-            uiConfirm('Xác nhận xóa', 'Bạn có chắc chắn muốn xóa mục này? Hành động này không thể hoàn tác.', () => {
-                // 1. Xóa ngay trên UI
+            uiConfirm('Xóa vĩnh viễn', 'Bạn có chắc chắn muốn xóa mục này? Hành động này sẽ được thực hiện ngay lập tức và không thể hoàn tác.', () => {
+                // 1. Cập nhật UI ngay lập tức
                 currentDriveItems = currentDriveItems.filter(i => i.id !== id);
                 renderItems(currentDriveItems);
+                
                 // 2. Chạy ngầm API
                 apiCall('delete', { id: id, type: type }).then(res => {
                     if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
@@ -505,117 +519,188 @@
             });
         };
 
-        // HIỂN THỊ MEGA ROW (GIAO DIỆN NGANG)
+        // PHÂN CHIA HIỂN THỊ: MEGA ROW (THƯ MỤC) - LƯỚI (FILE)
         function renderItems(items) {
-            if (items.length === 0) { itemList.innerHTML = '<div class="text-center text-gray-400 mt-10 w-full">Không có dữ liệu</div>'; return; }
-            
-            itemList.innerHTML = items.map(item => {
-                if (item.type === 'folder') {
-                    // TÌM ẢNH ĐẦU TIÊN LÀM PREVIEW (Trong phạm vi Cache)
-                    let previewHtml = `<i class="fas fa-folder text-blue-500 text-3xl"></i>`;
-                    
-                    return `
-                    <div class="bg-white p-3 rounded-2xl shadow-sm border flex items-center gap-4 relative hover:bg-gray-50 transition cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)">
-                        
-                        <div class="w-16 h-16 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden border border-blue-100">
-                            ${previewHtml}
-                        </div>
-                        
-                        <div class="flex-1 overflow-hidden">
-                            <h3 class="text-sm font-bold text-gray-800 truncate pr-6">${item.name}</h3>
-                            <p class="text-xs text-gray-500 mt-1"><i class="fas fa-folder-open mr-1"></i>Thư mục</p>
-                        </div>
+            const folders = items.filter(i => i.type === 'folder');
+            const files = items.filter(i => i.type !== 'folder');
 
-                        <div class="absolute top-3 right-3 z-10" onclick="event.stopPropagation()">
-                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-2 py-1 text-gray-400 hover:text-blue-600 bg-white rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-xl border z-50 py-1 text-sm item-action-menu overflow-hidden">
-                                <div class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-gray-700 font-medium transition" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-2 text-blue-500"></i>Sửa tên</div>
-                                <div class="px-4 py-2.5 hover:bg-red-50 cursor-pointer text-red-600 font-medium transition border-t border-gray-100" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-2"></i>Xóa</div>
-                            </div>
-                        </div>
-                    </div>`;
-                } else {
-                    let isImage = item.mimeType.includes('image');
-                    let visualEl = isImage 
-                        ? `<img src="https://drive.google.com/thumbnail?id=${item.id}&sz=w200" data-url="https://drive.google.com/thumbnail?id=${item.id}&sz=w2000" class="w-full h-full object-cover drive-img-item" loading="lazy">` 
-                        : `<i class="fas fa-file-alt text-gray-400 text-3xl"></i>`;
-                    
-                    return `
-                    <div class="bg-white p-3 rounded-2xl shadow-sm border flex items-center gap-4 relative hover:bg-gray-50 transition cursor-pointer" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}')">
-                        
-                        <div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden border">
-                            ${visualEl}
-                        </div>
-                        
-                        <div class="flex-1 overflow-hidden">
-                            <h3 class="text-sm font-semibold text-gray-700 truncate pr-6 drive-img-name">${item.name}</h3>
-                            <p class="text-xs text-gray-400 mt-1 uppercase">${item.mimeType.split('/')[1] || 'FILE'}</p>
-                        </div>
+            if (items.length === 0) {
+                folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Thư mục trống</div>';
+                fileListEl.innerHTML = '';
+                return;
+            }
 
-                        <div class="absolute top-3 right-3 z-10" onclick="event.stopPropagation()">
-                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-2 py-1 text-gray-400 hover:text-blue-600 bg-white rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-xl border z-50 py-1 text-sm item-action-menu overflow-hidden">
-                                <div class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-gray-700 font-medium transition" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-2 text-blue-500"></i>Sửa tên</div>
-                                <div class="px-4 py-2.5 hover:bg-red-50 cursor-pointer text-red-600 font-medium transition border-t border-gray-100" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-2"></i>Xóa</div>
-                            </div>
+            // XỬ LÝ MEGA ROW CHO THƯ MỤC
+            folderListEl.innerHTML = folders.map(item => {
+                return `
+                <div class="bg-white p-4 rounded-[20px] shadow-sm border border-gray-100 flex items-center gap-4 relative hover:shadow-md transition cursor-pointer group" onclick="loadFolder('${item.id}', '${item.name}', true)">
+                    
+                    <div class="w-14 h-14 bg-blue-50/50 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 transition">
+                        <i class="fas fa-folder text-blue-500 text-3xl"></i>
+                    </div>
+                    
+                    <div class="flex-1 overflow-hidden">
+                        <h3 class="text-[15px] font-bold text-gray-800 truncate pr-6 mb-1">${item.name}</h3>
+                        <p class="text-[11px] font-medium text-gray-400 uppercase tracking-wider"><i class="fas fa-layer-group mr-1.5"></i>Thư mục con</p>
+                    </div>
+
+                    <div class="absolute top-1/2 -translate-y-1/2 right-3 z-10" onclick="event.stopPropagation()">
+                        <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
+                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa tên</div>
+                            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                         </div>
-                    </div>`;
-                }
+                    </div>
+                </div>`;
+            }).join('');
+
+            // XỬ LÝ LƯỚI GRID CHO FILE
+            fileListEl.innerHTML = files.map(item => {
+                let isImage = item.mimeType.includes('image');
+                
+                // Hỗ trợ hiển thị URL tạm thời khi vừa chọn upload xong
+                let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
+                let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
+                
+                let visualEl = isImage 
+                    ? `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy">` 
+                    : `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-file-video text-gray-400 text-4xl"></i></div>`;
+                
+                let isTemp = item.tempUrl ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` : '';
+
+                return `
+                <div class="bg-white p-2.5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative hover:shadow-md transition">
+                    ${isTemp}
+                    <div class="absolute top-2 right-2 z-20">
+                        <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
+                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
+                            <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa tên</div>
+                            <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}', '${fullImgUrl}')">
+                        ${visualEl}
+                    </div>
+                    
+                    <div class="px-1 flex flex-col justify-center flex-1">
+                        <span class="text-[13px] font-bold text-gray-800 line-clamp-2 leading-tight drive-img-name" title="${item.name}">${item.name}</span>
+                        <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
+                    </div>
+                </div>`;
             }).join('');
         }
 
         // TẠO FOLDER (Optimistic UI)
         function handleCreateFolder(name) {
             // 1. Phản hồi tức thì
-            const fakeId = 'temp_' + Date.now();
+            const fakeId = 'temp_folder_' + Date.now();
             currentDriveItems.unshift({ id: fakeId, name: name, type: 'folder' });
             renderItems(currentDriveItems);
+            
             // 2. Chạy ngầm
             apiCall('createFolder', { name: name }).then(res => { 
                 if (res.success) {
                     const idx = currentDriveItems.findIndex(i => i.id === fakeId);
-                    if(idx > -1) currentDriveItems[idx].id = res.folderId;
-                    localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                    if(idx > -1) {
+                        currentDriveItems[idx].id = res.folderId || res.id;
+                        localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                    }
                 }
             });
         }
 
+        // UP NHIỀU FILE & TỐI ƯU HIỂN THỊ TỨC THÌ (Optimistic UI)
         async function handleMultipleFileUpload(event) {
             closeFab();
-            const files = event.target.files; if (!files || files.length === 0) return;
-            loading.classList.remove('hidden');
-            let successCount = 0;
+            const files = event.target.files; 
+            if (!files || files.length === 0) return;
+            
+            let tempFilesToUpload = [];
+
+            // BƯỚC 1: Render ngay lập tức ra màn hình bằng Blob URL
             for (let i = 0; i < files.length; i++) {
                 let file = files[i];
-                await new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onload = async function(e) {
-                        const base64Data = e.target.result.split(',')[1];
-                        const res = await apiCall('upload', { filename: file.name, mimeType: file.type, data: base64Data });
-                        if (res && res.success) successCount++; resolve();
-                    };
-                    reader.readAsDataURL(file);
-                });
+                let fakeId = 'temp_file_' + Date.now() + i;
+                let tempUrl = URL.createObjectURL(file); 
+                
+                let newItem = {
+                    id: fakeId,
+                    name: file.name,
+                    mimeType: file.type,
+                    type: 'file',
+                    tempUrl: tempUrl // Cờ báo hiệu đang là file tạm
+                };
+                
+                tempFilesToUpload.push({ file: file, item: newItem });
+                currentDriveItems.push(newItem); // Push vào cuối hoặc unshift tùy ý
             }
-            loading.classList.add('hidden');
-            if (successCount > 0) loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
-            event.target.value = '';
+            
+            renderItems(currentDriveItems); // Màn hình load ngay mượt mà!
+
+            // BƯỚC 2: Bắt đầu vòng lặp Upload ngầm từng file lên Drive
+            for (let obj of tempFilesToUpload) {
+                let reader = new FileReader();
+                reader.onload = async function(e) {
+                    let base64Data = e.target.result.split(',')[1];
+                    let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
+                    
+                    if (res && res.success) {
+                        // Cập nhật lại ID thật và xóa cờ tempUrl
+                        let idx = currentDriveItems.findIndex(i => i.id === obj.item.id);
+                        if(idx > -1) {
+                            currentDriveItems[idx].id = res.fileId || res.id;
+                            delete currentDriveItems[idx].tempUrl;
+                            localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                            renderItems(currentDriveItems); // Render lại để tắt icon loading trên ảnh đó
+                        }
+                    }
+                };
+                reader.readAsDataURL(obj.file);
+            }
+            
+            event.target.value = ''; // Reset input
         }
 
-        function openMedia(id, mimeType, name) {
-            closeFab(); mediaTitle.textContent = name;
-            mediaViewer.classList.remove('hidden'); mediaViewer.classList.add('flex');
-            if (mimeType.includes('image')) { mediaContent.innerHTML = `<img src="https://drive.google.com/thumbnail?id=${id}&sz=w2000" class="max-w-full max-h-full object-contain">`; } 
-            else { mediaContent.innerHTML = `<p class="text-white">Chỉ hỗ trợ xem trước ảnh tại đây.</p>`; }
+        function openMedia(id, mimeType, name, tempUrlFull = null) {
+            closeFab(); 
+            mediaTitle.textContent = name;
+            mediaViewer.classList.remove('hidden'); 
+            mediaViewer.classList.add('flex');
+            
+            if (mimeType.includes('image')) { 
+                let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
+                mediaContent.innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`; 
+            } 
+            else { 
+                mediaContent.innerHTML = `<p class="text-white bg-gray-800 p-4 rounded-xl font-medium shadow-lg">Video/File không hỗ trợ xem trước ở đây.</p>`; 
+            }
         }
 
         function closeMedia() { mediaViewer.classList.add('hidden'); mediaViewer.classList.remove('flex'); mediaContent.innerHTML = ''; }
         
-        function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
-        function showModalUI() { customModal.classList.remove('hidden'); customModal.classList.add('flex'); setTimeout(() => document.getElementById('modalBox').classList.remove('scale-95'), 10); }
-        function closeModal() { document.getElementById('modalBox').classList.add('scale-95'); setTimeout(() => { customModal.classList.add('hidden'); customModal.classList.remove('flex'); }, 150); }
-        function uiPrompt(title, defaultText, callback) { closeFab(); modalTitle.textContent = title; modalDesc.classList.add('hidden'); modalInput.classList.remove('hidden'); modalInput.value = (defaultText === 'Nhập tên thư mục...') ? '' : defaultText; modalInput.placeholder = defaultText; modalConfirmBtn.onclick = () => { const val = modalInput.value.trim(); if (val) { callback(val); closeModal(); } }; showModalUI(); setTimeout(() => modalInput.focus(), 100); }
-        function uiConfirm(title, desc, callback) { closeFab(); modalTitle.textContent = title; modalDesc.textContent = desc; modalDesc.classList.remove('hidden'); modalInput.classList.add('hidden'); modalConfirmBtn.onclick = () => { callback(); closeModal(); }; showModalUI(); }
+        function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
+        
+        function showModalUI() { 
+            customModal.classList.remove('hidden'); customModal.classList.add('flex'); 
+            setTimeout(() => { document.getElementById('modalBox').classList.remove('scale-95'); document.getElementById('modalBox').classList.add('scale-100'); }, 10); 
+        }
+        function closeModal() { 
+            document.getElementById('modalBox').classList.remove('scale-100'); document.getElementById('modalBox').classList.add('scale-95'); 
+            setTimeout(() => { customModal.classList.add('hidden'); customModal.classList.remove('flex'); }, 150); 
+        }
+        
+        function uiPrompt(title, defaultText, callback) { 
+            closeFab(); modalTitle.textContent = title; modalDesc.classList.add('hidden'); modalInput.classList.remove('hidden'); 
+            modalInput.value = (defaultText.includes('Nhập')) ? '' : defaultText; modalInput.placeholder = "Nhập nội dung mới..."; 
+            modalConfirmBtn.onclick = () => { const val = modalInput.value.trim(); if (val) { callback(val); closeModal(); } }; 
+            showModalUI(); setTimeout(() => modalInput.focus(), 100); 
+        }
+        function uiConfirm(title, desc, callback) { 
+            closeFab(); modalTitle.textContent = title; modalDesc.textContent = desc; modalDesc.classList.remove('hidden'); modalInput.classList.add('hidden'); 
+            modalConfirmBtn.onclick = () => { callback(); closeModal(); }; 
+            showModalUI(); 
+        }
         function uiAlert(title, desc) { uiConfirm(title, desc, () => {}); }
 
         window.onload = () => loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
@@ -625,7 +710,9 @@
             let images = [];
             document.querySelectorAll('.drive-img-item').forEach((imgNode) => {
                 let nameNode = imgNode.closest('div.bg-white').querySelector('.drive-img-name');
-                images.push({ url: imgNode.dataset.url || imgNode.src, name: nameNode.textContent });
+                let urlToUse = imgNode.dataset.url || imgNode.src;
+                // Nếu lấy từ file tạm (Blob), phải render thẳng blob đó qua design
+                images.push({ url: urlToUse, name: nameNode.textContent });
             });
             return images;
         };
@@ -635,7 +722,6 @@
         // ==========================================
         
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
-        let currentDriveFolderId = ''; let currentDriveFolderName = '';
 
         const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 30, rotation: 0, color: '#ffffff', stroke: 'transparent', fontFamily: 'Roboto', fontWeight: 'normal', fontStyle: 'normal', textShadow: 'none', opacity: 100 });
         const createWm = (src, id = generateId()) => ({ id, src, x: 50, y: 50, scale: 30, rotation: 0, opacity: 100 });
@@ -655,10 +741,12 @@
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
             const driveInfo = window.getDriveFolderInfo();
-            currentDriveFolderId = driveInfo.id; currentDriveFolderName = driveInfo.name;
             const driveImages = window.getDriveImages();
             
-            if(driveImages.length === 0) return alert("Thư mục này hiện tại không có ảnh để chỉnh sửa!");
+            if(driveImages.length === 0) {
+                closeFab();
+                return uiAlert("Thông báo", "Thư mục hiện tại không có ảnh nào để chỉnh sửa!");
+            }
 
             state.images = []; state.layerOrder = []; state.activeElementId = null;
             driveImages.forEach(img => {
@@ -674,7 +762,7 @@
         document.getElementById('btn-close-design').addEventListener('click', () => { overlayContainer.style.display = 'none'; });
 
         async function processAllEditedImages() {
-            showAlert('Đang xử lý ảnh...', true); state.activeElementId = null; renderImages(); renderLayers();
+            showAlert('Đang xử lý xuất ảnh...', true); state.activeElementId = null; renderImages(); renderLayers();
             const outputImages = [];
             for (let i = 0; i < state.images.length; i++) {
                 const imgData = state.images[i]; const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
@@ -727,7 +815,7 @@
             document.getElementById('save-options-modal').classList.add('hidden');
             try {
                 const editedImages = await processAllEditedImages();
-                const safeFolderName = (currentDriveFolderName || 'VinhLoc_Watermark').replace(/[\/\\?%*:|"<>]/g, '');
+                const safeFolderName = (window.getDriveFolderInfo().name || 'VinhLoc').replace(/[\/\\?%*:|"<>]/g, '');
                 
                 // Fallback tải web trực tiếp
                 for (let i = 0; i < editedImages.length; i++) {
@@ -751,8 +839,8 @@
                 const editedImages = await processAllEditedImages(); 
                 if (editedImages.length === 0) return;
                 
-                // KIỂM TRA THƯ MỤC "ĐÃ CHỈNH SỬA" ĐÃ CÓ HAY CHƯA
-                showAlert('Đang lưu vào Drive...', true);
+                // KIỂM TRA THƯ MỤC "ĐÃ CHỈNH SỬA" BẰNG STATE LOCAL
+                showAlert('Đang xử lý kết nối Drive...', true);
                 let newFolderId = null;
                 let existingFolder = currentDriveItems.find(i => i.name === "ĐÃ CHỈNH SỬA" && i.type === "folder");
                 
@@ -763,7 +851,8 @@
                     newFolderId = createRes.folderId || createRes.id;
                     if (newFolderId) {
                         currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
-                        renderItems(currentDriveItems);
+                        // Render UI ngoài Drive lập tức
+                        folderListEl.innerHTML = renderItems(currentDriveItems); // update local UI
                     }
                 }
 
@@ -781,6 +870,8 @@
 
                 closeAlert();
                 showAlert(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào thư mục "ĐÃ CHỈNH SỬA"!`);
+                // Force sync lần cuối cùng
+                window.loadFolder(window.getDriveFolderInfo().id, window.getDriveFolderInfo().name);
             } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
 
@@ -820,21 +911,20 @@
         
         window.renderRenameList = function() {
             const cont = document.getElementById('rename-list-container'); cont.innerHTML = '';
-            const tg = getTargetImages(); if(tg.length===0) { cont.innerHTML = '<div style="text-align:center;color:#777;margin-top:20px;">Trống</div>'; return; }
+            const tg = getTargetImages(); if(tg.length===0) { cont.innerHTML = '<div style="text-align:center;color:#777;margin-top:20px; font-style:italic;">Chưa chọn ảnh</div>'; return; }
             tg.forEach(img => {
                 const d = document.createElement('div'); d.className = 'rename-item';
-                d.innerHTML = `<img src="${img.src}"><input type="text" value="${img.customName||''}" placeholder="Nhập tên...">`;
+                d.innerHTML = `<img src="${img.src}"><input type="text" value="${img.customName||''}" placeholder="Nhập tên mới...">`;
                 d.querySelector('input').addEventListener('input', e => img.customName = e.target.value); cont.appendChild(d);
             });
         };
         
-        // HIỆU ỨNG NÚT ÁP DỤNG
+        // HIỆU ỨNG NÚT ÁP DỤNG TRONG ĐỔI TÊN
         document.getElementById('btn-apply-batch-name').addEventListener('click', function() { 
             const bn = document.getElementById('batch-name-input').value.trim(); if(!bn) return; 
             getTargetImages().forEach((img, idx) => img.customName = `${bn}_${idx+1}`); 
             window.renderRenameList(); 
             
-            // Đổi giao diện nút thành công
             const originalHTML = this.innerHTML;
             this.innerHTML = '<i class="fa-solid fa-check"></i> Đã áp dụng';
             this.classList.replace('btn-blue', 'bg-green-600');
@@ -961,6 +1051,7 @@
                     return;
                 }
 
+                // Cập nhật lại kho proxy mới nhất mạnh mẽ hơn
                 const urlsToTry = [
                     src, 
                     "https://wsrv.nl/?url=" + encodeURIComponent(src), 
