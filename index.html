@@ -14,30 +14,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
  
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;700&family=Roboto:wght@400;700&family=Saira:wght@400;700&display=swap" rel="stylesheet">
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
-        /* ================= CSS CHUNG & DRIVE UI ================= */
-        body { -webkit-tap-highlight-color: transparent; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        body { -webkit-tap-highlight-color: transparent; background-color: #f3f4f6; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
 
-        /* ================= CSS DESIGN UI ================= */
         :root {
-            --primary-blue: #0056b3;
-            --primary-red: #d32f2f;
-            --brand-blue: #10adee;
-            --bg-white: #ffffff;
-            --gray-light: #f5f5f5;
-            --gray-dark: #333333;
-            --header-h: 56px;
-            --bottom-h: 60px;
-            --panel-h: 150px;
+            --primary-blue: #0056b3; --primary-red: #d32f2f; --bg-white: #ffffff;
+            --gray-light: #f5f5f5; --gray-dark: #333333;
+            --header-h: 56px; --bottom-h: 60px; --panel-h: 150px;
         }
 
         #watermark-overlay-container {
@@ -67,7 +57,6 @@
         .layer-controls { display: flex; gap: 10px; color: var(--primary-blue); align-items: center;}
 
         #main-container { flex: 1; overflow-y: auto; padding: 10px; padding-bottom: calc(var(--bottom-h) + var(--panel-h) + 20px); scrollbar-width: none; }
-        #main-container::-webkit-scrollbar { display: none; }
         
         .masonry-grid { column-count: 2; column-gap: 10px; }
         .image-card { break-inside: avoid; margin-bottom: 10px; position: relative; background: #ddd; width: 100%; overflow: hidden; container-type: inline-size; }
@@ -110,7 +99,7 @@
         .color-dot { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #ccc; flex-shrink: 0; cursor: pointer; }
 
         .action-row { display: flex; justify-content: center; gap: 15px; }
-        .btn { padding: 8px 15px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px; }
+        .btn { padding: 8px 15px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px; transition: 0.2s; }
         .btn-blue { background: var(--primary-blue); color: white; }
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
@@ -138,20 +127,26 @@
     </style>
 </head>
 
-<body class="bg-gray-100 text-gray-800 h-screen flex flex-col overflow-hidden relative">
+<body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
 
-    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10">
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-20">
         <button id="btnBack" class="hidden text-xl p-2 active:bg-blue-700 rounded-full transition"><i class="fas fa-arrow-left"></i></button>
         <h1 class="text-lg font-bold truncate flex-1 ml-2" id="currentFolderName">06. HÌNH ẢNH CONTENT</h1>
         <div id="loading" class="hidden loader"></div>
     </header>
 
-    <main class="flex-1 overflow-y-auto p-4 relative" id="contentArea">
-        <div id="itemList" class="grid grid-cols-2 gap-4">
-            </div>
+    <div class="sticky top-0 z-10 bg-white p-2 border-b shadow-sm">
+        <div class="relative">
+            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+            <input type="text" id="searchInput" placeholder="Tìm kiếm thư mục / file..." class="w-full pl-10 pr-3 py-2 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition">
+        </div>
+    </div>
+
+    <main class="flex-1 overflow-y-auto p-3 relative" id="contentArea">
+        <div id="itemList" class="flex flex-col gap-3"></div>
     </main>
 
-    <div class="absolute bottom-6 right-6 flex flex-col-reverse items-end gap-3 z-20">
+    <div class="absolute bottom-6 right-6 flex flex-col-reverse items-end gap-3 z-30">
         <button id="fabMain" class="bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl transition transform hover:scale-105 active:scale-95">
             <i class="fas fa-plus" id="fabIcon"></i>
         </button>
@@ -166,26 +161,21 @@
                 <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center"><i class="fas fa-folder-plus"></i></div>
             </button>
             <label class="bg-white text-green-600 p-3 rounded-full shadow-md flex items-center gap-2 font-medium cursor-pointer active:bg-gray-50">
-                <span class="text-sm">Up File / Ảnh / Video</span>
+                <span class="text-sm">Up File / Ảnh</span>
                 <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center"><i class="fas fa-upload"></i></div>
                 <input type="file" id="uploadFile" class="hidden" multiple accept="image/*,video/*,application/pdf" onchange="handleMultipleFileUpload(event)">
-            </label>
-            <label class="bg-white text-purple-600 p-3 rounded-full shadow-md flex items-center gap-2 font-medium cursor-pointer active:bg-gray-50">
-                <span class="text-sm">Chụp ảnh</span>
-                <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center"><i class="fas fa-camera"></i></div>
-                <input type="file" accept="image/*" capture="environment" id="capturePhoto" class="hidden" onchange="handleMultipleFileUpload(event)">
             </label>
         </div>
     </div>
 
-    <div id="customModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 transition-opacity">
+    <div id="customModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999] transition-opacity backdrop-blur-sm">
         <div class="bg-white rounded-2xl p-5 w-10/12 max-w-sm shadow-2xl transform scale-95 transition-transform" id="modalBox">
             <h3 id="modalTitle" class="text-lg font-bold mb-3 text-gray-800">Tiêu đề</h3>
             <p id="modalDesc" class="text-sm text-gray-500 mb-3 hidden"></p>
             <input type="text" id="modalInput" class="w-full border-2 border-gray-200 p-3 rounded-xl mb-5 focus:border-blue-500 outline-none" />
             <div class="flex justify-end gap-3">
-                <button onclick="closeModal()" class="px-5 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl">Hủy</button>
-                <button id="modalConfirmBtn" class="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-xl">Xác nhận</button>
+                <button onclick="closeModal()" class="px-5 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-xl active:bg-gray-200 transition">Hủy</button>
+                <button id="modalConfirmBtn" class="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-xl active:bg-blue-700 transition">Xác nhận</button>
             </div>
         </div>
     </div>
@@ -202,10 +192,6 @@
         <header>
             <div class="header-icons">
                 <i class="fa-solid fa-arrow-left" id="btn-close-design" title="Trở lại"></i>
-                <label for="camera-input" style="display:none"><i class="fa-solid fa-camera"></i></label>
-                <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
-                <label for="upload-input" style="display:none"><i class="fa-solid fa-image"></i></label>
-                <input type="file" id="upload-input" accept="image/*" multiple style="display:none">
             </div>
             <div class="header-icons">
                 <div class="dropdown">
@@ -375,6 +361,9 @@
         let savedStack = localStorage.getItem('appFolderStack');
         let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "06. HÌNH ẢNH CONTENT" }];
         let currentFolderId = folderStack[folderStack.length - 1].id;
+        
+        // State cho UI Drive - Hỗ trợ Optimistic Sync
+        let currentDriveItems = [];
 
         const itemList = document.getElementById('itemList');
         const loading = document.getElementById('loading');
@@ -391,7 +380,9 @@
         const mediaViewer = document.getElementById('mediaViewer');
         const mediaTitle = document.getElementById('mediaTitle');
         const mediaContent = document.getElementById('mediaContent');
+        const searchInput = document.getElementById('searchInput');
 
+        // Nút Mở Fab
         fabMain.addEventListener('click', () => {
             fabMenu.classList.toggle('hidden');
             fabMenu.classList.toggle('flex');
@@ -399,6 +390,7 @@
             fabIcon.classList.toggle('fa-times');
         });
 
+        // Nút Back Folder
         btnBack.addEventListener('click', () => {
             if (folderStack.length > 1) {
                 folderStack.pop();
@@ -420,32 +412,53 @@
         async function apiCall(action, payload = {}) {
             loading.classList.remove('hidden');
             payload.action = action; 
-            if (!payload.folderId) {
-                payload.folderId = currentFolderId;
-            }
+            if (!payload.folderId) payload.folderId = currentFolderId;
             try {
                 const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
                 const data = await response.json();
                 loading.classList.add('hidden'); return data;
             } catch (error) {
-                loading.classList.add('hidden'); uiAlert("Lỗi", "Lỗi kết nối!"); return { success: false };
+                loading.classList.add('hidden'); return { success: false };
             }
         }
 
+        // TẢI THƯ MỤC CÓ TỐI ƯU TRẢI NGHIỆM (Optimistic UI)
         async function loadFolder(folderId, folderName, isNewNavigation = false) {
             currentFolderId = folderId;
-            if (isNewNavigation) { folderStack.push({ id: folderId, name: folderName }); localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); }
-            updateBreadcrumbs(); btnBack.classList.toggle('hidden', folderStack.length <= 1);
+            if (isNewNavigation) { 
+                folderStack.push({ id: folderId, name: folderName }); 
+                localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
+            }
+            updateBreadcrumbs(); 
+            btnBack.classList.toggle('hidden', folderStack.length <= 1);
+            searchInput.value = ''; // Reset search khi chuyển folder
             
+            // Render nhanh từ LocalStorage nếu có
             const cachedData = localStorage.getItem(`folder_${folderId}`);
-            if (cachedData) renderItems(JSON.parse(cachedData));
-            else itemList.innerHTML = '<div class="col-span-2 text-center text-gray-400 mt-10">Đang tải...</div>';
+            if (cachedData) {
+                currentDriveItems = JSON.parse(cachedData);
+                renderItems(currentDriveItems);
+            } else {
+                itemList.innerHTML = '<div class="text-center text-gray-400 mt-10 w-full"><div class="loader mx-auto mb-2"></div>Đang tải dữ liệu...</div>';
+            }
 
+            // Gọi API nền để lấy data mới nhất
             const res = await apiCall('list');
-            if (res && res.success) { localStorage.setItem(`folder_${folderId}`, JSON.stringify(res.data)); renderItems(res.data); }
+            if (res && res.success) { 
+                currentDriveItems = res.data;
+                localStorage.setItem(`folder_${folderId}`, JSON.stringify(currentDriveItems)); 
+                renderItems(currentDriveItems); 
+            }
         }
 
-        // Bật/Tắt Menu 3 chấm
+        // TÌM KIẾM REALTIME
+        searchInput.addEventListener('input', (e) => {
+            const keyword = e.target.value.toLowerCase();
+            const filtered = currentDriveItems.filter(item => item.name.toLowerCase().includes(keyword));
+            renderItems(filtered);
+        });
+
+        // BẬT / TẮT MENU 3 CHẤM CỦA MỖI ITEM
         window.toggleItemMenu = function(id, e) {
             e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(menu => {
@@ -454,69 +467,117 @@
             document.getElementById(`menu-${id}`).classList.toggle('hidden');
         };
 
-        // GỌI MODAL ĐỂ ĐỔI TÊN
+        // ĐÓNG MENU 3 CHẤM KHI BẤM RA NGOÀI
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
+        });
+
+        // SỬA TÊN (Optimistic UI)
         window.handleRename = function(id, oldName, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
             uiPrompt('Đổi tên', oldName, (newName) => {
-                if (newName !== oldName) renameItem(id, newName, type);
+                if (newName && newName !== oldName) {
+                    // 1. Đổi ngay trên UI
+                    const item = currentDriveItems.find(i => i.id === id);
+                    if (item) item.name = newName;
+                    renderItems(currentDriveItems);
+                    // 2. Chạy ngầm API
+                    apiCall('rename', { id: id, newName: newName, type: type }).then(res => {
+                        if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                    });
+                }
             });
         };
 
-        // GỌI MODAL ĐỂ XÁC NHẬN XÓA
+        // XÓA (Optimistic UI)
         window.handleDelete = function(id, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
             uiConfirm('Xác nhận xóa', 'Bạn có chắc chắn muốn xóa mục này? Hành động này không thể hoàn tác.', () => {
-                deleteItem(id, type);
+                // 1. Xóa ngay trên UI
+                currentDriveItems = currentDriveItems.filter(i => i.id !== id);
+                renderItems(currentDriveItems);
+                // 2. Chạy ngầm API
+                apiCall('delete', { id: id, type: type }).then(res => {
+                    if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                });
             });
         };
 
-        // Nhấn ra ngoài tự đóng menu 3 chấm
-        document.addEventListener('click', () => {
-            document.querySelectorAll('.item-action-menu').forEach(menu => {
-                menu.classList.add('hidden');
-            });
-        });
-
+        // HIỂN THỊ MEGA ROW (GIAO DIỆN NGANG)
         function renderItems(items) {
-            if (items.length === 0) { itemList.innerHTML = '<div class="col-span-2 text-center text-gray-400 mt-10">Thư mục trống</div>'; return; }
+            if (items.length === 0) { itemList.innerHTML = '<div class="text-center text-gray-400 mt-10 w-full">Không có dữ liệu</div>'; return; }
+            
             itemList.innerHTML = items.map(item => {
                 if (item.type === 'folder') {
-                    // Thêm 3 chấm cho thư mục
-                    return `<div class="bg-white p-4 rounded-2xl shadow-sm border flex flex-col items-center justify-center gap-2 relative">
-                        <div class="absolute top-2 right-2 z-10">
-                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-2 py-1 text-gray-500 hover:text-blue-600 bg-white rounded-full"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-28 bg-white rounded-md shadow-lg border z-20 py-1 text-sm item-action-menu">
-                                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-700" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-2 text-blue-500"></i>Sửa tên</div>
-                                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-red-600" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-2"></i>Xóa</div>
+                    // TÌM ẢNH ĐẦU TIÊN LÀM PREVIEW (Trong phạm vi Cache)
+                    let previewHtml = `<i class="fas fa-folder text-blue-500 text-3xl"></i>`;
+                    
+                    return `
+                    <div class="bg-white p-3 rounded-2xl shadow-sm border flex items-center gap-4 relative hover:bg-gray-50 transition cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)">
+                        
+                        <div class="w-16 h-16 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden border border-blue-100">
+                            ${previewHtml}
+                        </div>
+                        
+                        <div class="flex-1 overflow-hidden">
+                            <h3 class="text-sm font-bold text-gray-800 truncate pr-6">${item.name}</h3>
+                            <p class="text-xs text-gray-500 mt-1"><i class="fas fa-folder-open mr-1"></i>Thư mục</p>
+                        </div>
+
+                        <div class="absolute top-3 right-3 z-10" onclick="event.stopPropagation()">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-2 py-1 text-gray-400 hover:text-blue-600 bg-white rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-xl border z-50 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-gray-700 font-medium transition" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-2 text-blue-500"></i>Sửa tên</div>
+                                <div class="px-4 py-2.5 hover:bg-red-50 cursor-pointer text-red-600 font-medium transition border-t border-gray-100" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-2"></i>Xóa</div>
                             </div>
                         </div>
-                        <i class="fas fa-folder text-blue-500 text-5xl cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)"></i>
-                        <span class="text-sm font-semibold truncate w-full text-center" onclick="loadFolder('${item.id}', '${item.name}', true)">${item.name}</span>
                     </div>`;
                 } else {
                     let isImage = item.mimeType.includes('image');
                     let visualEl = isImage 
-                        ? `<img src="https://drive.google.com/thumbnail?id=${item.id}&sz=w400" data-url="https://drive.google.com/thumbnail?id=${item.id}&sz=w2000" class="w-full h-24 object-cover rounded-xl drive-img-item" loading="lazy">` 
-                        : `<i class="fas fa-file text-gray-500 text-5xl"></i>`;
+                        ? `<img src="https://drive.google.com/thumbnail?id=${item.id}&sz=w200" data-url="https://drive.google.com/thumbnail?id=${item.id}&sz=w2000" class="w-full h-full object-cover drive-img-item" loading="lazy">` 
+                        : `<i class="fas fa-file-alt text-gray-400 text-3xl"></i>`;
                     
-                    // Thêm 3 chấm cho file ảnh
-                    return `<div class="bg-white p-3 rounded-2xl shadow-sm border flex flex-col items-center justify-center gap-2 relative">
-                        <div class="absolute top-2 right-2 z-10">
-                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-2 py-1 text-gray-600 hover:text-blue-600 bg-white/80 rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-28 bg-white rounded-md shadow-lg border z-20 py-1 text-sm item-action-menu">
-                                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-700" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-2 text-blue-500"></i>Sửa tên</div>
-                                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-red-600" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-2"></i>Xóa</div>
-                            </div>
-                        </div>
-                        <div class="w-full h-24 flex items-center justify-center bg-gray-50 rounded-xl overflow-hidden cursor-pointer" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}')">
+                    return `
+                    <div class="bg-white p-3 rounded-2xl shadow-sm border flex items-center gap-4 relative hover:bg-gray-50 transition cursor-pointer" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}')">
+                        
+                        <div class="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden border">
                             ${visualEl}
                         </div>
-                        <span class="text-xs font-medium text-center truncate w-full drive-img-name">${item.name}</span>
+                        
+                        <div class="flex-1 overflow-hidden">
+                            <h3 class="text-sm font-semibold text-gray-700 truncate pr-6 drive-img-name">${item.name}</h3>
+                            <p class="text-xs text-gray-400 mt-1 uppercase">${item.mimeType.split('/')[1] || 'FILE'}</p>
+                        </div>
+
+                        <div class="absolute top-3 right-3 z-10" onclick="event.stopPropagation()">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-2 py-1 text-gray-400 hover:text-blue-600 bg-white rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-xl border z-50 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-gray-700 font-medium transition" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-2 text-blue-500"></i>Sửa tên</div>
+                                <div class="px-4 py-2.5 hover:bg-red-50 cursor-pointer text-red-600 font-medium transition border-t border-gray-100" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-2"></i>Xóa</div>
+                            </div>
+                        </div>
                     </div>`;
                 }
             }).join('');
+        }
+
+        // TẠO FOLDER (Optimistic UI)
+        function handleCreateFolder(name) {
+            // 1. Phản hồi tức thì
+            const fakeId = 'temp_' + Date.now();
+            currentDriveItems.unshift({ id: fakeId, name: name, type: 'folder' });
+            renderItems(currentDriveItems);
+            // 2. Chạy ngầm
+            apiCall('createFolder', { name: name }).then(res => { 
+                if (res.success) {
+                    const idx = currentDriveItems.findIndex(i => i.id === fakeId);
+                    if(idx > -1) currentDriveItems[idx].id = res.folderId;
+                    localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                }
+            });
         }
 
         async function handleMultipleFileUpload(event) {
@@ -549,9 +610,6 @@
         }
 
         function closeMedia() { mediaViewer.classList.add('hidden'); mediaViewer.classList.remove('flex'); mediaContent.innerHTML = ''; }
-        function handleCreateFolder(name) { apiCall('createFolder', { name: name }).then(res => { if (res.success) loadFolder(currentFolderId, folderStack[folderStack.length-1].name); }); }
-        function renameItem(id, newName, type) { apiCall('rename', { id: id, newName: newName, type: type }).then(res => { if (res.success) loadFolder(currentFolderId, folderStack[folderStack.length-1].name); }); }
-        function deleteItem(id, type) { apiCall('delete', { id: id, type: type }).then(res => { if (res.success) loadFolder(currentFolderId, folderStack[folderStack.length-1].name); }); }
         
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         function showModalUI() { customModal.classList.remove('hidden'); customModal.classList.add('flex'); setTimeout(() => document.getElementById('modalBox').classList.remove('scale-95'), 10); }
@@ -571,13 +629,11 @@
             });
             return images;
         };
-    </script>
 
-    <script>
-        // KIỂM TRA MÔI TRƯỜNG CAPACITOR NATIVE CHUẨN XÁC
-        const Filesystem = window.Capacitor ? window.Capacitor.Plugins.Filesystem : null;
-        const Directory = window.Capacitor ? window.Capacitor.Plugins.Directory : null;
-
+        // ==========================================
+        // KHỐI LOGIC DESIGN WATERMARK GỘP CHUNG
+        // ==========================================
+        
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
         let currentDriveFolderId = ''; let currentDriveFolderName = '';
 
@@ -673,21 +729,7 @@
                 const editedImages = await processAllEditedImages();
                 const safeFolderName = (currentDriveFolderName || 'VinhLoc_Watermark').replace(/[\/\\?%*:|"<>]/g, '');
                 
-                if (Filesystem && Directory) {
-                    try {
-                        for (let img of editedImages) {
-                            await Filesystem.writeFile({
-                                path: `Pictures/${safeFolderName}/${img.fileName}`,
-                                data: img.data,
-                                directory: Directory.ExternalStorage,
-                                recursive: true
-                            });
-                        }
-                        closeAlert();
-                        return showAlert(`✅ Đã lưu ${editedImages.length} ảnh vào Thư viện máy!\n(Thư mục: Pictures/${safeFolderName})`);
-                    } catch(e) { console.warn('Lưu Native thất bại, chuyển qua Web'); }
-                }
-
+                // Fallback tải web trực tiếp
                 for (let i = 0; i < editedImages.length; i++) {
                     const img = editedImages[i];
                     const link = document.createElement('a');
@@ -708,19 +750,24 @@
             try {
                 const editedImages = await processAllEditedImages(); 
                 if (editedImages.length === 0) return;
-                showAlert('Đang tạo thư mục "ĐÃ CHỈNH SỬA" trên Drive...', true);
                 
-                let createRes = await apiCall('createFolder', { name: "ĐÃ CHỈNH SỬA" });
-                let newFolderId = createRes.folderId || createRes.id;
+                // KIỂM TRA THƯ MỤC "ĐÃ CHỈNH SỬA" ĐÃ CÓ HAY CHƯA
+                showAlert('Đang lưu vào Drive...', true);
+                let newFolderId = null;
+                let existingFolder = currentDriveItems.find(i => i.name === "ĐÃ CHỈNH SỬA" && i.type === "folder");
                 
-                if (!newFolderId) {
-                    let listRes = await apiCall('list');
-                    if (listRes && listRes.data) {
-                        let folderMatch = listRes.data.find(f => f.name === "ĐÃ CHỈNH SỬA" && f.type === "folder");
-                        if (folderMatch) newFolderId = folderMatch.id;
+                if (existingFolder) {
+                    newFolderId = existingFolder.id;
+                } else {
+                    let createRes = await apiCall('createFolder', { name: "ĐÃ CHỈNH SỬA" });
+                    newFolderId = createRes.folderId || createRes.id;
+                    if (newFolderId) {
+                        currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
+                        renderItems(currentDriveItems);
                     }
                 }
-                if (!newFolderId) throw new Error("Không thể lấy ID thư mục mới tạo để tải ảnh lên.");
+
+                if (!newFolderId) throw new Error("Không thể truy cập thư mục lưu trữ.");
 
                 let successCount = 0;
                 for (let i = 0; i < editedImages.length; i++) {
@@ -732,9 +779,8 @@
                     if (uploadRes && uploadRes.success) successCount++;
                 }
 
-                window.loadFolder(currentDriveFolderId, currentDriveFolderName);
                 closeAlert();
-                showAlert(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào thư mục "ĐÃ CHỈNH SỬA" trên Drive!`);
+                showAlert(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào thư mục "ĐÃ CHỈNH SỬA"!`);
             } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
 
@@ -767,7 +813,6 @@
         
         document.getElementById('menu-btn').addEventListener('click', () => { document.getElementById('dropdown-menu').classList.toggle('show'); document.getElementById('layer-menu').classList.remove('show'); });
         document.getElementById('layer-btn').addEventListener('click', () => { renderLayers(); document.getElementById('layer-menu').classList.toggle('show'); document.getElementById('dropdown-menu').classList.remove('show'); });
-        document.addEventListener('click', e => { if(!e.target.closest('.dropdown')) { document.getElementById('dropdown-menu').classList.remove('show'); document.getElementById('layer-menu').classList.remove('show'); } });
         
         window.updateProp = function(key, val) { getTargetImages().forEach(img => { (state.activeEditTarget === 'text' ? img.texts : img.wms).forEach(item => { if(state.activeElementId){ if(item.id === state.activeElementId) item[key] = val; } else item[key] = val; }); }); renderImages(); };
         window.applyRatio = function(r) { getTargetImages().forEach(img => img.ratio = r); renderImages(); };
@@ -782,7 +827,23 @@
                 d.querySelector('input').addEventListener('input', e => img.customName = e.target.value); cont.appendChild(d);
             });
         };
-        document.getElementById('btn-apply-batch-name').addEventListener('click', () => { const bn = document.getElementById('batch-name-input').value.trim(); if(!bn) return; getTargetImages().forEach((img, idx) => img.customName = `${bn}_${idx+1}`); window.renderRenameList(); });
+        
+        // HIỆU ỨNG NÚT ÁP DỤNG
+        document.getElementById('btn-apply-batch-name').addEventListener('click', function() { 
+            const bn = document.getElementById('batch-name-input').value.trim(); if(!bn) return; 
+            getTargetImages().forEach((img, idx) => img.customName = `${bn}_${idx+1}`); 
+            window.renderRenameList(); 
+            
+            // Đổi giao diện nút thành công
+            const originalHTML = this.innerHTML;
+            this.innerHTML = '<i class="fa-solid fa-check"></i> Đã áp dụng';
+            this.classList.replace('btn-blue', 'bg-green-600');
+            
+            setTimeout(() => {
+                this.innerHTML = originalHTML;
+                this.classList.replace('bg-green-600', 'btn-blue');
+            }, 1500);
+        });
 
         function renderImages() {
             grid.innerHTML = '';
