@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<title>QL Ảnh</title>
+    <title>QL Ảnh</title>
     
     <link rel="manifest" href="manifest.json?v=2">
     <link rel="icon" type="image/png" href="vlimage.png">
@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="QL Ảnh">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  
+ 
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -419,11 +419,9 @@
             }
         }
 
-        // Sửa hàm apiCall để cho phép truyền folderId tùy chọn
         async function apiCall(action, payload = {}) {
             loading.classList.remove('hidden');
             payload.action = action; 
-            // Nếu payload.folderId chưa được truyền vào, mới dùng currentFolderId
             if (!payload.folderId) {
                 payload.folderId = currentFolderId;
             }
@@ -449,21 +447,71 @@
             if (res && res.success) { localStorage.setItem(`folder_${folderId}`, JSON.stringify(res.data)); renderItems(res.data); }
         }
 
+        // CHỨC NĂNG BẬT/TẮT MENU 3 CHẤM CỦA TỪNG MỤC
+        window.toggleItemMenu = function(id, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.item-action-menu').forEach(menu => {
+                if (menu.id !== `menu-${id}`) menu.classList.add('hidden');
+            });
+            document.getElementById(`menu-${id}`).classList.toggle('hidden');
+        };
+
+        // CHỨC NĂNG SỬA TÊN (DÙNG CUSTOM MODAL)
+        window.handleRename = function(id, oldName, type, e) {
+            e.stopPropagation();
+            document.getElementById(`menu-${id}`).classList.add('hidden');
+            uiPrompt('Đổi tên', oldName, (newName) => {
+                if (newName !== oldName) renameItem(id, newName, type);
+            });
+        };
+
+        // CHỨC NĂNG XÓA (DÙNG CUSTOM MODAL)
+        window.handleDelete = function(id, type, e) {
+            e.stopPropagation();
+            document.getElementById(`menu-${id}`).classList.add('hidden');
+            uiConfirm('Xác nhận xóa', 'Bạn có chắc chắn muốn xóa mục này? Hành động này không thể hoàn tác.', () => {
+                deleteItem(id, type);
+            });
+        };
+
+        // ĐÓNG MENU 3 CHẤM KHI BẤM RA NGOÀI
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.item-action-menu').forEach(menu => {
+                menu.classList.add('hidden');
+            });
+        });
+
         function renderItems(items) {
             if (items.length === 0) { itemList.innerHTML = '<div class="col-span-2 text-center text-gray-400 mt-10">Thư mục trống</div>'; return; }
             itemList.innerHTML = items.map(item => {
                 if (item.type === 'folder') {
-                    return `<div class="bg-white p-4 rounded-2xl shadow-sm border flex flex-col items-center justify-center gap-2">
+                    // ĐÃ THÊM: Nút 3 chấm và Dropdown Sửa/Xóa cho Thư mục
+                    return `<div class="bg-white p-4 rounded-2xl shadow-sm border flex flex-col items-center justify-center gap-2 relative">
+                        <div class="absolute top-2 right-2 z-10">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-2 py-1 text-gray-500 hover:text-blue-600 bg-white rounded-full"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-28 bg-white rounded-md shadow-lg border z-20 py-1 text-sm item-action-menu">
+                                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-700" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-2 text-blue-500"></i>Sửa</div>
+                                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-red-600" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-2"></i>Xóa</div>
+                            </div>
+                        </div>
                         <i class="fas fa-folder text-blue-500 text-5xl cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)"></i>
                         <span class="text-sm font-semibold truncate w-full text-center" onclick="loadFolder('${item.id}', '${item.name}', true)">${item.name}</span>
                     </div>`;
                 } else {
                     let isImage = item.mimeType.includes('image');
-                    // Gắn dataset.url để Giao diện Design có thể bóc tách ảnh sắc nét ra xài
                     let visualEl = isImage 
                         ? `<img src="https://drive.google.com/thumbnail?id=${item.id}&sz=w400" data-url="https://drive.google.com/thumbnail?id=${item.id}&sz=w2000" class="w-full h-24 object-cover rounded-xl drive-img-item" loading="lazy">` 
                         : `<i class="fas fa-file text-gray-500 text-5xl"></i>`;
-                    return `<div class="bg-white p-3 rounded-2xl shadow-sm border flex flex-col items-center justify-center gap-2">
+                    
+                    // ĐÃ THÊM: Nút 3 chấm và Dropdown Sửa/Xóa cho Tệp tin
+                    return `<div class="bg-white p-3 rounded-2xl shadow-sm border flex flex-col items-center justify-center gap-2 relative">
+                        <div class="absolute top-2 right-2 z-10">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-2 py-1 text-gray-600 hover:text-blue-600 bg-white/80 rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-28 bg-white rounded-md shadow-lg border z-20 py-1 text-sm item-action-menu">
+                                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-700" onclick="window.handleRename('${item.id}', '${item.name}', '${item.type}', event)"><i class="fas fa-pen mr-2 text-blue-500"></i>Sửa</div>
+                                <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-red-600" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-2"></i>Xóa</div>
+                            </div>
+                        </div>
                         <div class="w-full h-24 flex items-center justify-center bg-gray-50 rounded-xl overflow-hidden cursor-pointer" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}')">
                             ${visualEl}
                         </div>
@@ -516,7 +564,6 @@
 
         window.onload = () => loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
         
-        // HÀM XUẤT DATA CHO BÊN DESIGN LẤY
         window.getDriveFolderInfo = () => ({ id: currentFolderId, name: folderStack[folderStack.length-1].name });
         window.getDriveImages = () => {
             let images = [];
@@ -550,7 +597,6 @@
         function saveStorageWMs() { try { localStorage.setItem('vinhloc_wms_v2', JSON.stringify(state.savedWatermarks)); } catch (e) {} }
         loadStorageWMs(); 
 
-        // MỞ GIAO DIỆN DESIGN TỪ NÚT BÚT Ở DRIVE
         document.getElementById('btn-open-design').addEventListener('click', () => {
             const driveInfo = window.getDriveFolderInfo();
             currentDriveFolderId = driveInfo.id; currentDriveFolderName = driveInfo.name;
@@ -562,17 +608,15 @@
             driveImages.forEach(img => {
                 state.images.push({
                     id: generateId(), src: img.url, ratio: 'auto', panX: 50, panY: 50,
-                    selected: false, customName: '', texts: [], wms: [] // Gỡ bỏ tên mặc định để chèn tên mới lúc xuất
+                    selected: false, customName: '', texts: [], wms: [] 
                 });
             });
             renderImages();
             overlayContainer.style.display = 'flex';
         });
 
-        // ĐÓNG GIAO DIỆN DESIGN
         document.getElementById('btn-close-design').addEventListener('click', () => { overlayContainer.style.display = 'none'; });
 
-        // TÁCH HÀM RENDER ẢNH
         async function processAllEditedImages() {
             showAlert('Đang xử lý ảnh...', true); state.activeElementId = null; renderImages(); renderLayers();
             const outputImages = [];
@@ -610,27 +654,21 @@
                     }
                 }
                 const base64Data = canvas.toDataURL('image/jpeg', 1.0).replace(/^data:image\/jpeg;base64,/, '');
-                
-                // ĐẶT TÊN ẢNH: Lấy từ tab Tên ảnh, nếu trống thì random
                 const randomName = 'IMG_' + Math.random().toString(36).substring(2, 8).toUpperCase();
                 const rawName = imgData.customName ? imgData.customName.trim() : randomName;
                 const cleanName = rawName.replace(/[\/\\?%*:|"<>]/g, '');
-                
                 outputImages.push({ fileName: `${cleanName}.jpg`, data: base64Data });
             }
             return outputImages;
         }
 
-        // LƯU (MỞ MODAL)
         document.getElementById('save-all-btn').addEventListener('click', () => {
             if(state.images.length === 0) return showAlert('Không có ảnh để lưu.');
             document.getElementById('save-options-modal').classList.remove('hidden'); document.getElementById('save-options-modal').classList.add('flex');
         });
 
-        // LƯU LOCAL
         document.getElementById('btn-save-local').addEventListener('click', async () => {
             document.getElementById('save-options-modal').classList.add('hidden');
-            
             try {
                 const editedImages = await processAllEditedImages();
                 const safeFolderName = (currentDriveFolderName || 'VinhLoc_Watermark').replace(/[\/\\?%*:|"<>]/g, '');
@@ -648,9 +686,7 @@
                         closeAlert();
                         return showAlert(`✅ Đã lưu ${editedImages.length} ảnh vào Thư viện máy!\n(Thư mục: Pictures/${safeFolderName})`);
                     }
-                } catch(e) {
-                    console.warn('Không phải App Native, chuyển qua chế độ tải Web');
-                }
+                } catch(e) { console.warn('Không phải App Native, chuyển qua chế độ tải Web'); }
 
                 for (let i = 0; i < editedImages.length; i++) {
                     const img = editedImages[i];
@@ -662,31 +698,21 @@
                     document.body.removeChild(link);
                     await new Promise(r => setTimeout(r, 400));
                 }
-                
                 closeAlert();
                 showAlert(`✅ Đã tải lần lượt ${editedImages.length} ảnh về máy!`);
-            } catch (error) {
-                closeAlert();
-                showAlert('❌ Không thể tải ảnh: ' + error.message);
-            }
+            } catch (error) { closeAlert(); showAlert('❌ Không thể tải ảnh: ' + error.message); }
         });
 
-        // LƯU DRIVE (SERVER) - ĐÃ CẬP NHẬT CHỨC NĂNG TẠO FOLDER "ĐÃ CHỈNH SỬA"
         document.getElementById('btn-save-drive').addEventListener('click', async () => {
             document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');
-            
             try {
-                // 1. Chạy hàm xử lý ảnh trên màn hình (để lấy danh sách ảnh đã edit và tên)
                 const editedImages = await processAllEditedImages(); 
                 if (editedImages.length === 0) return;
-
-                // 2. Tạo Thư Mục "ĐÃ CHỈNH SỬA" trên Drive
                 showAlert('Đang tạo thư mục "ĐÃ CHỈNH SỬA" trên Drive...', true);
                 
                 let createRes = await apiCall('createFolder', { name: "ĐÃ CHỈNH SỬA" });
                 let newFolderId = createRes.folderId || createRes.id;
                 
-                // Fallback nếu apiCall('createFolder') không trả về ID trực tiếp -> Load danh sách folder hiện tại để quét tìm nó.
                 if (!newFolderId) {
                     let listRes = await apiCall('list');
                     if (listRes && listRes.data) {
@@ -694,41 +720,24 @@
                         if (folderMatch) newFolderId = folderMatch.id;
                     }
                 }
+                if (!newFolderId) throw new Error("Không thể lấy ID thư mục mới tạo để tải ảnh lên.");
 
-                if (!newFolderId) {
-                    throw new Error("Không thể lấy ID thư mục mới tạo để tải ảnh lên.");
-                }
-
-                // 3. Tải từng ảnh lên Thư Mục Mới
                 let successCount = 0;
                 for (let i = 0; i < editedImages.length; i++) {
                     showAlert(`Đang tải ảnh lên Drive... (${i + 1}/${editedImages.length})`, true);
                     let img = editedImages[i];
-                    
                     let uploadRes = await window.apiCall('upload', { 
-                        folderId: newFolderId, // Ghi đè tham số để ép tải vào thư mục "ĐÃ CHỈNH SỬA"
-                        filename: img.fileName, 
-                        mimeType: 'image/jpeg', 
-                        data: img.data 
+                        folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data 
                     });
-                    
                     if (uploadRes && uploadRes.success) successCount++;
                 }
 
-                // 4. Làm mới lại danh sách ở giao diện bên ngoài
                 window.loadFolder(currentDriveFolderId, currentDriveFolderName);
-
-                // 5. Kết thúc
                 closeAlert();
                 showAlert(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào thư mục "ĐÃ CHỈNH SỬA" trên Drive!`);
-
-            } catch (error) { 
-                closeAlert(); 
-                showAlert('❌ Lỗi lưu Drive: ' + error.message); 
-            }
+            } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
 
-        // --- CÁC HÀM UI CỦA DESIGN (GIỮ NGUYÊN) ---
         let scrollInterval = null;
         function startScroll(dir) { if(scrollInterval) clearInterval(scrollInterval); scrollInterval = setInterval(() => mainContainer.scrollTop += dir * 25, 16); }
         function stopScroll() { if(scrollInterval) { clearInterval(scrollInterval); scrollInterval = null; } }
