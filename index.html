@@ -106,10 +106,6 @@
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
 
-        .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
-        .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
-        .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
-        .rename-right::-webkit-scrollbar { display: none; }
         .rename-item { display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb; flex-shrink: 0;}
         .rename-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db; flex-shrink: 0;}
         .rename-item input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
@@ -426,13 +422,21 @@
         </div>
 
         <div class="control-panel" id="panel-rename">
-            <div class="panel-content rename-container">
-                <div class="rename-left">
-                    <span style="font-size: 13px; font-weight: bold; color: var(--primary-blue); text-align: center;">Tên chung</span>
-                    <input type="text" id="batch-name-input" placeholder="Nhập tên..." style="padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%; outline: none; font-family: inherit;">
-                    <button class="btn btn-blue transition-colors duration-300" id="btn-apply-batch-name" style="justify-content: center; padding: 10px;"><i class="fa-solid fa-check-double"></i> Áp dụng</button>
+            <div class="sub-tabs" id="rename-sub-tabs">
+                <button class="sub-tab-btn active" data-target="rename-batch">Tên chung</button>
+                <button class="sub-tab-btn" data-target="rename-individual">Tên riêng</button>
+            </div>
+            
+            <div class="panel-content relative">
+                <div id="rename-batch" style="display:flex; flex-direction:column; gap:15px; justify-content:center; align-items:center; width:100%; height:100%; padding-bottom:10px;">
+                    <span style="font-size: 14px; font-weight: bold; color: var(--primary-blue);">Đổi tên hàng loạt cho các ảnh đã chọn</span>
+                    <input type="text" id="batch-name-input" placeholder="Ví dụ: Anh_KhaiTruong..." style="padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; width: 90%; outline: none; font-family: inherit;">
+                    <button class="btn btn-blue transition-colors duration-300" id="btn-apply-batch-name" style="padding: 12px; width: 90%; justify-content: center;"><i class="fa-solid fa-check-double"></i> Áp dụng nhanh</button>
                 </div>
-                <div class="rename-right" id="rename-list-container"></div>
+                
+                <div id="rename-individual" style="display:none; flex-direction:column; gap:10px; width:100%;">
+                    <div id="rename-list-container" style="display:flex; flex-direction:column; gap:10px; padding-bottom:10px;"></div>
+                </div>
             </div>
         </div>
 
@@ -840,7 +844,7 @@
             });
         });
 
-        // Cập nhật hàm downloadItem chống mở app ngoài bằng cách lấy Blob
+        // === GIẢI QUYẾT LỖI TẢI XUỐNG ===
         window.downloadItem = async function(id, type, name, e) {
             if(e) e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
@@ -884,7 +888,7 @@
                     showToast(`Thư mục trống hoặc bị lỗi.`, true);
                 }
             } else {
-                showToast(`<i class="fas fa-download mr-2"></i> Đang tải tệp ${name}...`);
+                showToast(`<i class="fas fa-download mr-2"></i> Đang nạp tệp ${name}...`);
                 try {
                     const b64Res = await apiCall('getFileBase64', { fileId: id });
                     if(b64Res.success && b64Res.data && b64Res.mimeType) {
@@ -896,6 +900,22 @@
                         const byteArray = new Uint8Array(byteNumbers);
                         const blob = new Blob([byteArray], {type: b64Res.mimeType});
                         
+                        // SỬ DỤNG WEB SHARE API (Mở bảng chọn 'Lưu vào máy/Zalo') ĐỂ KHÔNG HIỆN THÔNG BÁO TẢI CHROME LÀM KẸT MÀN HÌNH
+                        const fileObj = new File([blob], name, { type: b64Res.mimeType });
+                        if (navigator.canShare && navigator.canShare({ files: [fileObj] })) {
+                            try {
+                                await navigator.share({
+                                    files: [fileObj],
+                                    title: name
+                                });
+                                showToast(`<i class="fas fa-check mr-2"></i> Đã chia sẻ/lưu tệp.`);
+                                return;
+                            } catch (shareErr) {
+                                console.log("Người dùng hủy share hoặc lỗi", shareErr);
+                            }
+                        }
+
+                        // Nếu không share được thì tải kiểu cũ
                         const link = document.createElement('a');
                         link.href = URL.createObjectURL(blob);
                         link.download = name;
@@ -907,14 +927,13 @@
                         throw new Error("Không lấy được dữ liệu tệp.");
                     }
                 } catch(e) {
-                    showToast(`Tệp lớn, đang mở tải ngoài...`, true);
-                    const a = document.createElement('a');
-                    a.href = `https://drive.google.com/uc?export=download&id=${id}`;
-                    a.target = "_blank";
-                    a.rel = "noopener noreferrer";
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
+                    // GIẢI PHÁP CHO FILE LỚN: DÙNG IFRAME ẨN THAY VÌ MỞ TAB MỚI, TRÁNH VĂNG RA KHỎI APP
+                    showToast(`Đang tải tệp lớn ngầm trong App...`, true);
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = `https://drive.google.com/uc?export=download&id=${id}`;
+                    document.body.appendChild(iframe);
+                    setTimeout(() => document.body.removeChild(iframe), 15000);
                 }
             }
         }
@@ -1395,7 +1414,6 @@
         loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
-            // SỬA: Lọc lấy trực tiếp các tệp ảnh đang có trong danh sách hiện tại của màn hình (hỗ trợ cả khi đang xem thư mục hoặc đang xem kết quả tìm kiếm)
             const driveImages = currentDriveItems
                 .filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'))
                 .map(item => ({
@@ -1595,11 +1613,20 @@
             }
         });
 
-        document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach((btn, idx) => {
+        // XỬ LÝ SỰ KIỆN CHUYỂN SUB-TAB ĐỔI TÊN
+        document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                document.querySelectorAll('#filter-sliders .slider-row').forEach((d, i) => d.style.display = i === idx ? 'flex' : 'none');
+                const target = btn.dataset.target;
+                if(target === 'rename-batch') {
+                    document.getElementById('rename-batch').style.display = 'flex';
+                    document.getElementById('rename-individual').style.display = 'none';
+                } else {
+                    document.getElementById('rename-batch').style.display = 'none';
+                    document.getElementById('rename-individual').style.display = 'flex';
+                    window.renderRenameList();
+                }
             });
         });
 
@@ -1690,7 +1717,25 @@
         document.getElementById('select-all-btn').addEventListener('click', e => { aSel=!aSel; state.images.forEach(i=>i.selected=aSel); e.target.innerHTML=aSel?'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Bỏ chọn':'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả'; renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
         document.getElementById('delete-selected-btn').addEventListener('click', () => { state.images=state.images.filter(i=>!i.selected); renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
 
-        document.querySelectorAll('.nav-item').forEach(item => { item.addEventListener('click', () => { const tP = document.getElementById(item.dataset.panel); if(item.classList.contains('active')){ item.classList.remove('active'); tP.classList.remove('active'); } else { document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); item.classList.add('active'); tP.classList.add('active'); if(item.dataset.panel==='panel-rename') window.renderRenameList(); } }); });
+        // SỬA SỰ KIỆN CHUYỂN TAB ĐỂ RENDER LIST KHI BẤM VÀO TAB "ĐỔI TÊN"
+        document.querySelectorAll('.nav-item').forEach(item => { 
+            item.addEventListener('click', () => { 
+                const tP = document.getElementById(item.dataset.panel); 
+                if(item.classList.contains('active')){ 
+                    item.classList.remove('active'); tP.classList.remove('active'); 
+                } else { 
+                    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); 
+                    document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); 
+                    item.classList.add('active'); tP.classList.add('active'); 
+                    if(item.dataset.panel==='panel-rename') {
+                        // Gọi render danh sách nếu tab Tên riêng đang mở
+                        if(document.getElementById('rename-individual').style.display === 'flex') {
+                            window.renderRenameList();
+                        }
+                    }
+                } 
+            }); 
+        });
 
         function syncSliders() { 
             const tg=getTargetImages(); 
