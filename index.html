@@ -152,7 +152,10 @@
     <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
     <div id="sidebar">
         <div class="p-6 border-b flex justify-between items-center bg-blue-50">
-            <h2 class="font-bold text-xl text-blue-600">Danh Mục</h2>
+            <div class="flex items-center gap-3">
+                <img src="vlimage.png" alt="Logo" class="w-8 h-8 object-cover rounded shadow-sm">
+                <h2 class="font-bold text-xl text-blue-600">Danh Mục</h2>
+            </div>
             <i class="fas fa-times text-2xl text-gray-500 cursor-pointer" onclick="toggleSidebar()"></i>
         </div>
         <div class="flex-1 overflow-y-auto py-2">
@@ -169,6 +172,7 @@
         <div class="flex items-center gap-3 w-full overflow-hidden">
             <i class="fas fa-bars text-xl cursor-pointer p-1 shrink-0" id="btnMenu" onclick="toggleSidebar()"></i>
             <button id="btnBack" class="hidden text-xl p-1 active:bg-blue-700 rounded-full transition shrink-0"><i class="fas fa-arrow-left"></i></button>
+            <img src="vlimage.png" alt="Logo" class="w-7 h-7 object-cover rounded bg-white/20 p-0.5 shrink-0">
             <h1 class="text-sm font-bold truncate whitespace-nowrap overflow-x-auto no-scrollbar" id="currentFolderName" style="flex:1;">Triển khai</h1>
         </div>
         <div id="loading" class="hidden loader shrink-0 ml-2"></div>
@@ -204,12 +208,12 @@
             <label class="bg-white text-green-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
                 <span class="text-sm pl-2">Up Ảnh</span>
                 <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center"><i class="fas fa-image"></i></div>
-                <input type="file" id="uploadImage" class="hidden" multiple accept="image/*" capture="environment" onchange="handleMultipleFileUpload(event)">
+                <input type="file" id="uploadImage" class="hidden" multiple accept="image/*" onchange="handleMultipleFileUpload(event)">
             </label>
             <label class="bg-white text-purple-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
                 <span class="text-sm pl-2">Up Video</span>
                 <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center"><i class="fas fa-video"></i></div>
-                <input type="file" id="uploadVideo" class="hidden" multiple accept="video/mp4,video/*" capture="environment" onchange="handleMultipleFileUpload(event)">
+                <input type="file" id="uploadVideo" class="hidden" multiple accept="video/mp4,video/*" onchange="handleMultipleFileUpload(event)">
             </label>
         </div>
     </div>
@@ -255,7 +259,7 @@
                             <span class="text-xs font-medium">Bấm để tải ảnh lên</span>
                         </div>
                     </div>
-                    <input type="file" id="infoCoverInput" class="hidden" accept="image/*" onchange="handleCoverUpload(event)">
+                    <input type="file" id="infoCoverInput" class="hidden" accept="image/png, image/jpeg, image/webp" onchange="handleCoverUpload(event)">
                 </div>
             </div>
 
@@ -530,7 +534,7 @@
         function updateSyncIndicator() {
             if (syncQueueCount > 0) {
                 syncIcon.innerHTML = '<i class="fas fa-circle-notch fa-spin text-blue-600"></i>';
-                syncText.textContent = 'Đang lưu...';
+                syncText.textContent = 'Đang lưu ngầm...';
                 syncText.className = 'text-blue-600';
                 syncIndicator.classList.remove('opacity-0');
             } else {
@@ -928,7 +932,7 @@
                     }
                 } catch(e) {
                     // GIẢI PHÁP CHO FILE LỚN: DÙNG IFRAME ẨN THAY VÌ MỞ TAB MỚI, TRÁNH VĂNG RA KHỎI APP
-                    showToast(`Đang tải...`, true);
+                    showToast(`Đang tải tệp lớn ngầm trong App...`, true);
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
                     iframe.src = `https://drive.google.com/uc?export=download&id=${id}`;
