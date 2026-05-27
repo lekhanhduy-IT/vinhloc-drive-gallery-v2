@@ -51,7 +51,13 @@
         .image-card.selected .check-icon { display: block; }
         .pin-icon { position: absolute; top: 8px; left: 8px; color: var(--primary-blue); background: white; border-radius: 50%; font-size: 14px; padding: 6px; z-index: 10; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
 
-        /* DESIGN UI DROPDOWN FIX */
+        /* DESIGN UI */
+        #watermark-overlay-container { position: fixed; inset: 0; background-color: var(--gray-light); z-index: 9999; display: none; flex-direction: column; font-family: 'Roboto', sans-serif; color: var(--gray-dark); }
+        #watermark-overlay-container header { height: var(--header-h); background: var(--bg-white); display: flex; justify-content: space-between; align-items: center; padding: 0 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 100; flex-shrink: 0; }
+        .header-icons { display: flex; gap: 20px; align-items: center; color: var(--primary-blue); font-size: 22px; }
+        .header-icons i { cursor: pointer; padding: 5px; }
+        
+        /* FIX LỖI HIỂN THỊ DROPDOWN 3 CHẤM GÓC PHẢI */
         .dropdown { position: relative; display: inline-block; }
         .dropdown-menu { display: none !important; position: absolute; right: 0; top: 100%; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 12px; overflow: hidden; z-index: 1000; min-width: 180px; border: 1px solid #e5e7eb; }
         .dropdown-menu.show { display: block !important; }
@@ -94,6 +100,7 @@
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
 
+        /* RENAME LIST TRONG DESIGN */
         .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
         .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
         .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
@@ -409,7 +416,7 @@
     </div>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUqZEUH1lMgupZVXiaQj6MvIddfIMrmo44h1XhxCqctVPl_W-OGIOoirRn-tIUDUA/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -418,41 +425,37 @@
         
         let currentDriveItems = [];
         let subFolderCache = {}; 
-        let openAccordions = JSON.parse(localStorage.getItem('openAccordions')) || {}; 
+        let openAccordions = JSON.parse(localStorage.getItem('openAccordions')) || {}; // KHỐI LƯU TRẠNG THÁI SỔ/RÚT
         
-        // BỘ CƠ SỞ DỮ LIỆU METADATA LOCAL
+        // HỆ THỐNG METADATA ĐỒNG BỘ DRIVES + LOCAL
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         
-        // HÀM LƯU TỪNG MỤC RIÊNG BIỆT LÊN CLOUD - KHÔNG BỊ GHI ĐÈ XUNG ĐỘT MULTI-DEVICE
-        async function saveSingleMetaOnCloud(id, itemMeta) {
-            appMeta[id] = itemMeta;
-            localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
-            
-            // Đẩy duy nhất cặp Key-Value lên Drive gộp dữ liệu
-            try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({ action: 'updateSingleMeta', id: id, metaData: itemMeta })
-                });
-            } catch (e) { console.log('Lỗi sync cloud item:', e); }
+        function saveMeta() { 
+            localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
+            // Đẩy đồng bộ ngầm lên file trên Google Drive
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'saveMeta', meta: appMeta })
+            }).catch(e => console.log('Lỗi sync cloud metadata', e));
         }
 
-        // TẢI TOÀN BỘ METADATA TỪ FILE JSON TRÊN DRIVE VỀ KHI KHỞI ĐỘNG
         async function syncMetaFromDrive() {
             try {
                 const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'loadMeta' }) });
                 const data = await response.json();
-                if (data.success && data.meta) {
-                    appMeta = { ...appMeta, ...data.meta }; // Merge dữ liệu tổng
+                if (data.success && data.meta && Object.keys(data.meta).length > 0) {
+                    appMeta = { ...appMeta, ...data.meta };
                     localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
-                    if(currentDriveItems.length > 0) renderItems(currentDriveItems);
                 }
-            } catch(e) { console.log("Không đồng bộ được dữ liệu cloud:", e); }
+            } catch(e) {
+                console.log("Không lấy được meta tự động:", e);
+            }
         }
 
         function getMeta(id) { 
             if(!appMeta[id]) {
                 appMeta[id] = { type: 'Triển khai', desc: '', cover: '' };
+                saveMeta();
             }
             return appMeta[id];
         }
@@ -584,11 +587,10 @@
             document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
         });
 
-        // ĐIỀU KHIỂN MODAL THÔNG TIN
+        // HỘP MODAL THÔNG TIN THƯ MỤC
         let currentEditId = null;
         let currentEditLevel = null;
         let currentEditType = null;
-        let uploadedCoverUrl = ""; // Biến tạm lưu URL ảnh bìa sau khi up lên Drive
         
         window.openInfo = function(id, name, itemType, level, e) {
             e.stopPropagation();
@@ -598,7 +600,6 @@
             currentEditType = itemType;
             
             const meta = getMeta(id);
-            uploadedCoverUrl = meta.cover || "";
             
             document.getElementById('infoName').value = name;
             document.getElementById('infoType').value = meta.type || 'Triển khai';
@@ -608,8 +609,8 @@
             const previewImg = document.getElementById('infoCoverPreview');
             const placeholder = document.getElementById('infoCoverPlaceholder');
             
-            if (uploadedCoverUrl) {
-                previewImg.src = uploadedCoverUrl;
+            if (meta.cover) {
+                previewImg.src = meta.cover;
                 previewImg.classList.remove('hidden');
                 placeholder.classList.add('hidden');
             } else {
@@ -639,7 +640,7 @@
             document.getElementById('infoModal').classList.remove('flex');
         }
 
-        // BẤM DẤU 3 CHẤM CÓ MỤC THƯ MỤC MỚI ĐỂ TẠO TRỰC TIẾP FOLDER CON
+        // HÀM TẠO THƯ MỤC CON TRỰC TIẾP TỪ MENU 3 CHẤM
         window.createSubfolderDirect = function(parentId, level, e) {
             e.stopPropagation();
             document.getElementById(`menu-${parentId}`).classList.add('hidden');
@@ -654,7 +655,7 @@
                 const val = document.getElementById('modalInput').value.trim(); 
                 if (val) {
                     closeModal();
-                    showAlert('Đang tạo thư mục con trên Cloud...', true);
+                    showAlert('Đang khởi tạo thư mục con...', true);
                     const res = await apiCall('createFolder', { folderId: parentId, name: val });
                     closeAlert();
                     if (res.success) {
@@ -673,7 +674,7 @@
                             loadFolder(currentFolderId, folderStack[folderStack.length - 1].name);
                         }
                     } else {
-                        alert('Lỗi tạo thư mục con. Vui lòng kiểm tra lại.');
+                        alert('Lỗi khởi tạo thư mục con trên Drive.');
                     }
                 } 
             }; 
@@ -682,39 +683,23 @@
             setTimeout(() => document.getElementById('modalInput').focus(), 100); 
         };
 
-        // XỬ LÝ UP ẢNH COVER THẲNG LÊN DRIVE LẤY URL THUMBNAIL (KHÔNG LƯU BASE64 VÀO FILE JSON)
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
-            showAlert('Đang tải ảnh xem trước lên cloud...', true);
             const reader = new FileReader();
-            reader.onload = async function(e) {
-                const base64Data = e.target.result.split(',')[1];
-                // Gọi API upload đặc biệt cho ảnh Cover
-                const res = await apiCall('upload', { folderId: ROOT_FOLDER_ID, filename: 'cover_' + Date.now() + '.jpg', mimeType: file.type, data: base64Data });
-                closeAlert();
-                
-                if(res && res.success) {
-                    // Lấy link Thumbnail thu nhỏ chuẩn của Google Drive làm ảnh bìa
-                    uploadedCoverUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w400`;
-                    
-                    const previewImg = document.getElementById('infoCoverPreview');
-                    previewImg.src = uploadedCoverUrl;
-                    previewImg.classList.remove('hidden');
-                    document.getElementById('infoCoverPlaceholder').classList.add('hidden');
-                } else {
-                    alert('Lỗi upload ảnh bìa lên Drive.');
-                }
+            reader.onload = function(e) {
+                const b64 = e.target.result;
+                document.getElementById('infoCoverPreview').src = b64;
+                document.getElementById('infoCoverPreview').classList.remove('hidden');
+                document.getElementById('infoCoverPlaceholder').classList.add('hidden');
             };
             reader.readAsDataURL(file);
         };
 
-        // BẤM LƯU LẠI MODAL THÔNG TIN THƯ MỤC
-        document.getElementById('infoSaveBtn').addEventListener('click', async () => {
+        document.getElementById('infoSaveBtn').addEventListener('click', () => {
             if(!currentEditId) return closeInfoModal();
             
-            const meta = { ...getMeta(currentEditId) };
+            const meta = getMeta(currentEditId);
             const newName = document.getElementById('infoName').value.trim();
             const oldItem = currentDriveItems.find(i => i.id === currentEditId) || 
                             Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
@@ -724,11 +709,12 @@
                 meta.desc = document.getElementById('infoDesc').value.trim();
             } else if (currentEditLevel === 'sub') {
                 meta.desc = document.getElementById('infoDesc').value.trim();
-                meta.cover = uploadedCoverUrl; // Gán URL ngắn từ Drive
+                const coverSrc = document.getElementById('infoCoverPreview').src;
+                if(coverSrc && coverSrc.startsWith('data:')) {
+                    meta.cover = coverSrc;
+                }
             }
-            
-            // Tiến hành lưu gộp dạng Key-Value lên Cloud độc lập
-            await saveSingleMetaOnCloud(currentEditId, meta);
+            saveMeta();
 
             if (newName && newName !== oldItem.name) {
                 oldItem.name = newName;
@@ -770,7 +756,7 @@
             document.getElementById('customModal').classList.remove('flex');
         }
 
-        // ĐÓNG / MỞ ACCORDION VÀ LƯU GIỮ TRẠNG THÁI TRUY CẬP
+        // ĐÓNG MỞ ACCORDION + LƯU TRẠNG THÁI LOCAL STORAGE
         window.toggleAccordion = async function(id) {
             const body = document.getElementById(`acc-${id}`);
             const icon = document.getElementById(`icon-${id}`);
@@ -874,6 +860,7 @@
                     </div>`;
                 }).join('');
                 
+                // Trả về trạng thái đóng/mở chuẩn xác cho từng Mega Row
                 megaRows.forEach(row => {
                     if(openAccordions[row.id]) window.toggleAccordion(row.id);
                 });
@@ -947,8 +934,8 @@
                     const fakeId = 'temp_folder_' + Date.now();
                     const newItem = { id: fakeId, name: val, type: 'folder' };
                     if(folderStack.length === 1) {
-                        const defaultMeta = { type: currentCategory, desc: '', cover: '' };
-                        saveSingleMetaOnCloud(fakeId, defaultMeta);
+                        appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
+                        saveMeta();
                     }
                     currentDriveItems.unshift(newItem);
                     renderItems(currentDriveItems);
@@ -962,7 +949,7 @@
                             if(folderStack.length === 1) {
                                 appMeta[realId] = appMeta[fakeId];
                                 delete appMeta[fakeId];
-                                saveSingleMetaOnCloud(realId, appMeta[realId]);
+                                saveMeta();
                             }
                             localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                         }
@@ -1026,7 +1013,7 @@
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
         window.onload = async () => {
-            await syncMetaFromDrive(); // Chặn đồng bộ data cloud về máy trước tiên khi load web
+            await syncMetaFromDrive(); // Đồng bộ dữ liệu tổng từ cloud Drive về máy trước
             if(folderStack.length === 1) switchCategory('Triển khai');
             else loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
         };
