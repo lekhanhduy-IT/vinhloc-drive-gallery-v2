@@ -436,10 +436,24 @@
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
         // API chạy ngầm không chặn UI (Optimistic UI)
+// API chạy ngầm không chặn UI (Optimistic UI)
         async function bgApiCall(action, payload = {}) {
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
-            try { fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) }); } catch (e) {}
+            try { 
+                fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    // Thêm headers chuẩn để Google không chặn CORS
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload),
+                    redirect: 'follow'
+                })
+                .then(res => res.json())
+                .then(data => console.log("Đồng bộ ngầm thành công:", action, data))
+                .catch(err => console.error("Lỗi mạng khi đồng bộ:", err));
+            } catch (e) {
+                console.error("Lỗi gọi hàm đồng bộ:", e);
+            }
         }
 
         async function fetchMetaFromSheetBg() {
