@@ -1747,6 +1747,92 @@
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
+        /* =========================
+   PATCH FIX GIỮ VỊ TRÍ SCROLL KHI BACK
+========================= */
+
+const SCROLL_KEY = 'vinhloc_scroll_positions_v2';
+
+function getScrollStore() {
+    try {
+        return JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
+    } catch(e) {
+        return {};
+    }
+}
+
+function saveScrollPosition(folderId) {
+    if (!folderId) return;
+    const store = getScrollStore();
+
+    store[folderId] = {
+        top: document.getElementById('contentArea')?.scrollTop || 0,
+        time: Date.now()
+    };
+
+    localStorage.setItem(SCROLL_KEY, JSON.stringify(store));
+}
+
+function restoreScrollPosition(folderId) {
+    if (!folderId) return;
+
+    const store = getScrollStore();
+    const saved = store[folderId];
+
+    if (!saved) return;
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const content = document.getElementById('contentArea');
+            if (content) {
+                content.scrollTop = saved.top || 0;
+            }
+        });
+    });
+}
+
+/* lưu scroll realtime */
+const contentAreaEl = document.getElementById('contentArea');
+
+if (contentAreaEl) {
+    let scrollSaveTimer = null;
+
+    contentAreaEl.addEventListener('scroll', () => {
+        clearTimeout(scrollSaveTimer);
+
+        scrollSaveTimer = setTimeout(() => {
+            saveScrollPosition(currentFolderId);
+        }, 80);
+    }, { passive: true });
+}
+
+/* patch loadFolder */
+const __oldLoadFolder = loadFolder;
+
+loadFolder = async function(folderId, folderName, isNewNavigation = false, isPopState = false) {
+
+    /* lưu vị trí hiện tại trước khi chuyển */
+    saveScrollPosition(currentFolderId);
+
+    await __oldLoadFolder(folderId, folderName, isNewNavigation, isPopState);
+
+    /* khôi phục vị trí cuộn */
+    restoreScrollPosition(folderId);
+};
+
+/* patch nút back */
+const __oldPopState = window.onpopstate;
+
+window.addEventListener('popstate', () => {
+    setTimeout(() => {
+        restoreScrollPosition(currentFolderId);
+    }, 50);
+});
+
+/* lưu trước khi reload */
+window.addEventListener('beforeunload', () => {
+    saveScrollPosition(currentFolderId);
+});
     </script>
 </body>
 </html>
