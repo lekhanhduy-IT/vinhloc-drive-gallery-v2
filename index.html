@@ -44,7 +44,7 @@
         .subfolder-row:active { background: #f3f4f6; }
         
         .masonry-grid { column-count: 2; column-gap: 10px; }
-        .image-card { break-inside: avoid; margin-bottom: 10px; position: relative; background: #e5e7eb; width: 100%; overflow: hidden; border-radius: 12px; }
+        .image-card { break-inside: avoid; margin-bottom: 10px; position: relative; background: #e5e7eb; width: 100%; overflow: hidden; border-radius: 0px; }
         .image-card img.base-img { width: 100%; display: block; pointer-events: auto; }
         .image-card.selected::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 3px solid var(--primary-red); background: rgba(220, 38, 38, 0.2); pointer-events: none; border-radius: 12px; }
         .check-icon { display: none; position: absolute; top: 8px; right: 8px; color: var(--primary-red); background: white; border-radius: 50%; font-size: 20px; z-index: 10; pointer-events: none; }
@@ -88,12 +88,12 @@
         .sub-tabs::-webkit-scrollbar { display: none; }
         .sub-tab-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; background: none; font-size: 13px; cursor: pointer; color: var(--primary-blue); font-weight: 500; transition: 0.2s; }
         .sub-tab-btn.active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-        .panel-content { flex: 1; padding: 0px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+        .panel-content { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; justify-content: center; }
         .slider-row { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #4b5563; }
         .slider-row input[type="range"] { flex: 1; accent-color: var(--primary-blue); }
         
-        /* CẬP NHẬT CSS BẢNG MÀU */
-        .color-list { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 10px; padding: 20px; max-height: 120px; overflow-y: auto; }
+        /* CẬP NHẬT CSS BẢNG MÀU ĐỂ CUỘN NGANG MƯỢT MÀ */
+        .color-list { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 12px; padding: 10px 5px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
         .color-list::-webkit-scrollbar { display: none; }
         .color-dot { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #e5e7eb; flex-shrink: 0; cursor: pointer; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .color-dot:active { transform: scale(0.85); }
@@ -471,7 +471,7 @@
         function updateSyncIndicator() {
             if (syncQueueCount > 0) {
                 syncIcon.innerHTML = '<i class="fas fa-circle-notch fa-spin text-blue-600"></i>';
-                syncText.textContent = 'Đang lưu...';
+                syncText.textContent = 'Đang lưu ngầm...';
                 syncText.className = 'text-blue-600';
                 syncIndicator.classList.remove('opacity-0');
             } else {
@@ -492,7 +492,9 @@
             
             fetch(SCRIPT_URL, { 
                 method: 'POST', 
-                body: JSON.stringify(payload)
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload),
+                redirect: 'follow'
             })
             .then(res => res.json())
             .then(data => {
