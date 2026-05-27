@@ -788,10 +788,9 @@
             }
 
             searchTimeout = setTimeout(async () => {
-                folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm sâu trong thư mục gốc...</p></div>';
+                folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang quét đệ quy sâu thư mục gốc...</p></div>';
                 fileListEl.innerHTML = '';
                 
-                // Mặc định action 'globalSearch' ở Code.gs đã được thiết lập để bám chặt vào ROOT_FOLDER_ID
                 const res = await apiCall('globalSearch', { keyword: keyword });
                 if(res && res.success) {
                     lastSearchResults = res.data;
@@ -800,7 +799,7 @@
                     sessionStorage.setItem('lastSearchKeyword', keyword);
                     renderItems(res.data, true);
                 } else {
-                    folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không tìm thấy kết quả.</div>';
+                    folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không có kết quả trong phạm vi ứng dụng.</div>';
                 }
             }, 800);
         });
@@ -818,7 +817,6 @@
             if(!e.target.closest('.dropdown')) {
                 document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.remove('show'));
             }
-            // Đóng custom select nếu click ra ngoài
             if(!e.target.closest('.custom-select-wrapper')) {
                 document.getElementById('customSelectOptions').classList.remove('open');
             }
@@ -886,7 +884,6 @@
                     showToast(`Thư mục trống hoặc bị lỗi.`, true);
                 }
             } else {
-                // Tải file trực tiếp (Dùng Base64->Blob để kẹt người dùng trong App, không bật popup Drive ngoài)
                 showToast(`<i class="fas fa-download mr-2"></i> Đang tải tệp ${name}...`);
                 try {
                     const b64Res = await apiCall('getFileBase64', { fileId: id });
@@ -910,7 +907,6 @@
                         throw new Error("Không lấy được dữ liệu tệp.");
                     }
                 } catch(e) {
-                    // Fallback an toàn cho file quá bự (Video) khiến apps script timeout
                     showToast(`Tệp lớn, đang mở tải ngoài...`, true);
                     const a = document.createElement('a');
                     a.href = `https://drive.google.com/uc?export=download&id=${id}`;
@@ -938,7 +934,6 @@
             
             document.getElementById('infoName').value = name;
             
-            // Set custom select
             let currentType = meta.type || currentCategory;
             hiddenTypeInput.value = currentType;
             selectValueDiv.querySelector('span').textContent = currentType;
@@ -1400,7 +1395,7 @@
         loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
-            // Đã SỬA: Lọc lấy các ảnh từ currentDriveItems thay vì gọi hàm không tồn tại
+            // SỬA: Lọc lấy trực tiếp các tệp ảnh đang có trong danh sách hiện tại của màn hình (hỗ trợ cả khi đang xem thư mục hoặc đang xem kết quả tìm kiếm)
             const driveImages = currentDriveItems
                 .filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'))
                 .map(item => ({
@@ -1409,7 +1404,7 @@
 
             if(driveImages.length === 0) {
                 closeFab();
-                showToast("Thư mục hiện tại không có ảnh nào!", true);
+                showToast("Vùng hiển thị hiện tại không tìm thấy ảnh nào!", true);
                 return;
             }
             state.images = []; state.layerOrder = []; state.activeElementId = null;
