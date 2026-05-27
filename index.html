@@ -143,7 +143,7 @@
             <button id="btnBack" class="hidden text-xl p-1 active:bg-blue-700 rounded-full transition"><i class="fas fa-arrow-left"></i></button>
             <h1 class="text-lg font-bold truncate" id="currentFolderName">Triển khai</h1>
         </div>
-        <div id="loading" class="hidden loader"></div>
+        <div id="loading" class="hidden loader border-white border-t-blue-300 w-5 h-5"></div>
     </header>
 
     <div class="sticky top-0 z-10 bg-white p-3 border-b border-gray-200 shadow-sm">
@@ -198,7 +198,7 @@
                 </div>
 
                 <div id="info-field-type" class="mb-4 hidden">
-                    <label class="block text-sm font-bold text-gray-700 mb-1">Loại</label>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Phân Loại</label>
                     <select id="infoType" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50">
                         <option value="Triển khai">Triển khai</option>
                         <option value="Ý tưởng">Ý tưởng</option>
@@ -429,27 +429,43 @@
         let currentDriveItems = [];
         let subFolderCache = {};
         
-        // HỆ THỐNG DATABASE ĐỒNG BỘ LOCAL & DRIVE
+        // HỆ THỐNG DATABASE ĐỒNG BỘ LOCAL & GOOGLE SHEET
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
-        // Block Load - Đảm bảo dữ liệu Meta được kéo về xong mới render thư mục
+        // Block Load - Tải dữ liệu cũ từ Local Storage trước (nhanh), sau đó chạy ngầm lấy dữ liệu mới từ Sheet
+        window.onload = async () => {
+            if(folderStack.length === 1) {
+                switchCategory(folderStack[0].name, false); 
+                loadFolder(currentFolderId, folderStack[0].name); 
+            } else {
+                loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
+            }
+
+            // Gọi chạy ngầm kéo file từ Google Sheet
+            fetchMetaFromDrive(); 
+        };
+
         async function fetchMetaFromDrive() {
             const res = await apiCall('getMeta');
             if(res && res.success && res.meta) {
                 appMeta = res.meta;
                 localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
+                
+                // Sau khi có dữ liệu mới (Realtime) -> tự động refresh lại giao diện không cản trở thao tác
+                if(currentDriveItems.length > 0) renderItems(currentDriveItems);
+                
+                // Mở lại các accordion cũ
+                expandedMegas.forEach(id => {
+                    if(subFolderCache[id]) renderSubFolders(id, subFolderCache[id]);
+                });
             }
         }
 
-        function saveMeta() { 
-            localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
-            // Đẩy ngầm lên Drive để đồng bộ cho các thiết bị khác
-            apiCall('saveMeta', { meta: appMeta });
-        }
+        // Lấy Metadata hiện tại của 1 ID
         function getMeta(id) { 
             if(!appMeta[id]) {
-                appMeta[id] = { type: currentCategory, desc: '', cover: '' };
+                appMeta[id] = { name: '', type: currentCategory, desc: '', cover: '' };
             }
             return appMeta[id];
         }
@@ -524,17 +540,20 @@
             }
         }
 
+        // Tối ưu Tốc độ: Các hàm Đồng bộ Ngầm sẽ không cản trở UI (Không hiện loading giữa chừng)
         async function apiCall(action, payload = {}) {
-            if(action !== 'saveMeta' && action !== 'getMeta') loading.classList.remove('hidden');
+            const silentActions = ['saveMeta', 'getMeta', 'updateMeta', 'delete', 'rename'];
+            if(!silentActions.includes(action)) loading.classList.remove('hidden');
+            
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
             try {
                 const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
                 const data = await response.json();
-                if(action !== 'saveMeta' && action !== 'getMeta') loading.classList.add('hidden'); 
+                if(!silentActions.includes(action)) loading.classList.add('hidden'); 
                 return data;
             } catch (error) {
-                if(action !== 'saveMeta' && action !== 'getMeta') loading.classList.add('hidden'); 
+                if(!silentActions.includes(action)) loading.classList.add('hidden'); 
                 return { success: false };
             }
         }
@@ -587,7 +606,7 @@
         });
 
         // =====================================
-        // HỆ THỐNG MODAL THÔNG TIN (SỬA)
+        // HỆ THỐNG MODAL THÔNG TIN (SỬA LẠI TỐI ƯU OPTIMISTIC UI)
         // =====================================
         let currentEditId = null;
         let currentEditLevel = null;
@@ -657,33 +676,46 @@
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
             if(!currentEditId) return closeInfoModal();
             
-            const meta = getMeta(currentEditId);
             const newName = document.getElementById('infoName').value.trim();
+            const newType = document.getElementById('infoType').value;
+            const newDesc = document.getElementById('infoDesc').value.trim();
+            const newCover = document.getElementById('infoCoverPreview').src;
+
+            // 1. CẬP NHẬT DATABASE LẠC QUAN NGAY TỨC THÌ LÊN MÀN HÌNH (Optimistic UI)
+            if (!appMeta[currentEditId]) appMeta[currentEditId] = {};
+            if (currentEditLevel === 'mega') {
+                appMeta[currentEditId].type = newType;
+                appMeta[currentEditId].desc = newDesc;
+            } else if (currentEditLevel === 'sub') {
+                appMeta[currentEditId].desc = newDesc;
+                if(newCover && newCover.startsWith('data:')) appMeta[currentEditId].cover = newCover;
+            }
+            localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
+
             const oldItem = currentDriveItems.find(i => i.id === currentEditId) || 
                             Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
 
-            if (currentEditLevel === 'mega') {
-                meta.type = document.getElementById('infoType').value;
-                meta.desc = document.getElementById('infoDesc').value.trim();
-            } else if (currentEditLevel === 'sub') {
-                meta.desc = document.getElementById('infoDesc').value.trim();
-                const coverSrc = document.getElementById('infoCoverPreview').src;
-                if(coverSrc && coverSrc.startsWith('data:')) {
-                    meta.cover = coverSrc;
-                }
-            }
-            saveMeta();
-
             if (newName && oldItem && newName !== oldItem.name) {
                 oldItem.name = newName;
+                // Gọi API đổi tên ngầm
                 apiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
             }
 
+            // Giao diện Update Lập Tức
             renderItems(currentDriveItems);
             closeInfoModal();
+
+            // 2. GỬI DỮ LIỆU ĐỒNG BỘ LÊN GOOGLE SHEET (Ngầm)
+            apiCall('updateMeta', { 
+                id: currentEditId, 
+                name: newName || (oldItem ? oldItem.name : ''), 
+                type: appMeta[currentEditId].type || 'Triển khai', 
+                desc: appMeta[currentEditId].desc || '', 
+                cover: appMeta[currentEditId].cover || '' 
+            });
         });
 
-        // XÓA 
+        // XÓA (CẬP NHẬT GIAO DIỆN LẬP TỨC TRƯỚC KHI CHẠY API)
         window.handleDelete = function(id, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
@@ -698,13 +730,17 @@
             btn.className = 'px-5 py-2 bg-red-600 text-white font-bold rounded-xl';
             
             btn.onclick = () => {
+                // 1. Cập nhật bộ nhớ cục bộ Tức thì
                 currentDriveItems = currentDriveItems.filter(i => i.id !== id);
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
                 }
+                
+                // 2. Chớp lại giao diện luôn (Không cần chờ API)
                 renderItems(currentDriveItems);
                 closeModal();
                 
+                // 3. Tiến hành xóa ngầm trên Drive
                 apiCall('delete', { id: id, type: type }).then(res => {
                     if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                 });
@@ -778,7 +814,7 @@
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                         <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông Đài</div>
                             <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                         </div>
                     </div>
@@ -796,6 +832,7 @@
             }
 
             if (folderStack.length === 1) {
+                // Tách riêng Mega Row dựa theo Type được định nghĩa trên Sheet
                 const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
                 if (megaRows.length === 0) {
                     folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Chưa có dữ liệu trong mục ${currentCategory}</div>`;
@@ -907,16 +944,15 @@
             btn.onclick = () => { 
                 const val = document.getElementById('modalInput').value.trim(); 
                 if (val) {
-                    // Xác định id cha để tạo thư mục bên trong nó
-                    // Nếu là tạo từ FAB (không có ID truyền vào), mặc định là currentFolderId
                     const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
                     const fakeId = 'temp_folder_' + Date.now();
                     const newItem = { id: fakeId, name: val, type: 'folder' };
                     
+                    // 1. Tương tác mượt mà ngay trên Giao diện trước khi gọi Server
                     if (parentIdToUse === currentFolderId) {
                         if(folderStack.length === 1) {
                             appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
-                            saveMeta();
+                            localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
                         }
                         currentDriveItems.unshift(newItem);
                         renderItems(currentDriveItems);
@@ -924,7 +960,9 @@
                         subFolderCache[parentIdToUse].unshift(newItem);
                         renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
                     }
+                    closeModal(); 
                     
+                    // 2. Chạy ngầm lên Drive
                     apiCall('createFolder', { name: val, folderId: parentIdToUse }).then(res => { 
                         if (res.success) {
                             const realId = res.folderId || res.id;
@@ -936,7 +974,14 @@
                                 if(folderStack.length === 1) {
                                     appMeta[realId] = appMeta[fakeId];
                                     delete appMeta[fakeId];
-                                    saveMeta();
+                                    
+                                    // Đẩy thông tin tạo thư mục ngầm lên sheet
+                                    apiCall('updateMeta', { 
+                                        id: realId, 
+                                        name: val, 
+                                        type: currentCategory, 
+                                        desc: '', cover: '' 
+                                    });
                                 }
                                 localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                             } else if (subFolderCache[parentIdToUse]) {
@@ -945,7 +990,6 @@
                             }
                         }
                     });
-                    closeModal(); 
                 } 
             }; 
             document.getElementById('customModal').classList.remove('hidden');
@@ -1002,19 +1046,6 @@
 
         function closeMedia() { document.getElementById('mediaViewer').classList.add('hidden'); document.getElementById('mediaViewer').classList.remove('flex'); document.getElementById('mediaContent').innerHTML = ''; }
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
-        
-        // CHỈNH SỬA: Bắt buộc Load Xong Meta Mới Khởi Động App
-        window.onload = async () => {
-            document.getElementById('loading').classList.remove('hidden');
-            await fetchMetaFromDrive(); // Đợi kéo file JSON từ Drive
-            
-            if(folderStack.length === 1) {
-                switchCategory(folderStack[0].name, false); 
-                loadFolder(currentFolderId, folderStack[0].name); 
-            } else {
-                loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
-            }
-        };
         
         window.getDriveFolderInfo = () => ({ id: currentFolderId, name: folderStack[folderStack.length-1].name });
         window.getDriveImages = () => {
