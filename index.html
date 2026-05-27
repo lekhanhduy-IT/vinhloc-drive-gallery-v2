@@ -57,7 +57,6 @@
         .header-icons { display: flex; gap: 20px; align-items: center; color: var(--primary-blue); font-size: 22px; }
         .header-icons i { cursor: pointer; padding: 5px; }
         
-        /* CẬP NHẬT CSS MENU DROPDOWN TRONG DESIGN */
         .dropdown { position: relative; display: inline-block; }
         .dropdown-menu { display: none; position: absolute; right: 0; top: 35px; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.15); border-radius: 8px; flex-direction: column; min-width: 170px; z-index: 1000; overflow: hidden; border: 1px solid #e5e7eb; font-size: 14px; }
         .dropdown-menu.show { display: flex; }
@@ -122,6 +121,11 @@
 </head>
 
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
+
+    <div id="sync-indicator" class="fixed top-20 right-1/2 translate-x-1/2 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg text-sm font-bold text-gray-700 flex items-center gap-2 z-[9999] transition-opacity duration-300 opacity-0 pointer-events-none border border-gray-100">
+        <div id="sync-icon"><i class="fas fa-circle-notch fa-spin text-blue-600"></i></div>
+        <span id="sync-text" class="text-blue-600">Đang lưu ngầm...</span>
+    </div>
 
     <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
     <div id="sidebar">
@@ -421,7 +425,7 @@
     </div>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUqZEUH1lMgupZVXiaQj6MvIddfIMrmo44h1XhxCqctVPl_W-OGIOoirRn-tIUDUA/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -435,25 +439,50 @@
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
+        // ---- TÍNH NĂNG MỚI: THEO DÕI TRẠNG THÁI ĐỒNG BỘ NỀN ----
+        let syncQueueCount = 0;
+        const syncIndicator = document.getElementById('sync-indicator');
+        const syncIcon = document.getElementById('sync-icon');
+        const syncText = document.getElementById('sync-text');
+
+        function updateSyncIndicator() {
+            if (syncQueueCount > 0) {
+                syncIcon.innerHTML = '<i class="fas fa-circle-notch fa-spin text-blue-600"></i>';
+                syncText.textContent = 'Đang lưu ngầm...';
+                syncText.className = 'text-blue-600';
+                syncIndicator.classList.remove('opacity-0');
+            } else {
+                syncIcon.innerHTML = '<i class="fa-solid fa-check-circle text-green-500"></i>';
+                syncText.textContent = 'Đã đồng bộ';
+                syncText.className = 'text-green-600';
+                setTimeout(() => {
+                    if (syncQueueCount === 0) syncIndicator.classList.add('opacity-0');
+                }, 2000);
+            }
+        }
+
         // API chạy ngầm không chặn UI (Optimistic UI)
-// API chạy ngầm không chặn UI (Optimistic UI)
+        // API chạy ngầm không chặn UI (Optimistic UI)
         async function bgApiCall(action, payload = {}) {
+            syncQueueCount++;
+            updateSyncIndicator();
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
-            try { 
-                fetch(SCRIPT_URL, { 
-                    method: 'POST', 
-                    // Thêm headers chuẩn để Google không chặn CORS
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload),
-                    redirect: 'follow'
-                })
-                .then(res => res.json())
-                .then(data => console.log("Đồng bộ ngầm thành công:", action, data))
-                .catch(err => console.error("Lỗi mạng khi đồng bộ:", err));
-            } catch (e) {
-                console.error("Lỗi gọi hàm đồng bộ:", e);
-            }
+            
+            fetch(SCRIPT_URL, { 
+                method: 'POST', 
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(!data.success) console.error("Lỗi từ Google Apps Script:", data.error || data.message);
+                else console.log("Lưu thành công action:", action);
+            })
+            .catch(err => console.error("Lỗi kết nối mạng:", err))
+            .finally(() => {
+                syncQueueCount--;
+                updateSyncIndicator();
+            });
         }
 
         async function fetchMetaFromSheetBg() {
@@ -851,7 +880,7 @@
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                                 <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm mục</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm thư mục con</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
                             </div>
@@ -958,8 +987,9 @@
                     closeModal(); 
                     
                     // GỌI NGẦM TẠO THƯ MỤC
-                    apiCall('createFolder', { name: val, folderId: parentIdToUse }).then(res => { 
-                        if (res.success) {
+                    bgApiCall('createFolder', { name: val, folderId: parentIdToUse }).then(res => { 
+                        // Vì fetch không block, ta xử lý ngầm việc mapping fakeId sang realId
+                        if (res && res.success) {
                             const realId = res.folderId || res.id;
                             if (parentIdToUse === currentFolderId) {
                                 const idx = currentDriveItems.findIndex(i => i.id === fakeId);
@@ -1005,6 +1035,7 @@
                 let reader = new FileReader();
                 reader.onload = async function(e) {
                     let base64Data = e.target.result.split(',')[1];
+                    // Việc upload file tốn dung lượng lớn vẫn dùng apiCall (có loading UI trên ô file)
                     let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
                     if (res && res.success) {
                         let idx = currentDriveItems.findIndex(i => i.id === obj.item.id);
