@@ -56,15 +56,6 @@
         #watermark-overlay-container header { height: var(--header-h); background: var(--bg-white); display: flex; justify-content: space-between; align-items: center; padding: 0 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 100; flex-shrink: 0; }
         .header-icons { display: flex; gap: 20px; align-items: center; color: var(--primary-blue); font-size: 22px; }
         .header-icons i { cursor: pointer; padding: 5px; }
-        
-        /* FIX LỖI HIỂN THỊ DROPDOWN 3 CHẤM GÓC PHẢI */
-        .dropdown { position: relative; display: inline-block; }
-        .dropdown-menu { display: none !important; position: absolute; right: 0; top: 100%; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 12px; overflow: hidden; z-index: 1000; min-width: 180px; border: 1px solid #e5e7eb; }
-        .dropdown-menu.show { display: block !important; }
-        .menu-item { padding: 12px 15px; font-size: 14px; cursor: pointer; color: var(--gray-dark); transition: background 0.2s; font-weight: 500;}
-        .menu-item:hover { background: var(--gray-light); }
-        .text-red { color: var(--primary-red); }
-
         #main-container-overlay { flex: 1; overflow-y: auto; padding: 10px; padding-bottom: calc(var(--bottom-h) + var(--panel-h) + 20px); scrollbar-width: none; }
         .overlay-item { position: absolute; transform-origin: center; cursor: move; white-space: nowrap; line-height: 1; z-index: 5; }
         .overlay-img { display: block; width: 100%; height: auto; pointer-events: none; }
@@ -424,34 +415,11 @@
         let currentFolderId = folderStack[folderStack.length - 1].id;
         
         let currentDriveItems = [];
-        let subFolderCache = {}; 
-        let openAccordions = JSON.parse(localStorage.getItem('openAccordions')) || {}; // KHỐI LƯU TRẠNG THÁI SỔ/RÚT
+        let subFolderCache = {}; // Cache thư mục con của mega rows
         
-        // HỆ THỐNG METADATA ĐỒNG BỘ DRIVES + LOCAL
+        // HỆ THỐNG DATABASE LOCAL CHO METADATA
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
-        
-        function saveMeta() { 
-            localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
-            // Đẩy đồng bộ ngầm lên file trên Google Drive
-            fetch(SCRIPT_URL, {
-                method: 'POST',
-                body: JSON.stringify({ action: 'saveMeta', meta: appMeta })
-            }).catch(e => console.log('Lỗi sync cloud metadata', e));
-        }
-
-        async function syncMetaFromDrive() {
-            try {
-                const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'loadMeta' }) });
-                const data = await response.json();
-                if (data.success && data.meta && Object.keys(data.meta).length > 0) {
-                    appMeta = { ...appMeta, ...data.meta };
-                    localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
-                }
-            } catch(e) {
-                console.log("Không lấy được meta tự động:", e);
-            }
-        }
-
+        function saveMeta() { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); }
         function getMeta(id) { 
             if(!appMeta[id]) {
                 appMeta[id] = { type: 'Triển khai', desc: '', cover: '' };
@@ -476,6 +444,7 @@
         const sidebarOverlay = document.getElementById('sidebar-overlay');
         const btnOpenDesign = document.getElementById('btn-open-design');
 
+        // ==== ĐIỀU KHIỂN UI CƠ BẢN ====
         function toggleSidebar() {
             sidebar.classList.toggle('open');
             sidebarOverlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
@@ -491,6 +460,7 @@
             toggleSidebar();
             currentFolderName.textContent = cat;
             
+            // Xóa stack về root
             folderStack = [{ id: ROOT_FOLDER_ID, name: cat }];
             localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
             loadFolder(ROOT_FOLDER_ID, cat);
@@ -519,12 +489,12 @@
                 currentFolderName.textContent = currentCategory;
                 btnBack.classList.add('hidden');
                 btnMenu.classList.remove('hidden');
-                btnOpenDesign.classList.add('hidden'); 
+                btnOpenDesign.classList.add('hidden'); // Giấu design ở root
             } else {
                 currentFolderName.textContent = folderStack[folderStack.length - 1].name;
                 btnBack.classList.remove('hidden');
                 btnMenu.classList.add('hidden');
-                btnOpenDesign.classList.remove('hidden'); 
+                btnOpenDesign.classList.remove('hidden'); // Hiện design khi vào trong
             }
         }
 
@@ -541,6 +511,7 @@
             }
         }
 
+        // TẢI THƯ MỤC CHÍNH
         async function loadFolder(folderId, folderName, isNewNavigation = false) {
             currentFolderId = folderId;
             if (isNewNavigation) { 
@@ -569,12 +540,14 @@
             }
         }
 
+        // TÌM KIẾM
         searchInput.addEventListener('input', (e) => {
             const keyword = e.target.value.toLowerCase();
             const filtered = currentDriveItems.filter(item => item.name.toLowerCase().includes(keyword));
             renderItems(filtered);
         });
 
+        // BẬT / TẮT MENU 3 CHẤM
         window.toggleItemMenu = function(id, e) {
             e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(menu => {
@@ -587,7 +560,9 @@
             document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
         });
 
-        // HỘP MODAL THÔNG TIN THƯ MỤC
+        // =====================================
+        // HỆ THỐNG MODAL THÔNG TIN (SỬA)
+        // =====================================
         let currentEditId = null;
         let currentEditLevel = null;
         let currentEditType = null;
@@ -605,6 +580,7 @@
             document.getElementById('infoType').value = meta.type || 'Triển khai';
             document.getElementById('infoDesc').value = meta.desc || '';
             
+            // Xóa ảnh cũ
             document.getElementById('infoCoverInput').value = '';
             const previewImg = document.getElementById('infoCoverPreview');
             const placeholder = document.getElementById('infoCoverPlaceholder');
@@ -619,17 +595,21 @@
                 placeholder.classList.remove('hidden');
             }
 
+            // Logic Ẩn hiện theo cấp độ
             document.getElementById('info-field-type').classList.add('hidden');
             document.getElementById('info-field-desc').classList.add('hidden');
             document.getElementById('info-field-cover').classList.add('hidden');
             
             if (level === 'mega') {
+                // MEGA ROW: Cho sửa Tên, Loại, Mô tả
                 document.getElementById('info-field-type').classList.remove('hidden');
                 document.getElementById('info-field-desc').classList.remove('hidden');
             } else if (level === 'sub') {
+                // SUBFOLDER: Cho sửa Tên, Mô tả, Ảnh xem trước
                 document.getElementById('info-field-desc').classList.remove('hidden');
                 document.getElementById('info-field-cover').classList.remove('hidden');
             } 
+            // File: chỉ cho sửa tên (mặc định hiện infoName)
 
             document.getElementById('infoModal').classList.remove('hidden');
             document.getElementById('infoModal').classList.add('flex');
@@ -640,49 +620,7 @@
             document.getElementById('infoModal').classList.remove('flex');
         }
 
-        // HÀM TẠO THƯ MỤC CON TRỰC TIẾP TỪ MENU 3 CHẤM
-        window.createSubfolderDirect = function(parentId, level, e) {
-            e.stopPropagation();
-            document.getElementById(`menu-${parentId}`).classList.add('hidden');
-            
-            document.getElementById('modalTitle').textContent = 'Thư mục mới';
-            document.getElementById('modalDesc').classList.add('hidden'); 
-            document.getElementById('modalInput').classList.remove('hidden'); 
-            document.getElementById('modalInput').value = ''; 
-            document.getElementById('modalInput').placeholder = "Nhập tên thư mục con..."; 
-            
-            document.getElementById('modalConfirmBtn').onclick = async () => { 
-                const val = document.getElementById('modalInput').value.trim(); 
-                if (val) {
-                    closeModal();
-                    showAlert('Đang khởi tạo thư mục con...', true);
-                    const res = await apiCall('createFolder', { folderId: parentId, name: val });
-                    closeAlert();
-                    if (res.success) {
-                        delete subFolderCache[parentId];
-                        localStorage.removeItem(`folder_${currentFolderId}`);
-                        
-                        if (level === 'mega') {
-                            const body = document.getElementById(`acc-${parentId}`);
-                            if (body && !body.classList.contains('hidden')) {
-                                body.classList.add('hidden');
-                                window.toggleAccordion(parentId);
-                            } else {
-                                window.toggleAccordion(parentId);
-                            }
-                        } else {
-                            loadFolder(currentFolderId, folderStack[folderStack.length - 1].name);
-                        }
-                    } else {
-                        alert('Lỗi khởi tạo thư mục con trên Drive.');
-                    }
-                } 
-            }; 
-            document.getElementById('customModal').classList.remove('hidden');
-            document.getElementById('customModal').classList.add('flex');
-            setTimeout(() => document.getElementById('modalInput').focus(), 100); 
-        };
-
+        // Xử lý nạp Base64 cho ảnh xem trước
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -696,6 +634,7 @@
             reader.readAsDataURL(file);
         };
 
+        // Lưu thông tin
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
             if(!currentEditId) return closeInfoModal();
             
@@ -716,15 +655,17 @@
             }
             saveMeta();
 
+            // Nếu đổi tên, cần báo Drive
             if (newName && newName !== oldItem.name) {
                 oldItem.name = newName;
                 apiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
             }
 
-            renderItems(currentDriveItems); 
+            renderItems(currentDriveItems); // Render lại để lấy thay đổi UI lập tức
             closeInfoModal();
         });
 
+        // XÓA (Giữ nguyên Custom Modal đỏ)
         window.handleDelete = function(id, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
@@ -735,6 +676,7 @@
             document.getElementById('modalInput').classList.add('hidden');
             
             document.getElementById('modalConfirmBtn').onclick = () => {
+                // Xóa UI
                 currentDriveItems = currentDriveItems.filter(i => i.id !== id);
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
@@ -742,6 +684,7 @@
                 renderItems(currentDriveItems);
                 closeModal();
                 
+                // Chạy ngầm API
                 apiCall('delete', { id: id, type: type }).then(res => {
                     if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                 });
@@ -756,7 +699,11 @@
             document.getElementById('customModal').classList.remove('flex');
         }
 
-        // ĐÓNG MỞ ACCORDION + LƯU TRẠNG THÁI LOCAL STORAGE
+        // =====================================
+        // RENDER: MEGA ROW, SUBFOLDERS, FILES
+        // =====================================
+        
+        // Mở / Đóng Accordion (Folder Mega)
         window.toggleAccordion = async function(id) {
             const body = document.getElementById(`acc-${id}`);
             const icon = document.getElementById(`icon-${id}`);
@@ -764,14 +711,13 @@
             if(body.classList.contains('hidden')) {
                 body.classList.remove('hidden');
                 icon.style.transform = 'rotate(90deg)';
-                openAccordions[id] = true;
-                localStorage.setItem('openAccordions', JSON.stringify(openAccordions));
                 
+                // Nếu chưa có cache cho Mega Row này, gọi API
                 if(!subFolderCache[id]) {
                     body.innerHTML = '<div class="text-center text-blue-400 py-3 text-sm"><div class="loader mx-auto border-blue-400 mb-1" style="width:16px;height:16px;"></div>Tải...</div>';
                     const res = await apiCall('list', { folderId: id });
                     if(res && res.success) {
-                        subFolderCache[id] = res.data.filter(i => i.type === 'folder'); 
+                        subFolderCache[id] = res.data.filter(i => i.type === 'folder'); // Chỉ lấy folder con
                         renderSubFolders(id, subFolderCache[id]);
                     } else {
                         body.innerHTML = '<div class="text-center text-gray-400 py-3 text-sm">Lỗi tải dữ liệu</div>';
@@ -782,8 +728,6 @@
             } else {
                 body.classList.add('hidden');
                 icon.style.transform = 'rotate(0deg)';
-                openAccordions[id] = false;
-                localStorage.setItem('openAccordions', JSON.stringify(openAccordions));
             }
         };
 
@@ -796,6 +740,7 @@
             
             container.innerHTML = subFolders.map(item => {
                 const meta = getMeta(item.id);
+                // Ảnh Cover hoặc icon mặc định
                 const imgHtml = meta.cover 
                     ? `<img src="${meta.cover}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm">`
                     : `<div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-500 text-xl"><i class="fas fa-folder"></i></div>`;
@@ -809,8 +754,7 @@
                     </div>
                     <div class="relative" onclick="event.stopPropagation()">
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-b border-gray-50" onclick="window.createSubfolderDirect('${item.id}', 'sub', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục mới</div>
+                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
                             <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                         </div>
@@ -828,6 +772,7 @@
                 return;
             }
 
+            // Nếu đang ở Root (Mega Row)
             if (folderStack.length === 1) {
                 const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
                 if (megaRows.length === 0) {
@@ -849,26 +794,27 @@
                             </div>
                             <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-b border-gray-50" onclick="window.createSubfolderDirect('${item.id}', 'mega', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục mới</div>
+                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
                             </div>
                         </div>
-                        <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100"></div>
+                        <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100">
+                            </div>
                     </div>`;
                 }).join('');
                 
-                // Trả về trạng thái đóng/mở chuẩn xác cho từng Mega Row
-                megaRows.forEach(row => {
-                    if(openAccordions[row.id]) window.toggleAccordion(row.id);
-                });
+                // Tự động bung các Mega Row khi vừa render xong (Trải nghiệm siêu mượt)
+                megaRows.forEach(row => window.toggleAccordion(row.id));
 
-            } else {
+            } 
+            // Đang ở bên trong Subfolder (Level 2+) -> Hiển thị File Grid + Subfolder thường
+            else {
                 const folders = items.filter(i => i.type === 'folder');
                 const files = items.filter(i => i.type !== 'folder');
 
+                // Render Subfolders
                 if(folders.length > 0) {
                     folderListEl.innerHTML = folders.map(item => `
                     <div class="bg-white p-4 border-b border-gray-200 flex items-center justify-between cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)">
@@ -878,8 +824,7 @@
                         </div>
                         <div class="relative" onclick="event.stopPropagation()">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu overflow-hidden">
-                                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer border-b" onclick="window.createSubfolderDirect('${item.id}', 'sub', event)"><i class="fas fa-folder-plus mr-2 text-green-500"></i>Thư mục mới</div>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
                                 <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)">Sửa</div>
                                 <div class="px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer" onclick="window.handleDelete('${item.id}', '${item.type}', event)">Xóa</div>
                             </div>
@@ -887,6 +832,7 @@
                     </div>`).join('');
                 }
 
+                // Render Files Grid
                 fileListEl.innerHTML = files.map(item => {
                     let isImage = item.mimeType.includes('image');
                     let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
@@ -933,6 +879,7 @@
                 if (val) {
                     const fakeId = 'temp_folder_' + Date.now();
                     const newItem = { id: fakeId, name: val, type: 'folder' };
+                    // Nếu đang ở Root, lưu meta mặc định là Category hiện tại
                     if(folderStack.length === 1) {
                         appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
                         saveMeta();
@@ -1012,8 +959,7 @@
         function closeMedia() { mediaViewer.classList.add('hidden'); mediaViewer.classList.remove('flex'); mediaContent.innerHTML = ''; }
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
-        window.onload = async () => {
-            await syncMetaFromDrive(); // Đồng bộ dữ liệu tổng từ cloud Drive về máy trước
+        window.onload = () => {
             if(folderStack.length === 1) switchCategory('Triển khai');
             else loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
         };
@@ -1028,6 +974,9 @@
             return images;
         };
 
+        // ==========================================
+        // KHỐI LOGIC DESIGN WATERMARK GỘP CHUNG
+        // ==========================================
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
 
         const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 30, rotation: 0, color: '#ffffff', stroke: 'transparent', fontFamily: 'Roboto', fontWeight: 'normal', fontStyle: 'normal', textShadow: 'none', opacity: 100 });
@@ -1164,6 +1113,7 @@
             } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
 
+        // ĐÃ SỬA LỖI NÚT CUỘN LÊN/XUỐNG CHO GIAO DIỆN DESIGN
         let scrollInterval = null;
         function startScroll(dir) { 
             if(scrollInterval) clearInterval(scrollInterval); 
