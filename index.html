@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="QL Ảnh">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- 
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;700&family=Roboto:wght@400;700&family=Saira:wght@400;700&display=swap" rel="stylesheet">
@@ -90,6 +90,14 @@
         .btn-blue { background: var(--primary-blue); color: white; }
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
+
+        /* FIXED DROPDOWN MENU */
+        .dropdown { position: relative; }
+        .dropdown-menu { display: none; position: absolute; right: 0; top: 100%; background: white; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-radius: 12px; flex-direction: column; z-index: 1000; overflow: hidden; min-width: 170px; border: 1px solid #f3f4f6; margin-top: 10px;}
+        .dropdown-menu.show { display: flex; }
+        .menu-item { padding: 14px 18px; cursor: pointer; transition: 0.2s; font-weight: 500; font-size: 14px; color: #374151; }
+        .menu-item:hover { background: #f9fafb; }
+        .menu-item.text-red { color: var(--primary-red); border-top: 1px solid #f3f4f6;}
 
         /* RENAME LIST TRONG DESIGN */
         .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
@@ -178,41 +186,51 @@
     </div>
 
     <div id="infoModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[9999] transition-opacity backdrop-blur-sm p-4">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl transform scale-95 transition-transform max-h-screen overflow-y-auto" id="infoBox">
-            <h3 class="text-xl font-bold mb-4 text-blue-600 border-b pb-2">Thông tin</h3>
+        <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl transform scale-95 transition-transform max-h-[90vh] flex flex-col" id="infoBox">
+            <div class="p-5 border-b shrink-0">
+                <h3 class="text-xl font-bold text-blue-600">Thông tin & Cài đặt</h3>
+            </div>
             
-            <div id="info-field-name" class="mb-4">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Tên</label>
-                <input type="text" id="infoName" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50" />
-            </div>
-
-            <div id="info-field-type" class="mb-4 hidden">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Loại</label>
-                <select id="infoType" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50">
-                    <option value="Triển khai">Triển khai</option>
-                    <option value="Ý tưởng">Ý tưởng</option>
-                </select>
-            </div>
-
-            <div id="info-field-desc" class="mb-4 hidden">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Mô tả chi tiết</label>
-                <textarea id="infoDesc" rows="3" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50" placeholder="Ý tưởng, nội dung chứa bên trong..."></textarea>
-            </div>
-
-            <div id="info-field-cover" class="mb-6 hidden">
-                <label class="block text-sm font-bold text-gray-700 mb-1">Ảnh xem trước</label>
-                <div class="w-full h-32 bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden cursor-pointer" onclick="document.getElementById('infoCoverInput').click()">
-                    <img id="infoCoverPreview" src="" class="w-full h-full object-cover hidden">
-                    <div id="infoCoverPlaceholder" class="text-gray-400 flex flex-col items-center">
-                        <i class="fas fa-camera text-2xl mb-1"></i>
-                        <span class="text-xs font-medium">Bấm để tải ảnh lên</span>
-                    </div>
+            <div class="p-5 overflow-y-auto flex-1">
+                <div id="info-field-name" class="mb-4">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Tên</label>
+                    <input type="text" id="infoName" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50" />
                 </div>
-                <input type="file" id="infoCoverInput" class="hidden" accept="image/*" onchange="handleCoverUpload(event)">
+
+                <div id="info-field-type" class="mb-4 hidden">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Loại</label>
+                    <select id="infoType" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50">
+                        <option value="Triển khai">Triển khai</option>
+                        <option value="Ý tưởng">Ý tưởng</option>
+                    </select>
+                </div>
+
+                <div id="info-field-desc" class="mb-4 hidden">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Mô tả chi tiết</label>
+                    <textarea id="infoDesc" rows="3" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50" placeholder="Ý tưởng, nội dung chứa bên trong..."></textarea>
+                </div>
+
+                <div id="info-field-cover" class="mb-5 hidden">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Ảnh xem trước</label>
+                    <div class="w-full h-32 bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden cursor-pointer" onclick="document.getElementById('infoCoverInput').click()">
+                        <img id="infoCoverPreview" src="" class="w-full h-full object-cover hidden">
+                        <div id="infoCoverPlaceholder" class="text-gray-400 flex flex-col items-center">
+                            <i class="fas fa-camera text-2xl mb-1"></i>
+                            <span class="text-xs font-medium">Bấm để tải ảnh lên</span>
+                        </div>
+                    </div>
+                    <input type="file" id="infoCoverInput" class="hidden" accept="image/*" onchange="handleCoverUpload(event)">
+                </div>
+
+                <div id="info-field-new-subfolder" class="mb-2 pt-4 border-t border-gray-100 hidden">
+                    <button onclick="createSubfolderFromInfo()" class="w-full py-3 bg-blue-50 text-blue-700 font-bold rounded-xl active:bg-blue-100 transition border border-blue-100 flex justify-center items-center gap-2">
+                        <i class="fas fa-folder-plus text-lg"></i> Tạo thư mục con bên trong
+                    </button>
+                </div>
             </div>
 
-            <div class="flex justify-end gap-3 mt-2">
-                <button onclick="closeInfoModal()" class="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl active:bg-gray-200 transition">Hủy</button>
+            <div class="p-4 border-t flex justify-end gap-3 shrink-0 bg-gray-50 rounded-b-2xl">
+                <button onclick="closeInfoModal()" class="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl active:bg-gray-100 transition">Hủy</button>
                 <button id="infoSaveBtn" class="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl active:bg-blue-700 transition shadow-md shadow-blue-600/30">Lưu lại</button>
             </div>
         </div>
@@ -222,7 +240,7 @@
         <div class="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-2xl transform scale-95 transition-transform" id="modalBox">
             <h3 id="modalTitle" class="text-lg font-bold mb-2 text-gray-800">Xác nhận</h3>
             <p id="modalDesc" class="text-sm text-gray-600 mb-5"></p>
-            <input type="text" id="modalInput" class="hidden" />
+            <input type="text" id="modalInput" class="hidden w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50 mb-4" />
             <div class="flex justify-end gap-3">
                 <button onclick="closeModal()" class="px-5 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl">Hủy</button>
                 <button id="modalConfirmBtn" class="px-5 py-2 bg-red-600 text-white font-bold rounded-xl">Xóa</button>
@@ -252,8 +270,8 @@
                 <div class="dropdown">
                     <i class="fa-solid fa-ellipsis-vertical" id="menu-btn"></i>
                     <div class="dropdown-menu" id="dropdown-menu">
-                        <div id="select-all-btn" class="menu-item">Chọn tất cả</div>
-                        <div id="delete-selected-btn" class="menu-item text-red">Xóa ảnh đã chọn</div>
+                        <div id="select-all-btn" class="menu-item"><i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả</div>
+                        <div id="delete-selected-btn" class="menu-item text-red"><i class="fa-solid fa-trash mr-2"></i> Xóa ảnh đã chọn</div>
                     </div>
                 </div>
             </div>
@@ -415,15 +433,29 @@
         let currentFolderId = folderStack[folderStack.length - 1].id;
         
         let currentDriveItems = [];
-        let subFolderCache = {}; // Cache thư mục con của mega rows
+        let subFolderCache = {};
         
-        // HỆ THỐNG DATABASE LOCAL CHO METADATA
+        // HỆ THỐNG DATABASE ĐỒNG BỘ LOCAL & DRIVE
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
-        function saveMeta() { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); }
+        let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
+        
+        async function fetchMetaFromDrive() {
+            const res = await apiCall('getMeta');
+            if(res && res.success && res.meta) {
+                appMeta = res.meta;
+                localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
+                if(currentDriveItems.length > 0) renderItems(currentDriveItems); // Cập nhật lại UI sau khi có dữ liệu mới
+            }
+        }
+
+        function saveMeta() { 
+            localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
+            // Đẩy ngầm lên Drive để đồng bộ cho các thiết bị khác
+            apiCall('saveMeta', { meta: appMeta });
+        }
         function getMeta(id) { 
             if(!appMeta[id]) {
-                appMeta[id] = { type: 'Triển khai', desc: '', cover: '' };
-                saveMeta();
+                appMeta[id] = { type: currentCategory, desc: '', cover: '' };
             }
             return appMeta[id];
         }
@@ -444,7 +476,6 @@
         const sidebarOverlay = document.getElementById('sidebar-overlay');
         const btnOpenDesign = document.getElementById('btn-open-design');
 
-        // ==== ĐIỀU KHIỂN UI CƠ BẢN ====
         function toggleSidebar() {
             sidebar.classList.toggle('open');
             sidebarOverlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
@@ -460,7 +491,6 @@
             toggleSidebar();
             currentFolderName.textContent = cat;
             
-            // Xóa stack về root
             folderStack = [{ id: ROOT_FOLDER_ID, name: cat }];
             localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
             loadFolder(ROOT_FOLDER_ID, cat);
@@ -489,29 +519,31 @@
                 currentFolderName.textContent = currentCategory;
                 btnBack.classList.add('hidden');
                 btnMenu.classList.remove('hidden');
-                btnOpenDesign.classList.add('hidden'); // Giấu design ở root
+                btnOpenDesign.classList.add('hidden');
             } else {
                 currentFolderName.textContent = folderStack[folderStack.length - 1].name;
                 btnBack.classList.remove('hidden');
                 btnMenu.classList.add('hidden');
-                btnOpenDesign.classList.remove('hidden'); // Hiện design khi vào trong
+                btnOpenDesign.classList.remove('hidden');
             }
         }
 
         async function apiCall(action, payload = {}) {
-            loading.classList.remove('hidden');
+            // Khỏi hiện loading spinner cho save/getMeta để tránh giật lag UI
+            if(action !== 'saveMeta' && action !== 'getMeta') loading.classList.remove('hidden');
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
             try {
                 const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
                 const data = await response.json();
-                loading.classList.add('hidden'); return data;
+                if(action !== 'saveMeta' && action !== 'getMeta') loading.classList.add('hidden'); 
+                return data;
             } catch (error) {
-                loading.classList.add('hidden'); return { success: false };
+                if(action !== 'saveMeta' && action !== 'getMeta') loading.classList.add('hidden'); 
+                return { success: false };
             }
         }
 
-        // TẢI THƯ MỤC CHÍNH
         async function loadFolder(folderId, folderName, isNewNavigation = false) {
             currentFolderId = folderId;
             if (isNewNavigation) { 
@@ -540,14 +572,12 @@
             }
         }
 
-        // TÌM KIẾM
         searchInput.addEventListener('input', (e) => {
             const keyword = e.target.value.toLowerCase();
             const filtered = currentDriveItems.filter(item => item.name.toLowerCase().includes(keyword));
             renderItems(filtered);
         });
 
-        // BẬT / TẮT MENU 3 CHẤM
         window.toggleItemMenu = function(id, e) {
             e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(menu => {
@@ -558,6 +588,7 @@
 
         document.addEventListener('click', () => {
             document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
+            document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.remove('show'));
         });
 
         // =====================================
@@ -577,10 +608,9 @@
             const meta = getMeta(id);
             
             document.getElementById('infoName').value = name;
-            document.getElementById('infoType').value = meta.type || 'Triển khai';
+            document.getElementById('infoType').value = meta.type || currentCategory;
             document.getElementById('infoDesc').value = meta.desc || '';
             
-            // Xóa ảnh cũ
             document.getElementById('infoCoverInput').value = '';
             const previewImg = document.getElementById('infoCoverPreview');
             const placeholder = document.getElementById('infoCoverPlaceholder');
@@ -595,21 +625,20 @@
                 placeholder.classList.remove('hidden');
             }
 
-            // Logic Ẩn hiện theo cấp độ
             document.getElementById('info-field-type').classList.add('hidden');
             document.getElementById('info-field-desc').classList.add('hidden');
             document.getElementById('info-field-cover').classList.add('hidden');
+            document.getElementById('info-field-new-subfolder').classList.add('hidden');
             
             if (level === 'mega') {
-                // MEGA ROW: Cho sửa Tên, Loại, Mô tả
                 document.getElementById('info-field-type').classList.remove('hidden');
                 document.getElementById('info-field-desc').classList.remove('hidden');
+                document.getElementById('info-field-new-subfolder').classList.remove('hidden');
             } else if (level === 'sub') {
-                // SUBFOLDER: Cho sửa Tên, Mô tả, Ảnh xem trước
                 document.getElementById('info-field-desc').classList.remove('hidden');
                 document.getElementById('info-field-cover').classList.remove('hidden');
+                document.getElementById('info-field-new-subfolder').classList.remove('hidden');
             } 
-            // File: chỉ cho sửa tên (mặc định hiện infoName)
 
             document.getElementById('infoModal').classList.remove('hidden');
             document.getElementById('infoModal').classList.add('flex');
@@ -620,7 +649,12 @@
             document.getElementById('infoModal').classList.remove('flex');
         }
 
-        // Xử lý nạp Base64 cho ảnh xem trước
+        window.createSubfolderFromInfo = function() {
+            const targetParentId = currentEditId;
+            closeInfoModal();
+            uiPromptFolder(targetParentId); // Mở hộp thoại tạo thư mục với cha là currentEditId
+        }
+
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -634,7 +668,6 @@
             reader.readAsDataURL(file);
         };
 
-        // Lưu thông tin
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
             if(!currentEditId) return closeInfoModal();
             
@@ -653,19 +686,18 @@
                     meta.cover = coverSrc;
                 }
             }
-            saveMeta();
+            saveMeta(); // Gọi hàm saveMeta cập nhật Local và đồng bộ lên Drive
 
-            // Nếu đổi tên, cần báo Drive
-            if (newName && newName !== oldItem.name) {
+            if (newName && oldItem && newName !== oldItem.name) {
                 oldItem.name = newName;
                 apiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
             }
 
-            renderItems(currentDriveItems); // Render lại để lấy thay đổi UI lập tức
+            renderItems(currentDriveItems);
             closeInfoModal();
         });
 
-        // XÓA (Giữ nguyên Custom Modal đỏ)
+        // XÓA 
         window.handleDelete = function(id, type, e) {
             e.stopPropagation();
             document.getElementById(`menu-${id}`).classList.add('hidden');
@@ -675,8 +707,11 @@
             document.getElementById('modalDesc').classList.remove('hidden');
             document.getElementById('modalInput').classList.add('hidden');
             
-            document.getElementById('modalConfirmBtn').onclick = () => {
-                // Xóa UI
+            const btn = document.getElementById('modalConfirmBtn');
+            btn.textContent = 'Xóa';
+            btn.className = 'px-5 py-2 bg-red-600 text-white font-bold rounded-xl';
+            
+            btn.onclick = () => {
                 currentDriveItems = currentDriveItems.filter(i => i.id !== id);
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
@@ -684,7 +719,6 @@
                 renderItems(currentDriveItems);
                 closeModal();
                 
-                // Chạy ngầm API
                 apiCall('delete', { id: id, type: type }).then(res => {
                     if(res.success) localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                 });
@@ -699,25 +733,27 @@
             document.getElementById('customModal').classList.remove('flex');
         }
 
-        // =====================================
-        // RENDER: MEGA ROW, SUBFOLDERS, FILES
-        // =====================================
-        
-        // Mở / Đóng Accordion (Folder Mega)
-        window.toggleAccordion = async function(id) {
+        // Mở / Đóng Accordion & Lưu Localstorage
+        window.toggleAccordion = async function(id, forceOpen = false) {
             const body = document.getElementById(`acc-${id}`);
             const icon = document.getElementById(`icon-${id}`);
+            const isHidden = body.classList.contains('hidden');
             
-            if(body.classList.contains('hidden')) {
+            if(isHidden || forceOpen) {
                 body.classList.remove('hidden');
                 icon.style.transform = 'rotate(90deg)';
                 
-                // Nếu chưa có cache cho Mega Row này, gọi API
+                // Lưu vào localstorage trạng thái mở
+                if(!expandedMegas.includes(id)) {
+                    expandedMegas.push(id);
+                    localStorage.setItem('expandedMegas', JSON.stringify(expandedMegas));
+                }
+                
                 if(!subFolderCache[id]) {
                     body.innerHTML = '<div class="text-center text-blue-400 py-3 text-sm"><div class="loader mx-auto border-blue-400 mb-1" style="width:16px;height:16px;"></div>Tải...</div>';
                     const res = await apiCall('list', { folderId: id });
                     if(res && res.success) {
-                        subFolderCache[id] = res.data.filter(i => i.type === 'folder'); // Chỉ lấy folder con
+                        subFolderCache[id] = res.data.filter(i => i.type === 'folder'); 
                         renderSubFolders(id, subFolderCache[id]);
                     } else {
                         body.innerHTML = '<div class="text-center text-gray-400 py-3 text-sm">Lỗi tải dữ liệu</div>';
@@ -728,6 +764,9 @@
             } else {
                 body.classList.add('hidden');
                 icon.style.transform = 'rotate(0deg)';
+                // Xóa khỏi localstorage trạng thái mở
+                expandedMegas = expandedMegas.filter(m => m !== id);
+                localStorage.setItem('expandedMegas', JSON.stringify(expandedMegas));
             }
         };
 
@@ -740,7 +779,6 @@
             
             container.innerHTML = subFolders.map(item => {
                 const meta = getMeta(item.id);
-                // Ảnh Cover hoặc icon mặc định
                 const imgHtml = meta.cover 
                     ? `<img src="${meta.cover}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm">`
                     : `<div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-500 text-xl"><i class="fas fa-folder"></i></div>`;
@@ -772,7 +810,6 @@
                 return;
             }
 
-            // Nếu đang ở Root (Mega Row)
             if (folderStack.length === 1) {
                 const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
                 if (megaRows.length === 0) {
@@ -805,16 +842,15 @@
                     </div>`;
                 }).join('');
                 
-                // Tự động bung các Mega Row khi vừa render xong (Trải nghiệm siêu mượt)
-                megaRows.forEach(row => window.toggleAccordion(row.id));
-
+                // Tự động bung các Mega Row DỰA TRÊN LOCALSTORAGE
+                megaRows.forEach(row => {
+                    if(expandedMegas.includes(row.id)) window.toggleAccordion(row.id, true);
+                });
             } 
-            // Đang ở bên trong Subfolder (Level 2+) -> Hiển thị File Grid + Subfolder thường
             else {
                 const folders = items.filter(i => i.type === 'folder');
                 const files = items.filter(i => i.type !== 'folder');
 
-                // Render Subfolders
                 if(folders.length > 0) {
                     folderListEl.innerHTML = folders.map(item => `
                     <div class="bg-white p-4 border-b border-gray-200 flex items-center justify-between cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)">
@@ -832,7 +868,6 @@
                     </div>`).join('');
                 }
 
-                // Render Files Grid
                 fileListEl.innerHTML = files.map(item => {
                     let isImage = item.mimeType.includes('image');
                     let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
@@ -868,37 +903,55 @@
             }
         }
 
-        function uiPromptFolder() {
-            closeFab(); document.getElementById('modalTitle').textContent = 'Thư mục mới';
+        function uiPromptFolder(targetParentId = null) {
+            closeFab(); 
+            document.getElementById('modalTitle').textContent = 'Thư mục mới';
             document.getElementById('modalDesc').classList.add('hidden'); 
             document.getElementById('modalInput').classList.remove('hidden'); 
             document.getElementById('modalInput').value = ''; document.getElementById('modalInput').placeholder = "Nhập tên thư mục..."; 
             
-            document.getElementById('modalConfirmBtn').onclick = () => { 
+            // CHỈNH SỬA: Thay Nút Xóa Thành Lưu
+            const btn = document.getElementById('modalConfirmBtn');
+            btn.textContent = 'Lưu';
+            btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
+            
+            btn.onclick = () => { 
                 const val = document.getElementById('modalInput').value.trim(); 
                 if (val) {
+                    const parentIdToUse = targetParentId || currentFolderId; // Xác định id cha để tạo trong đó
                     const fakeId = 'temp_folder_' + Date.now();
                     const newItem = { id: fakeId, name: val, type: 'folder' };
-                    // Nếu đang ở Root, lưu meta mặc định là Category hiện tại
-                    if(folderStack.length === 1) {
-                        appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
-                        saveMeta();
-                    }
-                    currentDriveItems.unshift(newItem);
-                    renderItems(currentDriveItems);
                     
-                    apiCall('createFolder', { name: val }).then(res => { 
+                    if (parentIdToUse === currentFolderId) {
+                        if(folderStack.length === 1) {
+                            appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
+                            saveMeta();
+                        }
+                        currentDriveItems.unshift(newItem);
+                        renderItems(currentDriveItems);
+                    } else if (subFolderCache[parentIdToUse]) {
+                        subFolderCache[parentIdToUse].unshift(newItem);
+                        renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
+                    }
+                    
+                    apiCall('createFolder', { name: val, folderId: parentIdToUse }).then(res => { 
                         if (res.success) {
                             const realId = res.folderId || res.id;
-                            const idx = currentDriveItems.findIndex(i => i.id === fakeId);
-                            if(idx > -1) currentDriveItems[idx].id = realId;
                             
-                            if(folderStack.length === 1) {
-                                appMeta[realId] = appMeta[fakeId];
-                                delete appMeta[fakeId];
-                                saveMeta();
+                            if (parentIdToUse === currentFolderId) {
+                                const idx = currentDriveItems.findIndex(i => i.id === fakeId);
+                                if(idx > -1) currentDriveItems[idx].id = realId;
+                                
+                                if(folderStack.length === 1) {
+                                    appMeta[realId] = appMeta[fakeId];
+                                    delete appMeta[fakeId];
+                                    saveMeta();
+                                }
+                                localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                            } else if (subFolderCache[parentIdToUse]) {
+                                const idx = subFolderCache[parentIdToUse].findIndex(i => i.id === fakeId);
+                                if(idx > -1) subFolderCache[parentIdToUse][idx].id = realId;
                             }
-                            localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                         }
                     });
                     closeModal(); 
@@ -946,20 +999,21 @@
         }
 
         function openMedia(id, mimeType, name, tempUrlFull = null) {
-            closeFab(); mediaTitle.textContent = name;
-            mediaViewer.classList.remove('hidden'); mediaViewer.classList.add('flex');
+            closeFab(); document.getElementById('mediaTitle').textContent = name;
+            document.getElementById('mediaViewer').classList.remove('hidden'); document.getElementById('mediaViewer').classList.add('flex');
             if (mimeType.includes('image')) { 
                 let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
-                mediaContent.innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`; 
+                document.getElementById('mediaContent').innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`; 
             } else { 
-                mediaContent.innerHTML = `<video controls class="max-w-full max-h-full rounded-lg" src="${tempUrlFull || ''}"><p class="text-white">Video cần tải về để xem.</p></video>`; 
+                document.getElementById('mediaContent').innerHTML = `<video controls class="max-w-full max-h-full rounded-lg" src="${tempUrlFull || ''}"><p class="text-white">Video cần tải về để xem.</p></video>`; 
             }
         }
 
-        function closeMedia() { mediaViewer.classList.add('hidden'); mediaViewer.classList.remove('flex'); mediaContent.innerHTML = ''; }
+        function closeMedia() { document.getElementById('mediaViewer').classList.add('hidden'); document.getElementById('mediaViewer').classList.remove('flex'); document.getElementById('mediaContent').innerHTML = ''; }
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
         window.onload = () => {
+            fetchMetaFromDrive(); // Kéo meta về từ file vinhloc_meta.json
             if(folderStack.length === 1) switchCategory('Triển khai');
             else loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
         };
@@ -974,9 +1028,6 @@
             return images;
         };
 
-        // ==========================================
-        // KHỐI LOGIC DESIGN WATERMARK GỘP CHUNG
-        // ==========================================
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
 
         const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 30, rotation: 0, color: '#ffffff', stroke: 'transparent', fontFamily: 'Roboto', fontWeight: 'normal', fontStyle: 'normal', textShadow: 'none', opacity: 100 });
@@ -1113,7 +1164,6 @@
             } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
 
-        // ĐÃ SỬA LỖI NÚT CUỘN LÊN/XUỐNG CHO GIAO DIỆN DESIGN
         let scrollInterval = null;
         function startScroll(dir) { 
             if(scrollInterval) clearInterval(scrollInterval); 
@@ -1132,14 +1182,14 @@
         });
 
         function renderLayers() {
-            const menu = document.getElementById('layer-menu'); menu.innerHTML = '<div class="layer-title">Thứ tự Z-Index</div>';
+            const menu = document.getElementById('layer-menu'); menu.innerHTML = '<div class="layer-title" style="padding:15px; font-weight:bold; border-bottom:1px solid #f3f4f6;">Z-Index</div>';
             if(state.layerOrder.length === 0) { menu.innerHTML += '<div style="padding:15px; font-size:13px; text-align:center;">Trống</div>'; return; }
             [...state.layerOrder].reverse().forEach((layer, revIdx) => {
                 const realIndex = state.layerOrder.length - 1 - revIdx;
-                const itemDiv = document.createElement('div'); itemDiv.className = `layer-item ${state.activeElementId === layer.id ? 'active-layer' : ''}`; itemDiv.draggable = true;
-                let cHTML = layer.type === 'text' ? `<i class="fa-solid fa-font" style="color:red"></i> <span>Chữ</span>` : `<i class="fa-solid fa-image"></i> <span>Ảnh</span>`;
-                itemDiv.innerHTML = `<div class="layer-info" onclick="window.selectLayer('${layer.id}', '${layer.type}')">${cHTML}</div>
-                    <div class="layer-controls"><i class="fa-solid fa-chevron-up" onclick="window.moveLayer(${realIndex}, 1, event)"></i><i class="fa-solid fa-chevron-down" onclick="window.moveLayer(${realIndex}, -1, event)"></i><i class="fa-solid fa-trash text-red" onclick="window.deleteLayer('${layer.id}', '${layer.type}', event)"></i></div>`;
+                const itemDiv = document.createElement('div'); itemDiv.className = `menu-item ${state.activeElementId === layer.id ? 'bg-gray-100' : ''}`; itemDiv.draggable = true; itemDiv.style.display = 'flex'; itemDiv.style.justifyContent = 'space-between';
+                let cHTML = layer.type === 'text' ? `<i class="fa-solid fa-font mr-2 text-red-500"></i> <span>Chữ</span>` : `<i class="fa-solid fa-image mr-2 text-blue-500"></i> <span>Ảnh</span>`;
+                itemDiv.innerHTML = `<div class="layer-info flex items-center flex-1" onclick="window.selectLayer('${layer.id}', '${layer.type}')">${cHTML}</div>
+                    <div class="layer-controls flex gap-3 text-gray-400"><i class="fa-solid fa-chevron-up hover:text-blue-500" onclick="window.moveLayer(${realIndex}, 1, event)"></i><i class="fa-solid fa-chevron-down hover:text-blue-500" onclick="window.moveLayer(${realIndex}, -1, event)"></i><i class="fa-solid fa-trash hover:text-red-500" onclick="window.deleteLayer('${layer.id}', '${layer.type}', event)"></i></div>`;
                 itemDiv.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', realIndex); });
                 itemDiv.addEventListener('dragover', e => { e.preventDefault(); itemDiv.style.background = '#f5f5f5'; });
                 itemDiv.addEventListener('dragleave', e => itemDiv.style.background = '');
@@ -1152,8 +1202,8 @@
         window.moveLayer = function(idx, dir, e) { e.stopPropagation(); const nIdx = idx + dir; if(nIdx < 0 || nIdx >= state.layerOrder.length) return; const t = state.layerOrder[idx]; state.layerOrder[idx] = state.layerOrder[nIdx]; state.layerOrder[nIdx] = t; renderImages(); renderLayers(); };
         window.deleteLayer = function(id, type, e) { if(e) e.stopPropagation(); getTargetImages().forEach(img => { if(type === 'text') img.texts = img.texts.filter(t => t.id !== id); else img.wms = img.wms.filter(w => w.id !== id); }); cleanUpLayerOrder(); if (state.activeElementId === id) state.activeElementId = null; renderImages(); renderLayers(); };
         
-        document.getElementById('menu-btn').addEventListener('click', () => { document.getElementById('dropdown-menu').classList.toggle('show'); document.getElementById('layer-menu').classList.remove('show'); });
-        document.getElementById('layer-btn').addEventListener('click', () => { renderLayers(); document.getElementById('layer-menu').classList.toggle('show'); document.getElementById('dropdown-menu').classList.remove('show'); });
+        document.getElementById('menu-btn').addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('dropdown-menu').classList.toggle('show'); document.getElementById('layer-menu').classList.remove('show'); });
+        document.getElementById('layer-btn').addEventListener('click', (e) => { e.stopPropagation(); renderLayers(); document.getElementById('layer-menu').classList.toggle('show'); document.getElementById('dropdown-menu').classList.remove('show'); });
         
         window.updateProp = function(key, val) { getTargetImages().forEach(img => { (state.activeEditTarget === 'text' ? img.texts : img.wms).forEach(item => { if(state.activeElementId){ if(item.id === state.activeElementId) item[key] = val; } else item[key] = val; }); }); renderImages(); };
         window.applyRatio = function(r) { getTargetImages().forEach(img => img.ratio = r); renderImages(); };
