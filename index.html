@@ -19,9 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
-        html, body { background-color: #f4f7f6 !important; opacity: 1 !important; width: 100vw; height: 100vh; overflow: hidden; }
-        body { -webkit-tap-highlight-color: transparent; }
-        
+        body { -webkit-tap-highlight-color: transparent; background-color: #f4f7f6; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
@@ -137,7 +135,7 @@
     </style>
 </head>
 
-<body class="text-gray-800 flex flex-col overflow-hidden relative">
+<body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
 
     <div id="sync-indicator" class="fixed top-20 right-1/2 translate-x-1/2 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg text-sm font-bold text-gray-700 flex items-center gap-2 z-[9999] transition-opacity duration-300 opacity-0 pointer-events-none border border-gray-100">
         <div id="sync-icon"><i class="fas fa-circle-notch fa-spin text-blue-600"></i></div>
@@ -514,7 +512,9 @@
                 folderStack.pop();
                 localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
                 let parent = folderStack[folderStack.length - 1];
-                loadFolder(parent.id, parent.name, false, true); 
+                loadFolder(parent.id, parent.name, false, true); // Gọi hàm với isPopState = true
+            } else {
+                // Đã ở trang gốc, thoát web app.
             }
         });
 
@@ -677,7 +677,7 @@
         });
 
         btnBack.addEventListener('click', () => {
-            history.back(); 
+            history.back(); // Tích hợp history API
         });
 
         function updateBreadcrumbs() {
@@ -714,7 +714,7 @@
             if (isNewNavigation) { 
                 folderStack.push({ id: folderId, name: folderName }); 
                 localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
-                history.pushState({ id: folderId }, '', ''); 
+                history.pushState({ id: folderId }, '', ''); // Đẩy vào lịch sử khi vô thư mục con
             }
             updateBreadcrumbs(); 
             searchInput.value = ''; 
@@ -738,7 +738,7 @@
             }
         }
 
-        // Global Search with Cache
+        // Global Search
         let searchTimeout;
         searchInput.addEventListener('input', (e) => {
             const keyword = e.target.value.trim().toLowerCase();
@@ -746,20 +746,12 @@
                 renderItems(currentDriveItems);
                 return;
             }
-            
-            const cachedSearch = localStorage.getItem('search_' + keyword);
-            if (cachedSearch) {
-                renderItems(JSON.parse(cachedSearch), true);
-                return;
-            }
-
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(async () => {
                 folderListEl.innerHTML = '<div class="text-center mt-5"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm toàn bộ hệ thống...</p></div>';
                 fileListEl.innerHTML = '';
                 const res = await apiCall('globalSearch', { keyword: keyword });
                 if(res && res.success) {
-                    localStorage.setItem('search_' + keyword, JSON.stringify(res.data));
                     renderItems(res.data, true);
                 } else {
                     folderListEl.innerHTML = '<div class="text-center mt-5 text-gray-500 font-semibold">Không tìm thấy kết quả phù hợp.</div>';
@@ -775,45 +767,11 @@
             document.getElementById(`menu-${id}`).classList.toggle('hidden');
         };
 
-        // Hàm xử lý tải xuống (Mới - Tải Folder dưới dạng ZIP bằng JSZip)
-        window.downloadItem = async function(id, type, name, e) {
-            if(e) e.stopPropagation();
+        window.downloadItem = function(id, type, name, e) {
+            e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
-            
             if(type === 'folder') {
-                showToast("Đang chuẩn bị dữ liệu ZIP...");
-                const res = await apiCall('list', { folderId: id });
-                if(res && res.success) {
-                    const files = res.data.filter(i => i.type === 'file');
-                    if (files.length === 0) return showToast("Thư mục trống!");
-                    
-                    showToast(`Bắt đầu tải ${files.length} tệp để nén...`);
-                    let zip = new JSZip();
-                    let successCount = 0;
-                    
-                    for(let i = 0; i < files.length; i++) {
-                        let fileRes = await apiCall('downloadFile', { fileId: files[i].id });
-                        if(fileRes && fileRes.success) {
-                            zip.file(files[i].name, fileRes.data, {base64: true});
-                            successCount++;
-                        }
-                    }
-                    
-                    if (successCount === 0) return showToast("❌ Lỗi tải tệp tin!");
-                    showToast("Đang tạo file ZIP, vui lòng đợi...");
-                    
-                    zip.generateAsync({type:"blob"}).then(function(content) {
-                        const link = document.createElement('a');
-                        link.href = URL.createObjectURL(content);
-                        link.download = `${name}.zip`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        showToast(`✅ Đã tải xong thư mục ${name}.zip`);
-                    });
-                } else {
-                    showToast("❌ Lỗi lấy dữ liệu thư mục");
-                }
+                window.open(`https://drive.google.com/drive/folders/${id}`, '_blank');
             } else {
                 window.open(`https://drive.google.com/uc?export=download&id=${id}`, '_blank');
             }
@@ -851,6 +809,7 @@
             
             document.getElementById('infoName').value = name;
             
+            // Set for Custom Select
             const typeVal = meta.type || currentCategory;
             document.getElementById('custom-select-value').textContent = typeVal;
             document.getElementById('infoType').value = typeVal;
@@ -1033,7 +992,7 @@
                         <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thêm mục</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống ZIP</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống</div>
                             <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                         </div>
                     </div>
@@ -1071,10 +1030,10 @@
                             </div>
                             <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm mục</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống ZIP</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Mở Drive</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
                             </div>
@@ -1102,7 +1061,7 @@
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
                             <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center font-semibold" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center font-semibold" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống ZIP</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center font-semibold" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống</div>
                                 <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer flex items-center font-semibold border-t" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                             </div>
                         </div>
@@ -1125,7 +1084,7 @@
                         ${isTemp}
                         <div class="absolute top-2 right-2 z-20">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống</div>
                                 <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
@@ -1291,6 +1250,8 @@
         const mainContainerOverlay = document.getElementById('main-container-overlay');
         const overlayContainer = document.getElementById('watermark-overlay-container');
         
+        const showAlert = (msg, isLoading = false) => { document.getElementById('alert-msg').innerText = msg; document.getElementById('alert-loader').style.display = isLoading ? 'block' : 'none'; document.getElementById('alert-btn').style.display = isLoading ? 'none' : 'inline-block'; document.getElementById('custom-alert').style.display = 'flex'; };
+        const closeAlert = () => document.getElementById('custom-alert').style.display = 'none';
         function generateId() { return Math.random().toString(36).substr(2, 9); }
         function getTargetImages() { const selected = state.images.filter(img => img.selected); return selected.length > 0 ? selected : state.images; }
         
@@ -1320,7 +1281,7 @@
         document.getElementById('btn-close-design').addEventListener('click', () => { overlayContainer.style.display = 'none'; });
 
         async function processAllEditedImages() {
-            showToast('Đang xử lý xuất ảnh...'); state.activeElementId = null; renderImages(); renderLayers();
+            showAlert('Đang xử lý xuất ảnh...', true); state.activeElementId = null; renderImages(); renderLayers();
             const outputImages = [];
             for (let i = 0; i < state.images.length; i++) {
                 const imgData = state.images[i]; const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
@@ -1378,14 +1339,13 @@
         }
 
         document.getElementById('save-all-btn').addEventListener('click', () => {
-            if(state.images.length === 0) return showToast('Không có ảnh để lưu.');
+            if(state.images.length === 0) return showAlert('Không có ảnh để lưu.');
             document.getElementById('save-options-modal').classList.remove('hidden'); document.getElementById('save-options-modal').classList.add('flex');
         });
 
         document.getElementById('btn-save-local').addEventListener('click', async () => {
             document.getElementById('save-options-modal').classList.add('hidden');
             try {
-                showToast('Đang xử lý xuất ảnh...');
                 const editedImages = await processAllEditedImages();
                 const safeFolderName = (window.getDriveFolderInfo().name || 'VinhLoc').replace(/[\/\\?%*:|"<>]/g, '');
                 for (let i = 0; i < editedImages.length; i++) {
@@ -1398,17 +1358,17 @@
                     document.body.removeChild(link);
                     await new Promise(r => setTimeout(r, 400));
                 }
+                closeAlert(); 
                 showToast(`✅ Đã tải lần lượt ${editedImages.length} ảnh về máy!`);
-            } catch (error) { showToast('❌ Lỗi tải ảnh: ' + error.message); }
+            } catch (error) { closeAlert(); showToast('❌ Lỗi tải ảnh: ' + error.message); }
         });
 
         document.getElementById('btn-save-drive').addEventListener('click', async () => {
             document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');
             try {
-                showToast('Đang chuẩn bị ảnh...');
                 const editedImages = await processAllEditedImages(); 
                 if (editedImages.length === 0) return;
-                showToast('Đang kết nối Drive...');
+                showAlert('Đang xử lý kết nối Drive...', true);
                 
                 let newFolderId = null;
                 let existingFolder = currentDriveItems.find(i => i.name === "ĐÃ CHỈNH SỬA" && i.type === "folder");
@@ -1426,13 +1386,15 @@
                 if (!newFolderId) throw new Error("Không thể truy cập thư mục lưu trữ.");
                 let successCount = 0;
                 for (let i = 0; i < editedImages.length; i++) {
-                    showToast(`Đang Up Drive (${i + 1}/${editedImages.length})...`);
+                    showAlert(`Đang tải ảnh lên Drive... (${i + 1}/${editedImages.length})`, true);
                     let img = editedImages[i];
                     let uploadRes = await window.apiCall('upload', { folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data });
                     if (uploadRes && uploadRes.success) successCount++;
                 }
+                closeAlert(); 
+                // Thay thế Alert báo lưu thành công bằng CSS Popup 1 giây
                 showToast(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào "ĐÃ CHỈNH SỬA"!`);
-            } catch (error) { showToast('❌ Lỗi lưu Drive: ' + error.message); }
+            } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
 
         let scrollInterval = null;
@@ -1656,7 +1618,7 @@
         document.getElementById('btn-delete-wm').addEventListener('click', () => { getTargetImages().forEach(i=>i.wms=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
 
         document.getElementById('btn-save-text-wm').addEventListener('click', () => {
-            const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showToast('Không có chữ.');
+            const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showAlert('Không có chữ.');
             let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
             const c=document.createElement('canvas'); const cx=c.getContext('2d'); c.width=800; c.height=200;
             cx.font=`${t.fontStyle} ${t.fontWeight} 60px '${t.fontFamily}'`; cx.fillStyle=t.color; cx.textAlign='center'; cx.textBaseline='middle';
