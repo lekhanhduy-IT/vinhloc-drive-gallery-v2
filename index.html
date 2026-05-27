@@ -1855,154 +1855,256 @@
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
-        /* =========================
-   PATCH FIX MOBILE GALLERY PICKER
-   ÉP TOÀN BỘ INPUT FILE MỞ GALLERY
-========================= */
+        
+    </script>
+    <script>
+
+/* =========================================
+   NATIVE LOCAL GALLERY PICKER
+   ƯU TIÊN ẢNH/VIDEO TRONG MÁY
+========================================= */
 
 (function(){
 
-    // ========= helper =========
-    function forceGalleryPicker(input, type = 'image'){
-        if(!input) return;
+    async function pickLocalFiles({
+        accept = 'image/*',
+        multiple = true,
+        callback
+    }){
 
-        // reset cũ
-        input.removeAttribute('capture');
+        try{
 
-        // ép mobile ưu tiên gallery
-        if(type === 'image'){
-            input.setAttribute('accept', 'image/*');
-        }else if(type === 'video'){
-            input.setAttribute('accept', 'video/*');
-        }else{
-            input.setAttribute('accept', 'image/*,video/*');
+            /* =========================
+               CHROME ANDROID MODERN
+            ========================= */
+
+            if(window.showOpenFilePicker){
+
+                const pickerTypes = [];
+
+                if(accept.includes('image')){
+                    pickerTypes.push({
+                        description: 'Images',
+                        accept: {
+                            'image/*': [
+                                '.png',
+                                '.jpg',
+                                '.jpeg',
+                                '.webp',
+                                '.gif'
+                            ]
+                        }
+                    });
+                }
+
+                if(accept.includes('video')){
+                    pickerTypes.push({
+                        description: 'Videos',
+                        accept: {
+                            'video/*': [
+                                '.mp4',
+                                '.mov',
+                                '.webm',
+                                '.mkv'
+                            ]
+                        }
+                    });
+                }
+
+                const handles = await window.showOpenFilePicker({
+
+                    multiple,
+
+                    excludeAcceptAllOption: true,
+
+                    types: pickerTypes
+
+                });
+
+                const files = [];
+
+                for(const handle of handles){
+
+                    const file = await handle.getFile();
+
+                    files.push(file);
+
+                }
+
+                callback({
+                    target:{
+                        files
+                    }
+                });
+
+                return;
+
+            }
+
+        }catch(err){
+
+            console.log('Native picker fallback:', err);
+
         }
 
-        // chặn browser nhớ source camera
-        input.setAttribute('data-gallery-force', '1');
+        /* =========================
+           FALLBACK LEGACY
+        ========================= */
 
-        // fix safari / pwa ios
-        input.setAttribute('autocomplete', 'off');
+        const input = document.createElement('input');
 
-        // fix android webview
-        input.setAttribute('inputmode', 'none');
+        input.type = 'file';
+
+        input.accept = accept;
+
+        input.multiple = multiple;
+
+        input.style.display = 'none';
+
+        document.body.appendChild(input);
+
+        input.addEventListener('change', callback);
+
+        input.click();
+
+        setTimeout(()=>{
+            input.remove();
+        },10000);
+
     }
 
-    // ========= APPLY ALL =========
+    /* =================================
+       UP ẢNH
+    ================================= */
 
-    // upload ảnh chính
-    forceGalleryPicker(
-        document.getElementById('uploadImage'),
-        'image'
-    );
+    const uploadImageLabel =
+        document.querySelector('label:has(#uploadImage)');
 
-    // upload video
-    forceGalleryPicker(
-        document.getElementById('uploadVideo'),
-        'video'
-    );
+    if(uploadImageLabel){
 
-    // upload watermark
-    forceGalleryPicker(
-        document.getElementById('wm-upload'),
-        'image'
-    );
+        uploadImageLabel.onclick = async function(e){
 
-    // upload cover
-    forceGalleryPicker(
-        document.getElementById('infoCoverInput'),
-        'image'
-    );
+            e.preventDefault();
+            e.stopPropagation();
 
-    // ========= FORCE ALL FUTURE INPUT FILE =========
-    function patchAllFileInputs(){
+            await pickLocalFiles({
 
-        document.querySelectorAll('input[type="file"]').forEach(el => {
+                accept:'image/*',
 
-            // tránh patch lặp
-            if(el.dataset.galleryPatched === '1') return;
+                multiple:true,
 
-            el.dataset.galleryPatched = '1';
+                callback:handleMultipleFileUpload
 
-            const accept = (el.getAttribute('accept') || '').toLowerCase();
+            });
 
-            if(accept.includes('video')){
-                forceGalleryPicker(el, 'video');
-            }else{
-                forceGalleryPicker(el, 'image');
-            }
+        };
 
-            // FIX PWA / ANDROID:
-            // clone input để reset hành vi browser
-            const parent = el.parentNode;
-            if(!parent) return;
-
-            const clone = el.cloneNode(true);
-
-            // copy onchange
-            clone.onchange = el.onchange;
-
-            // copy listeners inline
-            if(el.getAttribute('onchange')){
-                clone.setAttribute('onchange', el.getAttribute('onchange'));
-            }
-
-            parent.replaceChild(clone, el);
-
-            // patch lại
-            const newAccept = (clone.getAttribute('accept') || '').toLowerCase();
-
-            if(newAccept.includes('video')){
-                forceGalleryPicker(clone, 'video');
-            }else{
-                forceGalleryPicker(clone, 'image');
-            }
-        });
     }
 
-    patchAllFileInputs();
+    /* =================================
+       UP VIDEO
+    ================================= */
 
-    // ========= AUTO PATCH DOM CHANGES =========
-    const observer = new MutationObserver(() => {
-        patchAllFileInputs();
-    });
+    const uploadVideoLabel =
+        document.querySelector('label:has(#uploadVideo)');
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+    if(uploadVideoLabel){
 
-    // ========= FIX IOS PWA =========
-    document.addEventListener('click', function(e){
+        uploadVideoLabel.onclick = async function(e){
 
-        const input = e.target.closest('input[type="file"]');
+            e.preventDefault();
+            e.stopPropagation();
 
-        if(!input) return;
+            await pickLocalFiles({
 
-        // reset value để luôn mở gallery
-        input.value = '';
+                accept:'video/*',
 
-    }, true);
+                multiple:true,
 
-    // ========= FIX ANDROID CHROME/PWA =========
-    document.addEventListener('touchstart', function(e){
+                callback:handleMultipleFileUpload
 
-        const label = e.target.closest('label');
+            });
 
-        if(!label) return;
+        };
 
-        const input = label.querySelector('input[type="file"]');
+    }
 
-        if(!input) return;
+    /* =================================
+       WATERMARK
+    ================================= */
 
-        input.removeAttribute('capture');
+    const wmBtn =
+        document.querySelector('label[for="wm-upload"]');
 
-    }, {
-        passive:true,
-        capture:true
-    });
+    if(wmBtn){
+
+        wmBtn.onclick = async function(e){
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            await pickLocalFiles({
+
+                accept:'image/*',
+
+                multiple:false,
+
+                callback:function(ev){
+
+                    const f = ev.target.files[0];
+
+                    if(!f) return;
+
+                    const r = new FileReader();
+
+                    r.onload = function(evt){
+
+                        state.savedWatermarks.push(
+                            evt.target.result
+                        );
+
+                        saveStorageWMs();
+
+                        const sI = generateId();
+
+                        getTargetImages().forEach(i=>{
+
+                            i.wms.push(
+                                createWm(evt.target.result,sI)
+                            );
+
+                        });
+
+                        state.layerOrder.push({
+                            id:sI,
+                            type:'wm'
+                        });
+
+                        state.activeElementId = sI;
+
+                        state.activeEditTarget = 'wm';
+
+                        renderWMLibrary();
+
+                        renderImages();
+
+                        renderLayers();
+
+                        syncSliders();
+
+                    };
+
+                    r.readAsDataURL(f);
+
+                }
+
+            });
+
+        };
+
+    }
 
 })();
-    </script>
+</script>
 </body>
 </html>
