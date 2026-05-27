@@ -221,12 +221,6 @@
                     </div>
                     <input type="file" id="infoCoverInput" class="hidden" accept="image/*" onchange="handleCoverUpload(event)">
                 </div>
-
-                <div id="info-field-new-subfolder" class="mb-2 pt-4 border-t border-gray-100 hidden">
-                    <button onclick="createSubfolderFromInfo()" class="w-full py-3 bg-blue-50 text-blue-700 font-bold rounded-xl active:bg-blue-100 transition border border-blue-100 flex justify-center items-center gap-2">
-                        <i class="fas fa-folder-plus text-lg"></i> Tạo thư mục con bên trong
-                    </button>
-                </div>
             </div>
 
             <div class="p-4 border-t flex justify-end gap-3 shrink-0 bg-gray-50 rounded-b-2xl">
@@ -439,12 +433,12 @@
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
+        // Block Load - Đảm bảo dữ liệu Meta được kéo về xong mới render thư mục
         async function fetchMetaFromDrive() {
             const res = await apiCall('getMeta');
             if(res && res.success && res.meta) {
                 appMeta = res.meta;
                 localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
-                if(currentDriveItems.length > 0) renderItems(currentDriveItems); // Cập nhật lại UI sau khi có dữ liệu mới
             }
         }
 
@@ -481,7 +475,7 @@
             sidebarOverlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
         }
 
-        function switchCategory(cat) {
+        function switchCategory(cat, navigate = true) {
             currentCategory = cat;
             document.getElementById('menu-trienkhai').classList.remove('active');
             document.getElementById('menu-ytuong').classList.remove('active');
@@ -491,9 +485,11 @@
             toggleSidebar();
             currentFolderName.textContent = cat;
             
-            folderStack = [{ id: ROOT_FOLDER_ID, name: cat }];
-            localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
-            loadFolder(ROOT_FOLDER_ID, cat);
+            if(navigate) {
+                folderStack = [{ id: ROOT_FOLDER_ID, name: cat }];
+                localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+                loadFolder(ROOT_FOLDER_ID, cat);
+            }
         }
 
         fabMain.addEventListener('click', () => {
@@ -529,7 +525,6 @@
         }
 
         async function apiCall(action, payload = {}) {
-            // Khỏi hiện loading spinner cho save/getMeta để tránh giật lag UI
             if(action !== 'saveMeta' && action !== 'getMeta') loading.classList.remove('hidden');
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
@@ -628,16 +623,13 @@
             document.getElementById('info-field-type').classList.add('hidden');
             document.getElementById('info-field-desc').classList.add('hidden');
             document.getElementById('info-field-cover').classList.add('hidden');
-            document.getElementById('info-field-new-subfolder').classList.add('hidden');
             
             if (level === 'mega') {
                 document.getElementById('info-field-type').classList.remove('hidden');
                 document.getElementById('info-field-desc').classList.remove('hidden');
-                document.getElementById('info-field-new-subfolder').classList.remove('hidden');
             } else if (level === 'sub') {
                 document.getElementById('info-field-desc').classList.remove('hidden');
                 document.getElementById('info-field-cover').classList.remove('hidden');
-                document.getElementById('info-field-new-subfolder').classList.remove('hidden');
             } 
 
             document.getElementById('infoModal').classList.remove('hidden');
@@ -647,12 +639,6 @@
         function closeInfoModal() {
             document.getElementById('infoModal').classList.add('hidden');
             document.getElementById('infoModal').classList.remove('flex');
-        }
-
-        window.createSubfolderFromInfo = function() {
-            const targetParentId = currentEditId;
-            closeInfoModal();
-            uiPromptFolder(targetParentId); // Mở hộp thoại tạo thư mục với cha là currentEditId
         }
 
         window.handleCoverUpload = function(event) {
@@ -686,7 +672,7 @@
                     meta.cover = coverSrc;
                 }
             }
-            saveMeta(); // Gọi hàm saveMeta cập nhật Local và đồng bộ lên Drive
+            saveMeta();
 
             if (newName && oldItem && newName !== oldItem.name) {
                 oldItem.name = newName;
@@ -743,7 +729,6 @@
                 body.classList.remove('hidden');
                 icon.style.transform = 'rotate(90deg)';
                 
-                // Lưu vào localstorage trạng thái mở
                 if(!expandedMegas.includes(id)) {
                     expandedMegas.push(id);
                     localStorage.setItem('expandedMegas', JSON.stringify(expandedMegas));
@@ -764,7 +749,6 @@
             } else {
                 body.classList.add('hidden');
                 icon.style.transform = 'rotate(0deg)';
-                // Xóa khỏi localstorage trạng thái mở
                 expandedMegas = expandedMegas.filter(m => m !== id);
                 localStorage.setItem('expandedMegas', JSON.stringify(expandedMegas));
             }
@@ -792,9 +776,10 @@
                     </div>
                     <div class="relative" onclick="event.stopPropagation()">
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                         </div>
                     </div>
                 </div>`;
@@ -831,18 +816,18 @@
                             </div>
                             <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                                    <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                                    <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
                             </div>
                         </div>
                         <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100">
-                            </div>
+                        </div>
                     </div>`;
                 }).join('');
                 
-                // Tự động bung các Mega Row DỰA TRÊN LOCALSTORAGE
                 megaRows.forEach(row => {
                     if(expandedMegas.includes(row.id)) window.toggleAccordion(row.id, true);
                 });
@@ -860,9 +845,10 @@
                         </div>
                         <div class="relative" onclick="event.stopPropagation()">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
-                                <div class="px-4 py-2 hover:bg-gray-50 cursor-pointer" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)">Sửa</div>
-                                <div class="px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer" onclick="window.handleDelete('${item.id}', '${item.type}', event)">Xóa</div>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center border-t border-gray-50" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                                <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer font-semibold flex items-center border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                             </div>
                         </div>
                     </div>`).join('');
@@ -903,14 +889,17 @@
             }
         }
 
-        function uiPromptFolder(targetParentId = null) {
+        window.uiPromptFolder = function(targetParentId = null, e = null) {
+            if(e) {
+                e.stopPropagation();
+                document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
+            }
             closeFab(); 
             document.getElementById('modalTitle').textContent = 'Thư mục mới';
             document.getElementById('modalDesc').classList.add('hidden'); 
             document.getElementById('modalInput').classList.remove('hidden'); 
             document.getElementById('modalInput').value = ''; document.getElementById('modalInput').placeholder = "Nhập tên thư mục..."; 
             
-            // CHỈNH SỬA: Thay Nút Xóa Thành Lưu
             const btn = document.getElementById('modalConfirmBtn');
             btn.textContent = 'Lưu';
             btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
@@ -918,7 +907,9 @@
             btn.onclick = () => { 
                 const val = document.getElementById('modalInput').value.trim(); 
                 if (val) {
-                    const parentIdToUse = targetParentId || currentFolderId; // Xác định id cha để tạo trong đó
+                    // Xác định id cha để tạo thư mục bên trong nó
+                    // Nếu là tạo từ FAB (không có ID truyền vào), mặc định là currentFolderId
+                    const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
                     const fakeId = 'temp_folder_' + Date.now();
                     const newItem = { id: fakeId, name: val, type: 'folder' };
                     
@@ -1012,10 +1003,17 @@
         function closeMedia() { document.getElementById('mediaViewer').classList.add('hidden'); document.getElementById('mediaViewer').classList.remove('flex'); document.getElementById('mediaContent').innerHTML = ''; }
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
-        window.onload = () => {
-            fetchMetaFromDrive(); // Kéo meta về từ file vinhloc_meta.json
-            if(folderStack.length === 1) switchCategory('Triển khai');
-            else loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
+        // CHỈNH SỬA: Bắt buộc Load Xong Meta Mới Khởi Động App
+        window.onload = async () => {
+            document.getElementById('loading').classList.remove('hidden');
+            await fetchMetaFromDrive(); // Đợi kéo file JSON từ Drive
+            
+            if(folderStack.length === 1) {
+                switchCategory(folderStack[0].name, false); 
+                loadFolder(currentFolderId, folderStack[0].name); 
+            } else {
+                loadFolder(currentFolderId, folderStack[folderStack.length-1].name);
+            }
         };
         
         window.getDriveFolderInfo = () => ({ id: currentFolderId, name: folderStack[folderStack.length-1].name });
