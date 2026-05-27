@@ -416,7 +416,7 @@
     </div>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/a/macros/tudonghoavinhloc.com/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -439,12 +439,12 @@
 
         // Hàm load Meta khi khởi động (nếu dùng Server/Codespace)
         async function loadAppMetaBackend() {
-             let res = await apiCall('loadMeta');
-             if(res && res.success && res.metaData) {
-                appMeta = JSON.parse(res.metaData);
-                localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
-                 renderItems(currentDriveItems);
-             }
+            // let res = await apiCall('loadMeta');
+            // if(res && res.success && res.metaData) {
+            //     appMeta = JSON.parse(res.metaData);
+            //     localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
+            //     renderItems(currentDriveItems);
+            // }
         }
 
         function getMeta(id) { 
