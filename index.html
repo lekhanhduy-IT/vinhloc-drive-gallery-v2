@@ -1855,7 +1855,154 @@
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
-        
+        /* =========================
+   PATCH FIX MOBILE GALLERY PICKER
+   ÉP TOÀN BỘ INPUT FILE MỞ GALLERY
+========================= */
+
+(function(){
+
+    // ========= helper =========
+    function forceGalleryPicker(input, type = 'image'){
+        if(!input) return;
+
+        // reset cũ
+        input.removeAttribute('capture');
+
+        // ép mobile ưu tiên gallery
+        if(type === 'image'){
+            input.setAttribute('accept', 'image/*');
+        }else if(type === 'video'){
+            input.setAttribute('accept', 'video/*');
+        }else{
+            input.setAttribute('accept', 'image/*,video/*');
+        }
+
+        // chặn browser nhớ source camera
+        input.setAttribute('data-gallery-force', '1');
+
+        // fix safari / pwa ios
+        input.setAttribute('autocomplete', 'off');
+
+        // fix android webview
+        input.setAttribute('inputmode', 'none');
+    }
+
+    // ========= APPLY ALL =========
+
+    // upload ảnh chính
+    forceGalleryPicker(
+        document.getElementById('uploadImage'),
+        'image'
+    );
+
+    // upload video
+    forceGalleryPicker(
+        document.getElementById('uploadVideo'),
+        'video'
+    );
+
+    // upload watermark
+    forceGalleryPicker(
+        document.getElementById('wm-upload'),
+        'image'
+    );
+
+    // upload cover
+    forceGalleryPicker(
+        document.getElementById('infoCoverInput'),
+        'image'
+    );
+
+    // ========= FORCE ALL FUTURE INPUT FILE =========
+    function patchAllFileInputs(){
+
+        document.querySelectorAll('input[type="file"]').forEach(el => {
+
+            // tránh patch lặp
+            if(el.dataset.galleryPatched === '1') return;
+
+            el.dataset.galleryPatched = '1';
+
+            const accept = (el.getAttribute('accept') || '').toLowerCase();
+
+            if(accept.includes('video')){
+                forceGalleryPicker(el, 'video');
+            }else{
+                forceGalleryPicker(el, 'image');
+            }
+
+            // FIX PWA / ANDROID:
+            // clone input để reset hành vi browser
+            const parent = el.parentNode;
+            if(!parent) return;
+
+            const clone = el.cloneNode(true);
+
+            // copy onchange
+            clone.onchange = el.onchange;
+
+            // copy listeners inline
+            if(el.getAttribute('onchange')){
+                clone.setAttribute('onchange', el.getAttribute('onchange'));
+            }
+
+            parent.replaceChild(clone, el);
+
+            // patch lại
+            const newAccept = (clone.getAttribute('accept') || '').toLowerCase();
+
+            if(newAccept.includes('video')){
+                forceGalleryPicker(clone, 'video');
+            }else{
+                forceGalleryPicker(clone, 'image');
+            }
+        });
+    }
+
+    patchAllFileInputs();
+
+    // ========= AUTO PATCH DOM CHANGES =========
+    const observer = new MutationObserver(() => {
+        patchAllFileInputs();
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
+    // ========= FIX IOS PWA =========
+    document.addEventListener('click', function(e){
+
+        const input = e.target.closest('input[type="file"]');
+
+        if(!input) return;
+
+        // reset value để luôn mở gallery
+        input.value = '';
+
+    }, true);
+
+    // ========= FIX ANDROID CHROME/PWA =========
+    document.addEventListener('touchstart', function(e){
+
+        const label = e.target.closest('label');
+
+        if(!label) return;
+
+        const input = label.querySelector('input[type="file"]');
+
+        if(!input) return;
+
+        input.removeAttribute('capture');
+
+    }, {
+        passive:true,
+        capture:true
+    });
+
+})();
     </script>
 </body>
 </html>
