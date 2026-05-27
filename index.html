@@ -865,15 +865,147 @@ async function silentRefreshSearch(keyword, cacheKey){
             document.getElementById(`menu-${id}`).classList.toggle('hidden');
         };
 
-        window.downloadItem = function(id, type, name, e) {
-            e.stopPropagation();
-            document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
-            if(type === 'folder') {
-                window.open(`https://drive.google.com/drive/folders/${id}`, '_blank');
-            } else {
-                window.open(`https://drive.google.com/uc?export=download&id=${id}`, '_blank');
+        window.downloadItem = async function(id, type, name, e) {
+
+    e.stopPropagation();
+
+    document.querySelectorAll('.item-action-menu')
+        .forEach(m => m.classList.add('hidden'));
+
+    try {
+
+        showToast('⏳ Đang chuẩn bị tải...');
+
+        // =========================
+        // FILE
+        // =========================
+        if(type !== 'folder'){
+
+            const url =
+                `https://drive.google.com/uc?export=download&id=${id}`;
+
+            const res = await fetch(url);
+
+            const blob = await res.blob();
+
+            const blobUrl = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+
+            a.href = blobUrl;
+
+            a.download = name || 'download';
+
+            document.body.appendChild(a);
+
+            a.click();
+
+            a.remove();
+
+            setTimeout(() => {
+                URL.revokeObjectURL(blobUrl);
+            }, 3000);
+
+            showToast('✅ Đã tải file');
+
+            return;
+        }
+
+        // =========================
+        // FOLDER ZIP
+        // =========================
+
+        showToast('⏳ Đang tạo ZIP thư mục...');
+
+        const zip = new JSZip();
+
+        async function loadFolderRecursive(folderId, path = '') {
+
+            const res = await apiCall('list', {
+                folderId
+            });
+
+            if(!res || !res.success) return;
+
+            for(const item of res.data){
+
+                // FILE
+                if(item.type !== 'folder'){
+
+                    try{
+
+                        const fileUrl =
+                            `https://drive.google.com/uc?export=download&id=${item.id}`;
+
+                        const fileRes = await fetch(fileUrl);
+
+                        const blob = await fileRes.blob();
+
+                        zip.file(
+                            path + item.name,
+                            blob
+                        );
+
+                    }catch(err){
+                        console.error(err);
+                    }
+
+                }
+
+                // SUBFOLDER
+                else{
+
+                    await loadFolderRecursive(
+                        item.id,
+                        path + item.name + '/'
+                    );
+
+                }
             }
         }
+
+        await loadFolderRecursive(id);
+
+        const zipBlob = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: {
+                level: 6
+            }
+        });
+
+        const blobUrl = URL.createObjectURL(zipBlob);
+
+        const a = document.createElement('a');
+
+        a.href = blobUrl;
+
+        a.download =
+            (name || 'folder')
+            .replace(/[\/\\?%*:|"<>]/g, '')
+            + '.zip';
+
+        document.body.appendChild(a);
+
+        a.click();
+
+        a.remove();
+
+        setTimeout(() => {
+            URL.revokeObjectURL(blobUrl);
+        }, 5000);
+
+        showToast('✅ Đã tải ZIP thư mục');
+
+    } catch(err){
+
+        console.error(err);
+
+        showToast('❌ Lỗi tải xuống');
+
+    }
+
+}
 
         window.selectType = function(val) {
             document.getElementById('custom-select-value').textContent = val;
@@ -1131,7 +1263,7 @@ async function silentRefreshSearch(keyword, cacheKey){
                                 <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm mục</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Mở Drive</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
                             </div>
@@ -1159,7 +1291,7 @@ async function silentRefreshSearch(keyword, cacheKey){
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
                             <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center font-semibold" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center font-semibold" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center font-semibold" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-file-zipper mr-3 text-green-500 w-4"></i>Tải xuống</div>
                                 <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer flex items-center font-semibold border-t" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                             </div>
                         </div>
