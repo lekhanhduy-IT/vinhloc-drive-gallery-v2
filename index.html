@@ -27,7 +27,8 @@
         :root {
             --primary-blue: #2563eb; --primary-red: #dc2626; --bg-white: #ffffff;
             --gray-light: #f3f4f6; --gray-dark: #1f2937;
-            --header-h: 56px; --bottom-h: 60px; --panel-h: 150px;
+            /* Đã nâng chiều cao của control panel lên để lấy không gian cho bảng màu và nút */
+            --header-h: 56px; --bottom-h: 60px; --panel-h: 180px; 
         }
 
         /* SIDEBAR */
@@ -84,22 +85,26 @@
         
         .control-panel { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: var(--panel-h); background: var(--bg-white); border-top: 1px solid #e5e7eb; z-index: 190; display: none; flex-direction: column; transition: 0.3s; transform: translateY(100%); }
         .control-panel.active { display: flex; transform: translateY(0); }
+        
         .sub-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid #f3f4f6; padding: 10px; gap: 10px; white-space: nowrap; flex-shrink: 0; }
         .sub-tabs::-webkit-scrollbar { display: none; }
         .sub-tab-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; background: none; font-size: 13px; cursor: pointer; color: var(--primary-blue); font-weight: 500; transition: 0.2s; }
         .sub-tab-btn.active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-        .panel-content { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+        
+        /* CẤU TRÚC PANEL CONTENT MỚI: Tối ưu cho tab chữ */
+        .panel-content { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; justify-content: space-between; }
         .slider-row { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #4b5563; }
         .slider-row input[type="range"] { flex: 1; accent-color: var(--primary-blue); }
         
-        /* CẬP NHẬT CSS BẢNG MÀU */
-        .color-list { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 10px; padding: 5px; max-height: 120px; overflow-y: auto; }
-        .color-list::-webkit-scrollbar { display: none; }
-        .color-dot { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #e5e7eb; flex-shrink: 0; cursor: pointer; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        /* CSS BẢNG MÀU CHUẨN: 1 hàng duy nhất cuộn mượt mà */
+        .color-list-wrapper { width: 100%; overflow-x: auto; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; padding-bottom: 5px; }
+        .color-list-wrapper::-webkit-scrollbar { display: none; }
+        .color-list { display: flex; flex-wrap: nowrap; gap: 12px; padding: 5px; align-items: center; width: max-content; }
+        .color-dot { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #e5e7eb; flex-shrink: 0; cursor: pointer; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .color-dot:active { transform: scale(0.85); }
         
-        .action-row { display: flex; justify-content: center; gap: 12px; }
-        .btn { padding: 10px 16px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+        .action-row { display: flex; justify-content: center; gap: 10px; padding-top: 5px; flex-shrink: 0; }
+        .btn { padding: 8px 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
         .btn-blue { background: var(--primary-blue); color: white; }
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
@@ -344,24 +349,32 @@
                 <button class="sub-tab-btn" data-target="font">Font chữ</button>
                 <button class="sub-tab-btn" data-target="style">Định dạng</button>
             </div>
-            <div class="panel-content">
-                <div class="color-list" id="color-picker-container"></div>
-                <div class="sub-tabs" id="font-picker-container" style="display:none; padding:0; border:none;">
-                    <button class="sub-tab-btn" style="font-family:'Arial'" onclick="window.updateProp('fontFamily','Arial')">Arial</button>
-                    <button class="sub-tab-btn" style="font-family:'Times New Roman'" onclick="window.updateProp('fontFamily','Times New Roman')">Times</button>
-                    <button class="sub-tab-btn" style="font-family:'Roboto'" onclick="window.updateProp('fontFamily','Roboto')">Roboto</button>
-                    <button class="sub-tab-btn" style="font-family:'Saira'" onclick="window.updateProp('fontFamily','Saira')">Saira</button>
-                    <button class="sub-tab-btn" style="font-family:'Anton'" onclick="window.updateProp('fontFamily','Anton')">Anton</button>
-                    <button class="sub-tab-btn" style="font-family:'Montserrat'" onclick="window.updateProp('fontFamily','Montserrat')">Montserrat</button>
+            
+            <div class="panel-content relative">
+                <div class="color-list-wrapper" id="color-picker-wrapper">
+                    <div class="color-list" id="color-picker-container"></div>
                 </div>
+                
+                <div class="color-list-wrapper" id="font-picker-wrapper" style="display:none;">
+                    <div class="color-list" id="font-picker-container">
+                        <button class="btn btn-outline" style="font-family:'Arial'" onclick="window.updateProp('fontFamily','Arial')">Arial</button>
+                        <button class="btn btn-outline" style="font-family:'Times New Roman'" onclick="window.updateProp('fontFamily','Times New Roman')">Times</button>
+                        <button class="btn btn-outline" style="font-family:'Roboto'" onclick="window.updateProp('fontFamily','Roboto')">Roboto</button>
+                        <button class="btn btn-outline" style="font-family:'Saira'" onclick="window.updateProp('fontFamily','Saira')">Saira</button>
+                        <button class="btn btn-outline" style="font-family:'Anton'" onclick="window.updateProp('fontFamily','Anton')">Anton</button>
+                        <button class="btn btn-outline" style="font-family:'Montserrat'" onclick="window.updateProp('fontFamily','Montserrat')">Montserrat</button>
+                    </div>
+                </div>
+                
                 <div class="action-row" id="style-picker-container" style="display:none;">
                     <button class="btn btn-outline" onclick="window.toggleStyle('fontWeight','bold','normal')">Đậm</button>
                     <button class="btn btn-outline" onclick="window.toggleStyle('fontStyle','italic','normal')">Nghiêng</button>
                     <button class="btn btn-outline" onclick="window.toggleStyle('textShadow','2px 2px 4px rgba(0,0,0,0.8)','none')">Bóng</button>
                 </div>
-                <div class="action-row" style="margin-top: 10px;">
+                
+                <div class="action-row pb-2">
                     <button class="btn btn-red" id="btn-delete-text" title="Xóa hàng loạt"><i class="fa-solid fa-trash"></i></button>
-                    <button class="btn btn-outline" id="btn-open-input" style="flex:1;"><i class="fa-solid fa-keyboard"></i> Nhập chữ</button>
+                    <button class="btn btn-outline" id="btn-open-input" style="flex:1; justify-content:center;"><i class="fa-solid fa-keyboard"></i> Nhập chữ</button>
                     <button class="btn btn-blue" id="btn-save-text-wm"><i class="fa-solid fa-floppy-disk"></i> Lưu</button>
                 </div>
             </div>
@@ -374,7 +387,7 @@
                         <i class="fa-solid fa-upload"></i> Up ảnh mới
                     </label>
                     <input type="file" id="wm-upload" accept="image/*" style="display:none;">
-                    <button class="btn btn-blue" id="btn-open-wm-library" style="flex:1;">
+                    <button class="btn btn-blue" id="btn-open-wm-library" style="flex:1; justify-content:center;">
                         <i class="fa-solid fa-images"></i> Thư viện
                     </button>
                 </div>
@@ -459,7 +472,6 @@
         let currentDriveItems = [];
         let subFolderCache = {}; 
         
-        // HỆ THỐNG DATABASE ĐỒNG BỘ LOCAL & GOOGLE SHEET
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
@@ -471,7 +483,7 @@
         function updateSyncIndicator() {
             if (syncQueueCount > 0) {
                 syncIcon.innerHTML = '<i class="fas fa-circle-notch fa-spin text-blue-600"></i>';
-                syncText.textContent = 'Đang lưu...';
+                syncText.textContent = 'Đang lưu ngầm...';
                 syncText.className = 'text-blue-600';
                 syncIndicator.classList.remove('opacity-0');
             } else {
@@ -492,7 +504,9 @@
             
             fetch(SCRIPT_URL, { 
                 method: 'POST', 
-                body: JSON.stringify(payload)
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload),
+                redirect: 'follow'
             })
             .then(res => res.json())
             .then(data => {
@@ -710,9 +724,6 @@
             }
         });
 
-        // =====================================
-        // HỆ THỐNG MODAL THÔNG TIN (OPTIMISTIC UI)
-        // =====================================
         let currentEditId = null;
         let currentEditLevel = null;
         let currentEditType = null;
@@ -1172,7 +1183,6 @@
             }
             state.images = []; state.layerOrder = []; state.activeElementId = null;
             driveImages.forEach(img => {
-                // Khởi tạo thêm thông số bộ lọc ảnh
                 state.images.push({ 
                     id: generateId(), src: img.url, ratio: 'auto', panX: 50, panY: 50, selected: false, customName: '', texts: [], wms: [],
                     filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0 
@@ -1199,7 +1209,6 @@
                 }
                 canvas.width = sWidth; canvas.height = sHeight;
                 
-                // XỬ LÝ LỌC & XOAY TRƯỚC KHI VẼ ẢNH GỐC
                 ctx.save();
                 let calcBright = imgData.filterBrightness - imgData.filterDarkness;
                 let calcCont = imgData.filterContrast + imgData.filterSharpness / 2;
@@ -1344,7 +1353,6 @@
         window.applyRatio = function(r) { getTargetImages().forEach(img => img.ratio = r); renderImages(); };
         window.toggleStyle = function(p, v1, v2) { let tg = getTargetImages(); if(tg.length===0) return; let cur = v1; if(tg[0].texts.length>0) { let t = tg[0].texts.find(x=>x.id===state.activeElementId) || tg[0].texts[tg[0].texts.length-1]; if(t) cur = t[p]; } window.updateProp(p, cur===v1?v2:v1); };
         
-        // HÀM ÁP DỤNG LỌC BỘ CỤC DIỆN CHO ẢNH GỐC
         window.updateFilter = function(prop, val) {
             getTargetImages().forEach(img => {
                 img[prop] = parseFloat(val);
@@ -1352,7 +1360,6 @@
             renderImages();
         };
 
-        // Lắng nghe các thanh kéo Tùy chỉnh (Bộ Lọc Ảnh)
         ['brightness', 'darkness', 'sharpness', 'contrast', 'saturate', 'rotate'].forEach(p => {
             const slider = document.getElementById(`slider-filter-${p}`);
             if(slider) {
@@ -1363,7 +1370,6 @@
             }
         });
 
-        // Tab menu cho Bộ lọc ảnh
         document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach((btn, idx) => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
@@ -1398,12 +1404,10 @@
                 
                 const img = document.createElement('img'); img.className = 'base-img'; img.src = imgData.src;
                 
-                // Áp dụng CSS Bộ Lọc Hình Ảnh
                 let calcBright = imgData.filterBrightness - imgData.filterDarkness;
                 let calcCont = imgData.filterContrast + imgData.filterSharpness / 2;
                 img.style.filter = `brightness(${calcBright}%) contrast(${calcCont}%) saturate(${imgData.filterSaturate}%)`;
                 
-                // Áp dụng Xoay (Kết hợp scale nhẹ để không bị lộ viền trống)
                 let scaleFit = 1 + Math.abs(imgData.filterRotate)/90 * 0.4;
                 img.style.transform = `rotate(${imgData.filterRotate}deg) scale(${scaleFit})`;
                 
@@ -1474,7 +1478,6 @@
                     document.getElementById('slider-y').value=ref.y; 
                     document.getElementById('slider-opacity').value=ref.opacity; 
                 } 
-                // Cập nhật giá trị slider Bộ Lọc
                 const imgRef = tg[0];
                 document.getElementById('slider-filter-brightness').value = imgRef.filterBrightness;
                 document.getElementById('slider-filter-darkness').value = imgRef.filterDarkness;
@@ -1489,11 +1492,9 @@
         document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach((btn, idx) => { btn.addEventListener('click', () => { document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('#adjust-sliders .slider-row').forEach((d,i)=>d.style.display=i===idx?'flex':'none'); }); });
         ['scale','x','y','opacity'].forEach(p => document.getElementById(`slider-${p}`).addEventListener('input', e => window.updateProp(p, e.target.value)));
 
-        // TẠO 40 MÀU VÀ NÚT GRADIENT NATIVE
         const colorContainer = document.getElementById('color-picker-container');
         colorContainer.innerHTML = '';
         
-        // Nút Gradient mở bảng pha màu
         const pickerLabel = document.createElement('label');
         pickerLabel.className = 'color-dot';
         pickerLabel.style.background = 'linear-gradient(45deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff)';
@@ -1502,7 +1503,6 @@
         pickerLabel.innerHTML = '<input type="color" style="opacity:0; position:absolute; inset:0; width:100%; height:100%; cursor:pointer;" onchange="window.updateProp(state.colorMode, this.value)">';
         colorContainer.appendChild(pickerLabel);
         
-        // 40 Màu cố định
         const colors40 = [
             '#ffffff','#f8f9fa','#e5e7eb','#9ca3af','#4b5563','#000000',
             '#fecaca','#ef4444','#b91c1c','#7f1d1d',
@@ -1519,7 +1519,7 @@
             const d=document.createElement('div'); d.className='color-dot'; d.style.background=c; d.addEventListener('click',()=>window.updateProp(state.colorMode,c)); colorContainer.appendChild(d); 
         });
 
-        document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const tg=btn.dataset.target; document.getElementById('color-picker-container').style.display=(tg==='color'||tg==='stroke')?'flex':'none'; document.getElementById('font-picker-container').style.display=tg==='font'?'flex':'none'; document.getElementById('style-picker-container').style.display=tg==='style'?'flex':'none'; if(tg==='color') state.colorMode='color'; if(tg==='stroke') state.colorMode='stroke'; }); });
+        document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const tg=btn.dataset.target; document.getElementById('color-picker-wrapper').style.display=(tg==='color'||tg==='stroke')?'block':'none'; document.getElementById('font-picker-wrapper').style.display=tg==='font'?'block':'none'; document.getElementById('style-picker-container').style.display=tg==='style'?'flex':'none'; if(tg==='color') state.colorMode='color'; if(tg==='stroke') state.colorMode='stroke'; }); });
 
         document.getElementById('btn-open-input').addEventListener('click', () => { if(state.activeElementId && state.activeEditTarget==='text'){ const t=getTargetImages()[0]?.texts.find(x=>x.id===state.activeElementId); document.getElementById('main-text-input').value=t?t.val:''; } else document.getElementById('main-text-input').value=''; document.getElementById('input-overlay').style.display='flex'; document.getElementById('main-text-input').focus(); });
         document.getElementById('btn-close-input').addEventListener('click', () => document.getElementById('input-overlay').style.display='none');
