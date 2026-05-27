@@ -8,6 +8,10 @@
     <link rel="apple-touch-icon" href="vlimage.png">
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-touch-fullscreen" content="yes">
+<meta name="theme-color" content="#f4f7f6">
+<meta name="background-color" content="#f4f7f6">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="QL Ảnh">
     <meta charset="UTF-8">
@@ -19,7 +23,44 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
-        body { -webkit-tap-highlight-color: transparent; background-color: #f4f7f6; }
+        html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #f4f7f6 !important;
+    opacity: 1 !important;
+    isolation: isolate;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+body {
+    -webkit-tap-highlight-color: transparent;
+    background-color: #f4f7f6 !important;
+    opacity: 1 !important;
+}
+
+/* FIX PWA SHORTCUT TRANSPARENT */
+#watermark-overlay-container,
+#mediaViewer,
+#sidebar,
+#sidebar-overlay,
+#customModal,
+#infoModal,
+#save-options-modal,
+#watermark-popup,
+#input-overlay {
+    background-clip: padding-box;
+    opacity: 1 !important;
+    backdrop-filter: none !important;
+}
+
+@supports (-webkit-touch-callout: none) {
+    body {
+        min-height: -webkit-fill-available;
+    }
+}
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
@@ -739,25 +780,82 @@
         }
 
         // Global Search
-        let searchTimeout;
-        searchInput.addEventListener('input', (e) => {
-            const keyword = e.target.value.trim().toLowerCase();
-            if(!keyword) {
-                renderItems(currentDriveItems);
+let searchTimeout;
+
+searchInput.addEventListener('input', (e) => {
+
+    const keyword = e.target.value.trim().toLowerCase();
+
+    if(!keyword){
+        renderItems(currentDriveItems);
+        return;
+    }
+
+    clearTimeout(searchTimeout);
+
+    searchTimeout = setTimeout(async () => {
+
+        const cacheKey = 'search_cache_' + keyword;
+
+        const cached = localStorage.getItem(cacheKey);
+
+        // LOAD CACHE NGAY
+        if(cached){
+            try{
+                const parsed = JSON.parse(cached);
+                renderItems(parsed, true);
+
+                // vẫn sync nền
+                silentRefreshSearch(keyword, cacheKey);
+
                 return;
-            }
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(async () => {
-                folderListEl.innerHTML = '<div class="text-center mt-5"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm toàn bộ hệ thống...</p></div>';
-                fileListEl.innerHTML = '';
-                const res = await apiCall('globalSearch', { keyword: keyword });
-                if(res && res.success) {
-                    renderItems(res.data, true);
-                } else {
-                    folderListEl.innerHTML = '<div class="text-center mt-5 text-gray-500 font-semibold">Không tìm thấy kết quả phù hợp.</div>';
-                }
-            }, 500);
-        });
+            }catch(err){}
+        }
+
+        folderListEl.innerHTML = `
+        <div class="text-center mt-5">
+            <div class="loader mx-auto border-blue-400 mb-2"></div>
+            <p class="text-sm text-gray-500 font-semibold">
+                Đang tìm kiếm...
+            </p>
+        </div>`;
+
+        fileListEl.innerHTML = '';
+
+        const res = await apiCall('globalSearch', { keyword });
+
+        if(res && res.success){
+
+            localStorage.setItem(cacheKey, JSON.stringify(res.data));
+
+            renderItems(res.data, true);
+
+        } else {
+
+            folderListEl.innerHTML = `
+            <div class="text-center mt-5 text-gray-500 font-semibold">
+                Không tìm thấy kết quả.
+            </div>`;
+        }
+
+    }, 250);
+
+});
+
+async function silentRefreshSearch(keyword, cacheKey){
+
+    try{
+
+        const res = await apiCall('globalSearch', { keyword });
+
+        if(res && res.success){
+
+            localStorage.setItem(cacheKey, JSON.stringify(res.data));
+
+        }
+
+    }catch(err){}
+}
 
         window.toggleItemMenu = function(id, e) {
             e.stopPropagation();
@@ -1344,24 +1442,64 @@
         });
 
         document.getElementById('btn-save-local').addEventListener('click', async () => {
-            document.getElementById('save-options-modal').classList.add('hidden');
-            try {
-                const editedImages = await processAllEditedImages();
-                const safeFolderName = (window.getDriveFolderInfo().name || 'VinhLoc').replace(/[\/\\?%*:|"<>]/g, '');
-                for (let i = 0; i < editedImages.length; i++) {
-                    const img = editedImages[i];
-                    const link = document.createElement('a');
-                    link.href = 'data:image/jpeg;base64,' + img.data; 
-                    link.download = `${safeFolderName}_${img.fileName}`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    await new Promise(r => setTimeout(r, 400));
-                }
-                closeAlert(); 
-                showToast(`✅ Đã tải lần lượt ${editedImages.length} ảnh về máy!`);
-            } catch (error) { closeAlert(); showToast('❌ Lỗi tải ảnh: ' + error.message); }
+
+    document.getElementById('save-options-modal').classList.add('hidden');
+
+    try {
+
+        showToast('⏳ Đang tạo file ZIP...');
+
+        const editedImages = await processAllEditedImages();
+
+        const zip = new JSZip();
+
+        editedImages.forEach(img => {
+
+            zip.file(img.fileName, img.data, { base64: true });
+
         });
+
+        const safeFolderName =
+            (window.getDriveFolderInfo().name || 'VinhLoc')
+            .replace(/[\/\\?%*:|"<>]/g, '');
+
+        const zipBlob = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: {
+                level: 6
+            }
+        });
+
+        const url = URL.createObjectURL(zipBlob);
+
+        const a = document.createElement('a');
+
+        a.href = url;
+
+        a.download = `${safeFolderName}.zip`;
+
+        document.body.appendChild(a);
+
+        a.click();
+
+        a.remove();
+
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 3000);
+
+        showToast(`✅ Đã tải file ZIP`);
+
+    } catch (error) {
+
+        console.error(error);
+
+        showToast('❌ Lỗi tạo ZIP');
+
+    }
+
+});
 
         document.getElementById('btn-save-drive').addEventListener('click', async () => {
             document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');
@@ -1393,7 +1531,7 @@
                 }
                 closeAlert(); 
                 // Thay thế Alert báo lưu thành công bằng CSS Popup 1 giây
-                showToast(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào "ĐÃ CHỈNH SỬA"!`);
+                showToast(`✅ Đã lưu ${successCount} ảnh lên Drive`);
             } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
         });
 
@@ -1670,6 +1808,15 @@
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
+        // FIX DOWNLOAD POPUP DEFAULT
+window.addEventListener('beforeunload', (e) => {
+
+    if(window.__downloadingZip){
+        e.preventDefault();
+        e.returnValue = '';
+    }
+
+});
     </script>
 </body>
 </html>
