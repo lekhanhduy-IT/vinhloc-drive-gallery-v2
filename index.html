@@ -106,10 +106,8 @@
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
 
-        .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
-        .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
-        .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
-        .rename-right::-webkit-scrollbar { display: none; }
+        /* BỐ CỤC MỚI CHO TAB RENAME */
+        .rename-container { display: flex; flex-direction: column; width: 100%; height: 100%; gap: 12px; }
         .rename-item { display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb; flex-shrink: 0;}
         .rename-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db; flex-shrink: 0;}
         .rename-item input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
@@ -170,7 +168,7 @@
     <div class="sticky top-0 z-10 bg-white p-3 border-b border-gray-200 shadow-sm">
         <div class="relative">
             <i class="fas fa-search absolute left-4 top-3 text-gray-400"></i>
-            <input type="text" id="searchInput" placeholder="Tìm kiếm toàn bộ thư mục / file..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition text-sm font-medium">
+            <input type="text" id="searchInput" placeholder="Tìm kiếm nội bộ thư mục..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition text-sm font-medium">
         </div>
     </div>
 
@@ -412,13 +410,18 @@
         </div>
 
         <div class="control-panel" id="panel-rename">
+            <div class="sub-tabs" id="rename-sub-tabs">
+                <button class="sub-tab-btn active" data-target="rename-chung">Tên chung</button>
+                <button class="sub-tab-btn" data-target="rename-rieng">Tên riêng</button>
+            </div>
             <div class="panel-content rename-container">
-                <div class="rename-left">
-                    <span style="font-size: 13px; font-weight: bold; color: var(--primary-blue); text-align: center;">Tên chung</span>
-                    <input type="text" id="batch-name-input" placeholder="Nhập tên..." style="padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%; outline: none; font-family: inherit;">
+                <div id="rename-chung" style="display:flex; flex-direction:column; gap:10px; flex:1; justify-content:center;">
+                    <input type="text" id="batch-name-input" placeholder="Nhập tên chung cho các ảnh..." style="padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%; outline: none; font-family: inherit;">
                     <button class="btn btn-blue transition-colors duration-300" id="btn-apply-batch-name" style="justify-content: center; padding: 10px;"><i class="fa-solid fa-check-double"></i> Áp dụng</button>
                 </div>
-                <div class="rename-right" id="rename-list-container"></div>
+                <div id="rename-rieng" style="display:none; flex:1; overflow-y:auto; flex-direction:column; gap:10px; padding-bottom:10px;">
+                    <div id="rename-list-container" style="display:flex; flex-direction:column; gap:10px;"></div>
+                </div>
             </div>
         </div>
 
@@ -494,7 +497,6 @@
         const syncIcon = document.getElementById('sync-icon');
         const syncText = document.getElementById('sync-text');
 
-        // Hàm hiển thị Toast Popup Css
         function showToast(msg) {
             let t = document.createElement('div');
             t.className = 'toast-popup'; t.innerHTML = msg;
@@ -503,18 +505,15 @@
             setTimeout(() => {
                 t.classList.remove('show');
                 setTimeout(() => t.remove(), 300);
-            }, 1000); 
+            }, 1500); 
         }
 
-        // Xử lý Lịch Sử PWA (Nút Back Ảo/Điện thoại)
         window.addEventListener('popstate', (e) => {
             if (folderStack.length > 1) {
                 folderStack.pop();
                 localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
                 let parent = folderStack[folderStack.length - 1];
-                loadFolder(parent.id, parent.name, false, true); // Gọi hàm với isPopState = true
-            } else {
-                // Đã ở trang gốc, thoát web app.
+                loadFolder(parent.id, parent.name, false, true); 
             }
         });
 
@@ -534,13 +533,13 @@
             }
         }
 
-        async function bgApiCall(action, payload = {}) {
+        function bgApiCall(action, payload = {}) {
             syncQueueCount++;
             updateSyncIndicator();
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
             
-            fetch(SCRIPT_URL, { 
+            return fetch(SCRIPT_URL, { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload),
@@ -548,10 +547,10 @@
             })
             .then(res => res.json())
             .then(data => {
-                if(!data.success) console.error("Lỗi từ Google Apps Script:", data.error || data.message);
-                else console.log("Lưu thành công action:", action);
+                if(!data.success) console.error("Lỗi:", data.error || data.message);
+                return data;
             })
-            .catch(err => console.error("Lỗi kết nối mạng:", err))
+            .catch(err => { console.error("Lỗi mạng:", err); return { success: false }; })
             .finally(() => {
                 syncQueueCount--;
                 updateSyncIndicator();
@@ -677,7 +676,7 @@
         });
 
         btnBack.addEventListener('click', () => {
-            history.back(); // Tích hợp history API
+            history.back(); 
         });
 
         function updateBreadcrumbs() {
@@ -714,7 +713,7 @@
             if (isNewNavigation) { 
                 folderStack.push({ id: folderId, name: folderName }); 
                 localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
-                history.pushState({ id: folderId }, '', ''); // Đẩy vào lịch sử khi vô thư mục con
+                history.pushState({ id: folderId }, '', ''); 
             }
             updateBreadcrumbs(); 
             searchInput.value = ''; 
@@ -738,7 +737,7 @@
             }
         }
 
-        // Global Search
+        // TÌM KIẾM NỘI BỘ TRÊN GIAO DIỆN
         let searchTimeout;
         searchInput.addEventListener('input', (e) => {
             const keyword = e.target.value.trim().toLowerCase();
@@ -746,17 +745,34 @@
                 renderItems(currentDriveItems);
                 return;
             }
+            
+            folderListEl.innerHTML = '<div class="text-center mt-5"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm...</p></div>';
+            fileListEl.innerHTML = '';
+            
             clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(async () => {
-                folderListEl.innerHTML = '<div class="text-center mt-5"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm toàn bộ hệ thống...</p></div>';
-                fileListEl.innerHTML = '';
-                const res = await apiCall('globalSearch', { keyword: keyword });
-                if(res && res.success) {
-                    renderItems(res.data, true);
+            searchTimeout = setTimeout(() => {
+                let allItems = [...currentDriveItems];
+                for(let key in subFolderCache) {
+                    allItems = allItems.concat(subFolderCache[key]);
+                }
+                
+                const uniqueItems = [];
+                const map = new Map();
+                for (const item of allItems) {
+                    if(!map.has(item.id)){
+                        map.set(item.id, true);
+                        uniqueItems.push(item);
+                    }
+                }
+                
+                const filtered = uniqueItems.filter(item => item.name.toLowerCase().includes(keyword));
+                
+                if(filtered.length > 0) {
+                    renderItems(filtered, true); // true = không xếp thep subfolders dạng mega
                 } else {
                     folderListEl.innerHTML = '<div class="text-center mt-5 text-gray-500 font-semibold">Không tìm thấy kết quả phù hợp.</div>';
                 }
-            }, 500);
+            }, 100);
         });
 
         window.toggleItemMenu = function(id, e) {
@@ -767,11 +783,19 @@
             document.getElementById(`menu-${id}`).classList.toggle('hidden');
         };
 
-        window.downloadItem = function(id, type, name, e) {
+        // CHỈNH SỬA TẢI XUỐNG THƯ MỤC THÀNH ZIP
+        window.downloadItem = async function(id, type, name, e) {
             e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
             if(type === 'folder') {
-                window.open(`https://drive.google.com/drive/folders/${id}`, '_blank');
+                showToast(`⏳ Đang nén thư mục "${name}"... Vui lòng đợi!`);
+                const res = await apiCall('zipFolder', { id: id });
+                if(res && res.success && res.url) {
+                    showToast(`✅ Đã nén xong! Đang tải xuống...`);
+                    window.open(res.url, '_blank');
+                } else {
+                    showToast(`❌ Lỗi nén thư mục hoặc thư mục trống!`);
+                }
             } else {
                 window.open(`https://drive.google.com/uc?export=download&id=${id}`, '_blank');
             }
@@ -809,7 +833,6 @@
             
             document.getElementById('infoName').value = name;
             
-            // Set for Custom Select
             const typeVal = meta.type || currentCategory;
             document.getElementById('custom-select-value').textContent = typeVal;
             document.getElementById('infoType').value = typeVal;
@@ -1363,38 +1386,49 @@
             } catch (error) { closeAlert(); showToast('❌ Lỗi tải ảnh: ' + error.message); }
         });
 
+        // CHỈNH SỬA: LƯU THẲNG LÊN DRIVE CHẠY NGẦM, HIỂN THỊ TOAST NGAY LẬP TỨC
         document.getElementById('btn-save-drive').addEventListener('click', async () => {
             document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');
             try {
                 const editedImages = await processAllEditedImages(); 
-                if (editedImages.length === 0) return;
-                showAlert('Đang xử lý kết nối Drive...', true);
+                if (editedImages.length === 0) {
+                    closeAlert();
+                    return;
+                }
+                closeAlert();
                 
-                let newFolderId = null;
-                let existingFolder = currentDriveItems.find(i => i.name === "ĐÃ CHỈNH SỬA" && i.type === "folder");
-                
-                if (existingFolder) {
-                    newFolderId = existingFolder.id;
-                } else {
-                    let createRes = await apiCall('createFolder', { name: "ĐÃ CHỈNH SỬA" });
-                    newFolderId = createRes.folderId || createRes.id;
-                    if (newFolderId) {
-                        currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
-                        renderItems(currentDriveItems);
+                // HIỂN THỊ TOAST THÔNG BÁO NGAY LẬP TỨC CHO NGƯỜI DÙNG THOÁT RA LÀM VIỆC KHÁC
+                showToast(`✅ Đã lưu thành công ${editedImages.length}/${editedImages.length} ảnh vào "ĐÃ CHỈNH SỬA"!`);
+
+                // QUÁ TRÌNH LƯU DRIVE SẼ ĐƯỢC CHẠY BÊN DƯỚI BACKGROUND
+                (async () => {
+                    try {
+                        let newFolderId = null;
+                        let existingFolder = currentDriveItems.find(i => i.name === "ĐÃ CHỈNH SỬA" && i.type === "folder");
+                        
+                        if (existingFolder) {
+                            newFolderId = existingFolder.id;
+                        } else {
+                            let createRes = await bgApiCall('createFolder', { name: "ĐÃ CHỈNH SỬA" });
+                            if(createRes && createRes.success) {
+                                newFolderId = createRes.folderId || createRes.id;
+                                currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
+                                renderItems(currentDriveItems);
+                            }
+                        }
+                        if (!newFolderId) return;
+                        
+                        for (let i = 0; i < editedImages.length; i++) {
+                            let img = editedImages[i];
+                            // Sử dụng bgApiCall để đẩy từng ảnh ngầm (và hiển thị indicator Sync)
+                            await bgApiCall('upload', { folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data });
+                        }
+                    } catch (err) {
+                        console.error('Lỗi khi lưu ảnh ngầm lên Drive:', err);
                     }
-                }
-                if (!newFolderId) throw new Error("Không thể truy cập thư mục lưu trữ.");
-                let successCount = 0;
-                for (let i = 0; i < editedImages.length; i++) {
-                    showAlert(`Đang tải ảnh lên Drive... (${i + 1}/${editedImages.length})`, true);
-                    let img = editedImages[i];
-                    let uploadRes = await window.apiCall('upload', { folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data });
-                    if (uploadRes && uploadRes.success) successCount++;
-                }
-                closeAlert(); 
-                // Thay thế Alert báo lưu thành công bằng CSS Popup 1 giây
-                showToast(`✅ Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào "ĐÃ CHỈNH SỬA"!`);
-            } catch (error) { closeAlert(); showAlert('❌ Lỗi lưu Drive: ' + error.message); }
+                })();
+                
+            } catch (error) { closeAlert(); showToast('❌ Lỗi xử lý ảnh: ' + error.message); }
         });
 
         let scrollInterval = null;
@@ -1477,6 +1511,22 @@
             });
         };
         
+        // CHỈNH SỬA CHIA TAB BỐ CỤC ĐỔI TÊN
+        document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (btn.dataset.target === 'rename-chung') {
+                    document.getElementById('rename-chung').style.display = 'flex';
+                    document.getElementById('rename-rieng').style.display = 'none';
+                } else {
+                    document.getElementById('rename-chung').style.display = 'none';
+                    document.getElementById('rename-rieng').style.display = 'flex';
+                    window.renderRenameList();
+                }
+            });
+        });
+
         document.getElementById('btn-apply-batch-name').addEventListener('click', function() { 
             const bn = document.getElementById('batch-name-input').value.trim(); if(!bn) return; 
             getTargetImages().forEach((img, idx) => img.customName = `${bn}_${idx+1}`); 
