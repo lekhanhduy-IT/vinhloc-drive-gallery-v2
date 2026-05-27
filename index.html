@@ -90,24 +90,26 @@
         .sub-tab-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; background: none; font-size: 13px; cursor: pointer; color: var(--primary-blue); font-weight: 500; transition: 0.2s; }
         .sub-tab-btn.active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
         
-        .panel-content { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; justify-content: space-between; }
+        .panel-content { flex: 1; padding: 10px 15px; overflow-y: auto; overflow-x: hidden; max-width: 100vw; display: flex; flex-direction: column; justify-content: flex-start; gap: 15px; }
         .slider-row { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #4b5563; }
         .slider-row input[type="range"] { flex: 1; accent-color: var(--primary-blue); }
         
         .color-list-wrapper { width: 100%; overflow-x: auto; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; padding-bottom: 5px; }
         .color-list-wrapper::-webkit-scrollbar { display: none; }
-        .color-list { display: flex; flex-wrap: nowrap; gap: 12px; padding: 5px; align-items: center; width: max-content; }
-        .color-dot { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #e5e7eb; flex-shrink: 0; cursor: pointer; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .color-list { display: flex; flex-wrap: nowrap; gap: 14px; align-items: center; width: max-content; padding: 2px; }
+        .color-dot { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #e5e7eb; flex-shrink: 0; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .color-dot:active { transform: scale(0.85); }
         
         .action-row { display: flex; justify-content: center; gap: 10px; padding-top: 5px; flex-shrink: 0; }
-        .btn { padding: 8px 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+        .btn { padding: 8px 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: 0.2s; }
         .btn-blue { background: var(--primary-blue); color: white; }
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
 
-        /* BỐ CỤC MỚI CHO TAB RENAME */
-        .rename-container { display: flex; flex-direction: column; width: 100%; height: 100%; gap: 12px; }
+        .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
+        .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
+        .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
+        .rename-right::-webkit-scrollbar { display: none; }
         .rename-item { display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb; flex-shrink: 0;}
         .rename-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db; flex-shrink: 0;}
         .rename-item input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
@@ -121,13 +123,22 @@
         .wm-item img { max-width: 90%; max-height: 90%; object-fit: contain; }
         .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; z-index: 10; }
 
-        /* CSS Popup Toast Mới */
+        /* CUSTOM SELECT */
+        .custom-select-wrapper { position: relative; user-select: none; }
+        .custom-select { position: relative; display: flex; justify-content: space-between; align-items: center; border: 1px solid #d1d5db; padding: 12px; border-radius: 12px; background: #f9fafb; cursor: pointer; font-weight: 500; }
+        .custom-select-options { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 12px; margin-top: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 10; display: none; overflow: hidden; }
+        .custom-select-options.open { display: block; }
+        .custom-select-option { padding: 12px; cursor: pointer; transition: background 0.2s; }
+        .custom-select-option:hover { background: #eff6ff; color: var(--primary-blue); }
+
+        /* CSS CHO TOAST POPUP CHỐNG LỘ NỀN */
         .toast-popup {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(17, 24, 39, 0.95); color: white; padding: 12px 24px;
+            position: fixed; top: -50px; left: 50%; transform: translateX(-50%);
+            background: rgba(17, 24, 39, 1); color: white; padding: 12px 24px;
             border-radius: 30px; z-index: 10000; font-size: 14px; font-weight: bold;
-            transition: opacity 0.3s ease, top 0.3s ease; opacity: 0; pointer-events: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.25); white-space: nowrap; backdrop-filter: blur(4px);
+            transition: opacity 0.3s ease, top 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); 
+            opacity: 0; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
+            white-space: nowrap; display: flex; align-items: center; gap: 8px;
         }
         .toast-popup.show { opacity: 1; top: 40px; }
     </style>
@@ -135,9 +146,11 @@
 
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
 
-    <div id="sync-indicator" class="fixed top-20 right-1/2 translate-x-1/2 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg text-sm font-bold text-gray-700 flex items-center gap-2 z-[9999] transition-opacity duration-300 opacity-0 pointer-events-none border border-gray-100">
+    <div id="toast-container" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-[10000] flex flex-col gap-2 pointer-events-none"></div>
+
+    <div id="sync-indicator" class="fixed top-6 right-4 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg text-xs font-bold text-gray-700 flex items-center gap-2 z-[9999] transition-opacity duration-300 opacity-0 pointer-events-none border border-gray-100">
         <div id="sync-icon"><i class="fas fa-circle-notch fa-spin text-blue-600"></i></div>
-        <span id="sync-text" class="text-blue-600">Đang lưu...</span>
+        <span id="sync-text" class="text-blue-600">Đang lưu ngầm...</span>
     </div>
 
     <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
@@ -157,18 +170,19 @@
     </div>
 
     <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-20">
-        <div class="flex items-center gap-3 w-[85%]">
+        <div class="flex items-center gap-3 w-full overflow-hidden">
             <i class="fas fa-bars text-xl cursor-pointer p-1 shrink-0" id="btnMenu" onclick="toggleSidebar()"></i>
             <button id="btnBack" class="hidden text-xl p-1 active:bg-blue-700 rounded-full transition shrink-0"><i class="fas fa-arrow-left"></i></button>
-            <h1 class="text-base font-bold truncate overflow-hidden whitespace-nowrap" id="currentFolderName">Triển khai</h1>
+            <h1 class="text-sm font-bold truncate whitespace-nowrap overflow-x-auto no-scrollbar" id="currentFolderName" style="flex:1;">Triển khai</h1>
         </div>
-        <div id="loading" class="hidden loader shrink-0"></div>
+        <div id="loading" class="hidden loader shrink-0 ml-2"></div>
     </header>
 
     <div class="sticky top-0 z-10 bg-white p-3 border-b border-gray-200 shadow-sm">
         <div class="relative">
             <i class="fas fa-search absolute left-4 top-3 text-gray-400"></i>
-            <input type="text" id="searchInput" placeholder="Tìm kiếm nội bộ thư mục..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition text-sm font-medium">
+            <input type="text" id="searchInput" placeholder="Tìm kiếm toàn bộ dữ liệu..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition text-sm font-medium">
+            <i class="fas fa-times absolute right-4 top-3 text-gray-400 cursor-pointer hidden" id="clearSearchBtn" onclick="clearSearch()"></i>
         </div>
     </div>
 
@@ -218,15 +232,17 @@
 
                 <div id="info-field-type" class="mb-4 hidden relative">
                     <label class="block text-sm font-bold text-gray-700 mb-1">Loại</label>
-                    <div id="custom-select-trigger" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 bg-gray-50 flex justify-between items-center cursor-pointer font-medium" onclick="document.getElementById('custom-select-options').classList.toggle('hidden')">
-                        <span id="custom-select-value">Triển khai</span>
-                        <i class="fas fa-chevron-down text-gray-400"></i>
-                    </div>
-                    <div id="custom-select-options" class="hidden absolute top-[70px] left-0 w-full bg-white border border-gray-200 shadow-xl rounded-xl z-50 overflow-hidden">
-                        <div class="p-3 hover:bg-blue-50 cursor-pointer font-medium text-gray-700" onclick="window.selectType('Triển khai')">Triển khai</div>
-                        <div class="p-3 hover:bg-blue-50 cursor-pointer font-medium text-gray-700" onclick="window.selectType('Ý tưởng')">Ý tưởng</div>
-                    </div>
                     <input type="hidden" id="infoType" value="Triển khai">
+                    <div class="custom-select-wrapper" id="customSelectWrapper">
+                        <div class="custom-select" id="customSelectValue">
+                            <span>Triển khai</span>
+                            <i class="fas fa-chevron-down text-gray-500"></i>
+                        </div>
+                        <div class="custom-select-options" id="customSelectOptions">
+                            <div class="custom-select-option" data-val="Triển khai">Triển khai</div>
+                            <div class="custom-select-option" data-val="Ý tưởng">Ý tưởng</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="info-field-desc" class="mb-4 hidden">
@@ -269,9 +285,9 @@
     <div id="mediaViewer" class="fixed inset-0 bg-black bg-opacity-95 hidden flex-col z-[60] transition-opacity">
         <div class="flex justify-between items-center p-4 text-white z-10 bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full left-0">
             <h2 id="mediaTitle" class="text-sm font-medium truncate flex-1 pr-4 drop-shadow-md">Tên file...</h2>
-            <div class="flex items-center gap-1">
-                <button id="btnDownloadCurrentMedia" class="text-2xl p-2" title="Tải xuống"><i class="fas fa-download"></i></button>
-                <button onclick="closeMedia()" class="text-3xl p-2 ml-2"><i class="fas fa-times"></i></button>
+            <div>
+                <button id="btnMediaDownload" class="text-2xl p-2 mr-3"><i class="fas fa-download"></i></button>
+                <button onclick="closeMedia()" class="text-3xl p-2"><i class="fas fa-times"></i></button>
             </div>
         </div>
         <div id="mediaContent" class="flex-1 flex items-center justify-center overflow-hidden w-full h-full relative pt-16 pb-4 px-2"></div>
@@ -410,18 +426,13 @@
         </div>
 
         <div class="control-panel" id="panel-rename">
-            <div class="sub-tabs" id="rename-sub-tabs">
-                <button class="sub-tab-btn active" data-target="rename-chung">Tên chung</button>
-                <button class="sub-tab-btn" data-target="rename-rieng">Tên riêng</button>
-            </div>
             <div class="panel-content rename-container">
-                <div id="rename-chung" style="display:flex; flex-direction:column; gap:10px; flex:1; justify-content:center;">
-                    <input type="text" id="batch-name-input" placeholder="Nhập tên chung cho các ảnh..." style="padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%; outline: none; font-family: inherit;">
+                <div class="rename-left">
+                    <span style="font-size: 13px; font-weight: bold; color: var(--primary-blue); text-align: center;">Tên chung</span>
+                    <input type="text" id="batch-name-input" placeholder="Nhập tên..." style="padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%; outline: none; font-family: inherit;">
                     <button class="btn btn-blue transition-colors duration-300" id="btn-apply-batch-name" style="justify-content: center; padding: 10px;"><i class="fa-solid fa-check-double"></i> Áp dụng</button>
                 </div>
-                <div id="rename-rieng" style="display:none; flex:1; overflow-y:auto; flex-direction:column; gap:10px; padding-bottom:10px;">
-                    <div id="rename-list-container" style="display:flex; flex-direction:column; gap:10px;"></div>
-                </div>
+                <div class="rename-right" id="rename-list-container"></div>
             </div>
         </div>
 
@@ -448,14 +459,6 @@
                 <i class="fa-solid fa-times" id="btn-close-wm-popup" style="font-size:22px; cursor:pointer; color:#6b7280;"></i>
             </div>
             <div class="wm-grid" id="wm-library-grid"></div>
-        </div>
-
-        <div id="custom-alert">
-            <div class="alert-box">
-                <div class="loader mx-auto mb-3" id="alert-loader"></div>
-                <p id="alert-msg" class="font-medium text-gray-700"></p>
-                <button id="alert-btn" class="mt-4 w-full bg-blue-600 font-bold text-white py-2 rounded-xl" onclick="document.getElementById('custom-alert').style.display='none'">Đã hiểu</button>
-            </div>
         </div>
     </div> 
     
@@ -492,22 +495,20 @@
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
-        let syncQueueCount = 0;
-        const syncIndicator = document.getElementById('sync-indicator');
-        const syncIcon = document.getElementById('sync-icon');
-        const syncText = document.getElementById('sync-text');
-
-        function showToast(msg) {
+        // HỆ THỐNG TOAST NOTIFICATION
+        function showToast(msg, isError = false) {
             let t = document.createElement('div');
-            t.className = 'toast-popup'; t.innerHTML = msg;
-            document.body.appendChild(t);
+            t.className = `toast-popup ${isError ? 'bg-red-600' : 'bg-gray-900'}`; 
+            t.innerHTML = msg;
+            document.getElementById('toast-container').appendChild(t);
             requestAnimationFrame(() => t.classList.add('show'));
             setTimeout(() => {
                 t.classList.remove('show');
-                setTimeout(() => t.remove(), 300);
+                setTimeout(() => t.remove(), 400);
             }, 1500); 
         }
 
+        // XỬ LÝ LỊCH SỬ PWA (NÚT BACK VẬT LÝ)
         window.addEventListener('popstate', (e) => {
             if (folderStack.length > 1) {
                 folderStack.pop();
@@ -517,10 +518,15 @@
             }
         });
 
+        let syncQueueCount = 0;
+        const syncIndicator = document.getElementById('sync-indicator');
+        const syncIcon = document.getElementById('sync-icon');
+        const syncText = document.getElementById('sync-text');
+
         function updateSyncIndicator() {
             if (syncQueueCount > 0) {
                 syncIcon.innerHTML = '<i class="fas fa-circle-notch fa-spin text-blue-600"></i>';
-                syncText.textContent = 'Đang lưu...';
+                syncText.textContent = 'Đang lưu ngầm...';
                 syncText.className = 'text-blue-600';
                 syncIndicator.classList.remove('opacity-0');
             } else {
@@ -529,17 +535,17 @@
                 syncText.className = 'text-green-600';
                 setTimeout(() => {
                     if (syncQueueCount === 0) syncIndicator.classList.add('opacity-0');
-                }, 2000);
+                }, 1500);
             }
         }
 
-        function bgApiCall(action, payload = {}) {
+        async function bgApiCall(action, payload = {}) {
             syncQueueCount++;
             updateSyncIndicator();
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
             
-            return fetch(SCRIPT_URL, { 
+            fetch(SCRIPT_URL, { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload),
@@ -547,10 +553,9 @@
             })
             .then(res => res.json())
             .then(data => {
-                if(!data.success) console.error("Lỗi:", data.error || data.message);
-                return data;
+                if(!data.success) console.error("Lỗi từ Google Apps Script:", data.error || data.message);
             })
-            .catch(err => { console.error("Lỗi mạng:", err); return { success: false }; })
+            .catch(err => console.error("Lỗi kết nối mạng:", err))
             .finally(() => {
                 syncQueueCount--;
                 updateSyncIndicator();
@@ -639,6 +644,7 @@
         const fabMenu = document.getElementById('fabMenu');
         const fabIcon = document.getElementById('fabIcon');
         const searchInput = document.getElementById('searchInput');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
         const sidebar = document.getElementById('sidebar');
         const sidebarOverlay = document.getElementById('sidebar-overlay');
         const btnOpenDesign = document.getElementById('btn-open-design');
@@ -656,7 +662,6 @@
             else document.getElementById('menu-ytuong').classList.add('active');
             
             toggleSidebar();
-            currentFolderName.textContent = cat;
             
             if(navigate) {
                 folderStack = [{ id: ROOT_FOLDER_ID, name: cat }];
@@ -676,17 +681,24 @@
         });
 
         btnBack.addEventListener('click', () => {
-            history.back(); 
+            if (folderStack.length > 1) {
+                history.back(); // Gọi native back để đồng bộ history state
+            }
         });
 
         function updateBreadcrumbs() {
             if (folderStack.length === 1) {
-                currentFolderName.textContent = currentCategory;
+                currentFolderName.innerHTML = currentCategory;
                 btnBack.classList.add('hidden');
                 btnMenu.classList.remove('hidden');
                 btnOpenDesign.classList.add('hidden');
             } else {
-                currentFolderName.textContent = folderStack.map(f => f.name).join(' > ');
+                // BREADCRUMBS: a > b > c
+                currentFolderName.innerHTML = folderStack.map((f, i) => {
+                    if (i === folderStack.length - 1) return `<span class="font-bold">${f.name}</span>`;
+                    return `<span class="font-normal opacity-70 cursor-pointer" onclick="loadFolder('${f.id}','${f.name}')">${f.name}</span>`;
+                }).join(' <i class="fas fa-chevron-right text-[10px] mx-1 opacity-50"></i> ');
+
                 btnBack.classList.remove('hidden');
                 btnMenu.classList.add('hidden');
                 btnOpenDesign.classList.remove('hidden');
@@ -710,13 +722,21 @@
 
         async function loadFolder(folderId, folderName, isNewNavigation = false, isPopState = false) {
             currentFolderId = folderId;
-            if (isNewNavigation) { 
-                folderStack.push({ id: folderId, name: folderName }); 
+            
+            if (isNewNavigation && !isPopState) { 
+                // Xóa bớt stack nếu click vào breadcrumb cũ
+                const existingIdx = folderStack.findIndex(f => f.id === folderId);
+                if(existingIdx !== -1) {
+                    folderStack = folderStack.slice(0, existingIdx + 1);
+                } else {
+                    folderStack.push({ id: folderId, name: folderName }); 
+                }
                 localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
                 history.pushState({ id: folderId }, '', ''); 
             }
             updateBreadcrumbs(); 
             searchInput.value = ''; 
+            clearSearchBtn.classList.add('hidden');
             
             folderListEl.innerHTML = '';
             fileListEl.innerHTML = '';
@@ -737,42 +757,51 @@
             }
         }
 
-        // TÌM KIẾM NỘI BỘ TRÊN GIAO DIỆN
+        // CHỨC NĂNG TÌM KIẾM TOÀN CỤC (GLOBAL SEARCH)
         let searchTimeout;
+        let lastSearchResults = JSON.parse(sessionStorage.getItem('lastSearchResults')) || null;
+        let lastSearchKeyword = sessionStorage.getItem('lastSearchKeyword') || '';
+
+        function clearSearch() {
+            searchInput.value = '';
+            clearSearchBtn.classList.add('hidden');
+            sessionStorage.removeItem('lastSearchResults');
+            sessionStorage.removeItem('lastSearchKeyword');
+            renderItems(currentDriveItems);
+        }
+
         searchInput.addEventListener('input', (e) => {
             const keyword = e.target.value.trim().toLowerCase();
+            clearTimeout(searchTimeout);
+            
             if(!keyword) {
+                clearSearchBtn.classList.add('hidden');
                 renderItems(currentDriveItems);
                 return;
             }
             
-            folderListEl.innerHTML = '<div class="text-center mt-5"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm...</p></div>';
-            fileListEl.innerHTML = '';
+            clearSearchBtn.classList.remove('hidden');
             
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                let allItems = [...currentDriveItems];
-                for(let key in subFolderCache) {
-                    allItems = allItems.concat(subFolderCache[key]);
-                }
+            if(keyword === lastSearchKeyword && lastSearchResults) {
+                renderItems(lastSearchResults, true);
+                return;
+            }
+
+            searchTimeout = setTimeout(async () => {
+                folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm toàn bộ hệ thống...</p></div>';
+                fileListEl.innerHTML = '';
                 
-                const uniqueItems = [];
-                const map = new Map();
-                for (const item of allItems) {
-                    if(!map.has(item.id)){
-                        map.set(item.id, true);
-                        uniqueItems.push(item);
-                    }
-                }
-                
-                const filtered = uniqueItems.filter(item => item.name.toLowerCase().includes(keyword));
-                
-                if(filtered.length > 0) {
-                    renderItems(filtered, true); // true = không xếp thep subfolders dạng mega
+                const res = await apiCall('globalSearch', { keyword: keyword });
+                if(res && res.success) {
+                    lastSearchResults = res.data;
+                    lastSearchKeyword = keyword;
+                    sessionStorage.setItem('lastSearchResults', JSON.stringify(res.data));
+                    sessionStorage.setItem('lastSearchKeyword', keyword);
+                    renderItems(res.data, true);
                 } else {
-                    folderListEl.innerHTML = '<div class="text-center mt-5 text-gray-500 font-semibold">Không tìm thấy kết quả phù hợp.</div>';
+                    folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Lỗi hoặc không tìm thấy kết quả.</div>';
                 }
-            }, 100);
+            }, 800);
         });
 
         window.toggleItemMenu = function(id, e) {
@@ -783,40 +812,115 @@
             document.getElementById(`menu-${id}`).classList.toggle('hidden');
         };
 
-        // CHỈNH SỬA TẢI XUỐNG THƯ MỤC THÀNH ZIP
-        window.downloadItem = async function(id, type, name, e) {
-            e.stopPropagation();
-            document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
-            if(type === 'folder') {
-                showToast(`⏳ Đang nén thư mục "${name}"... Vui lòng đợi!`);
-                const res = await apiCall('zipFolder', { id: id });
-                if(res && res.success && res.url) {
-                    showToast(`✅ Đã nén xong! Đang tải xuống...`);
-                    window.open(res.url, '_blank');
-                } else {
-                    showToast(`❌ Lỗi nén thư mục hoặc thư mục trống!`);
-                }
-            } else {
-                window.open(`https://drive.google.com/uc?export=download&id=${id}`, '_blank');
-            }
-        }
-
-        window.selectType = function(val) {
-            document.getElementById('custom-select-value').textContent = val;
-            document.getElementById('infoType').value = val;
-            document.getElementById('custom-select-options').classList.add('hidden');
-        }
-
         document.addEventListener('click', (e) => {
             document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
             if(!e.target.closest('.dropdown')) {
                 document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.remove('show'));
             }
-            if(!e.target.closest('#info-field-type')) {
-                const opt = document.getElementById('custom-select-options');
-                if(opt) opt.classList.add('hidden');
+            // Đóng custom select nếu click ra ngoài
+            if(!e.target.closest('.custom-select-wrapper')) {
+                document.getElementById('customSelectOptions').classList.remove('open');
             }
         });
+
+        // Xử lý Custom Select cho Loại
+        const selectValueDiv = document.getElementById('customSelectValue');
+        const selectOptionsDiv = document.getElementById('customSelectOptions');
+        const hiddenTypeInput = document.getElementById('infoType');
+
+        selectValueDiv.addEventListener('click', () => {
+            selectOptionsDiv.classList.toggle('open');
+        });
+
+        document.querySelectorAll('.custom-select-option').forEach(opt => {
+            opt.addEventListener('click', (e) => {
+                const val = e.target.dataset.val;
+                selectValueDiv.querySelector('span').textContent = val;
+                hiddenTypeInput.value = val;
+                selectOptionsDiv.classList.remove('open');
+            });
+        });
+
+        // Cập nhật hàm downloadItem chống mở app ngoài bằng cách lấy Blob
+        window.downloadItem = async function(id, type, name, e) {
+            if(e) e.stopPropagation();
+            document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+            
+            if(type === 'folder') {
+                showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang chuẩn bị nén thư mục "${name}"...`);
+                const res = await apiCall('list', { folderId: id });
+                if(res && res.success && res.data.length > 0) {
+                    const filesToZip = res.data.filter(i => i.type !== 'folder'); 
+                    if(filesToZip.length === 0) {
+                        showToast(`Thư mục trống, không có tệp để tải!`); return;
+                    }
+                    showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang tải ${filesToZip.length} tệp để nén...`);
+                    
+                    const zip = new JSZip();
+                    let successCount = 0;
+                    for(let f of filesToZip) {
+                        try {
+                            const b64Res = await apiCall('getFileBase64', { fileId: f.id });
+                            if(b64Res.success && b64Res.data) {
+                                zip.file(f.name, b64Res.data, {base64: true});
+                                successCount++;
+                            }
+                        } catch(err) {}
+                    }
+                    if(successCount > 0) {
+                        showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang tạo file Zip...`);
+                        zip.generateAsync({type:"blob"}).then(function(content) {
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(content);
+                            link.download = `${name}.zip`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            showToast(`<i class="fas fa-check mr-2"></i> Đã tải xong thư mục ${name}`);
+                        });
+                    } else {
+                        showToast(`Lỗi: Không thể lấy dữ liệu các tệp.`, true);
+                    }
+                } else {
+                    showToast(`Thư mục trống hoặc bị lỗi.`, true);
+                }
+            } else {
+                // Tải file trực tiếp (Dùng Base64->Blob để kẹt người dùng trong App, không bật popup Drive ngoài)
+                showToast(`<i class="fas fa-download mr-2"></i> Đang tải tệp ${name}...`);
+                try {
+                    const b64Res = await apiCall('getFileBase64', { fileId: id });
+                    if(b64Res.success && b64Res.data && b64Res.mimeType) {
+                        const byteCharacters = atob(b64Res.data);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], {type: b64Res.mimeType});
+                        
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = name;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showToast(`<i class="fas fa-check mr-2"></i> Đã tải xong tệp.`);
+                    } else {
+                        throw new Error("Không lấy được dữ liệu tệp.");
+                    }
+                } catch(e) {
+                    // Fallback an toàn cho file quá bự (Video) khiến apps script timeout
+                    showToast(`Tệp lớn, đang mở tải ngoài...`, true);
+                    const a = document.createElement('a');
+                    a.href = `https://drive.google.com/uc?export=download&id=${id}`;
+                    a.target = "_blank";
+                    a.rel = "noopener noreferrer";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+            }
+        }
 
         let currentEditId = null;
         let currentEditLevel = null;
@@ -833,9 +937,10 @@
             
             document.getElementById('infoName').value = name;
             
-            const typeVal = meta.type || currentCategory;
-            document.getElementById('custom-select-value').textContent = typeVal;
-            document.getElementById('infoType').value = typeVal;
+            // Set custom select
+            let currentType = meta.type || currentCategory;
+            hiddenTypeInput.value = currentType;
+            selectValueDiv.querySelector('span').textContent = currentType;
 
             document.getElementById('infoDesc').value = meta.desc || '';
             
@@ -874,40 +979,29 @@
             document.getElementById('infoModal').classList.remove('flex');
         }
 
-        // --- ĐÃ SỬA: NÉN ẢNH TRỰC TIẾP TRÊN TRÌNH DUYỆT BẰNG CANVAS ĐỂ VƯỢT GIỚI HẠN SHEET ---
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    // Cấu hình kích thước tối đa cho ảnh xem trước
                     const MAX_WIDTH = 500;
                     const MAX_HEIGHT = 500;
                     let width = img.width;
                     let height = img.height;
 
                     if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
                     } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
                     }
 
                     const canvas = document.createElement('canvas');
-                    canvas.width = width;
-                    canvas.height = height;
+                    canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // Nén thành JPEG với chất lượng 0.7 để rút gọn chuỗi base64 xuống mức an toàn (<50k ký tự)
                     const b64 = canvas.toDataURL('image/jpeg', 0.7);
                     
                     document.getElementById('infoCoverPreview').src = b64;
@@ -943,6 +1037,7 @@
 
             renderItems(currentDriveItems);
             closeInfoModal();
+            showToast(`<i class="fas fa-check mr-2"></i> Đã lưu cài đặt`);
 
             bgApiCall('updateSingleMeta', {
                 meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover }
@@ -974,6 +1069,7 @@
                 localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                 renderItems(currentDriveItems);
                 closeModal();
+                showToast(`<i class="fas fa-trash mr-2"></i> Đã xóa thành công`);
                 
                 bgApiCall('delete', { id: id, type: type });
             };
@@ -1045,9 +1141,9 @@
                     <div class="relative" onclick="event.stopPropagation()">
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                         <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thêm mục</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                             <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                         </div>
                     </div>
@@ -1060,7 +1156,7 @@
             fileListEl.innerHTML = '';
             
             if (items.length === 0) {
-                folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Thư mục trống</div>';
+                folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không có dữ liệu.</div>';
                 return;
             }
 
@@ -1085,10 +1181,10 @@
                             </div>
                             <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
-                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                                <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm mục</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Mở Drive</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm thư mục con</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
                             </div>
@@ -1114,10 +1210,10 @@
                         </div>
                         <div class="relative" onclick="event.stopPropagation()">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center font-semibold" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center font-semibold" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống</div>
-                                <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer flex items-center font-semibold border-t" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 border-t flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                                <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                             </div>
                         </div>
                     </div>`).join('');
@@ -1139,9 +1235,9 @@
                         ${isTemp}
                         <div class="absolute top-2 right-2 z-20">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-green-500 w-4"></i>Tải xuống</div>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
                                 <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                             </div>
                         </div>
@@ -1192,6 +1288,7 @@
                         renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
                     }
                     closeModal(); 
+                    showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
                     
                     bgApiCall('createFolder', { name: val, folderId: parentIdToUse }).then(res => { 
                         if (res && res.success) {
@@ -1257,9 +1354,12 @@
         }
 
         let curMediaIdForDownload = null;
+        let curMediaNameForDownload = null;
         function openMedia(id, mimeType, name, tempUrlFull = null) {
             closeFab(); document.getElementById('mediaTitle').textContent = name;
             curMediaIdForDownload = id;
+            curMediaNameForDownload = name;
+            
             document.getElementById('mediaViewer').classList.remove('hidden'); document.getElementById('mediaViewer').classList.add('flex');
             if (mimeType.includes('image')) { 
                 let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
@@ -1269,34 +1369,19 @@
             }
         }
 
-        document.getElementById('btnDownloadCurrentMedia').addEventListener('click', () => {
-            if(curMediaIdForDownload) window.open(`https://drive.google.com/uc?export=download&id=${curMediaIdForDownload}`, '_blank');
+        document.getElementById('btnDownloadCurrentMedia').addEventListener('click', (e) => {
+            if(curMediaIdForDownload) window.downloadItem(curMediaIdForDownload, 'file', curMediaNameForDownload, e);
         });
 
-        function closeMedia() { document.getElementById('mediaViewer').classList.add('hidden'); document.getElementById('mediaViewer').classList.remove('flex'); document.getElementById('mediaContent').innerHTML = ''; curMediaIdForDownload = null; }
+        function closeMedia() { 
+            document.getElementById('mediaViewer').classList.add('hidden'); 
+            document.getElementById('mediaViewer').classList.remove('flex'); 
+            document.getElementById('mediaContent').innerHTML = ''; 
+            curMediaIdForDownload = null;
+        }
+
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
-        window.onload = async () => {
-            history.replaceState({ id: folderStack[folderStack.length - 1].id }, '', ''); 
-            if(folderStack.length === 1) {
-                switchCategory(folderStack[0].name, false); 
-                loadFolder(currentFolderId, folderStack[0].name, false, true); 
-            } else {
-                loadFolder(currentFolderId, folderStack[folderStack.length-1].name, false, true);
-            }
-            silentFetchMeta(); 
-        };
-        
-        window.getDriveFolderInfo = () => ({ id: currentFolderId, name: folderStack[folderStack.length-1].name });
-        window.getDriveImages = () => {
-            let images = [];
-            document.querySelectorAll('.drive-img-item').forEach((imgNode) => {
-                let nameNode = imgNode.closest('div.bg-white').querySelector('.drive-img-name');
-                images.push({ url: imgNode.dataset.url || imgNode.src, name: nameNode.textContent });
-            });
-            return images;
-        };
-
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
 
         const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 30, rotation: 0, color: '#ffffff', stroke: 'transparent', fontFamily: 'Roboto', fontWeight: 'normal', fontStyle: 'normal', textShadow: 'none', opacity: 100 });
@@ -1305,8 +1390,6 @@
         const mainContainerOverlay = document.getElementById('main-container-overlay');
         const overlayContainer = document.getElementById('watermark-overlay-container');
         
-        const showAlert = (msg, isLoading = false) => { document.getElementById('alert-msg').innerText = msg; document.getElementById('alert-loader').style.display = isLoading ? 'block' : 'none'; document.getElementById('alert-btn').style.display = isLoading ? 'none' : 'inline-block'; document.getElementById('custom-alert').style.display = 'flex'; };
-        const closeAlert = () => document.getElementById('custom-alert').style.display = 'none';
         function generateId() { return Math.random().toString(36).substr(2, 9); }
         function getTargetImages() { const selected = state.images.filter(img => img.selected); return selected.length > 0 ? selected : state.images; }
         
@@ -1319,7 +1402,7 @@
             const driveImages = window.getDriveImages();
             if(driveImages.length === 0) {
                 closeFab();
-                alert("Thư mục hiện tại không có ảnh nào để chỉnh sửa!");
+                showToast("Thư mục hiện tại không có ảnh nào!", true);
                 return;
             }
             state.images = []; state.layerOrder = []; state.activeElementId = null;
@@ -1336,7 +1419,7 @@
         document.getElementById('btn-close-design').addEventListener('click', () => { overlayContainer.style.display = 'none'; });
 
         async function processAllEditedImages() {
-            showAlert('Đang xử lý xuất ảnh...', true); state.activeElementId = null; renderImages(); renderLayers();
+            showToast('Đang xử lý xuất ảnh...'); state.activeElementId = null; renderImages(); renderLayers();
             const outputImages = [];
             for (let i = 0; i < state.images.length; i++) {
                 const imgData = state.images[i]; const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
@@ -1394,7 +1477,7 @@
         }
 
         document.getElementById('save-all-btn').addEventListener('click', () => {
-            if(state.images.length === 0) return showAlert('Không có ảnh để lưu.');
+            if(state.images.length === 0) return showToast('Không có ảnh để lưu.', true);
             document.getElementById('save-options-modal').classList.remove('hidden'); document.getElementById('save-options-modal').classList.add('flex');
         });
 
@@ -1413,50 +1496,39 @@
                     document.body.removeChild(link);
                     await new Promise(r => setTimeout(r, 400));
                 }
-                closeAlert(); 
-                showToast(`✅ Đã tải lần lượt ${editedImages.length} ảnh về máy!`);
-            } catch (error) { closeAlert(); showToast('❌ Lỗi tải ảnh: ' + error.message); }
+                showToast(`<i class="fas fa-check-circle mr-2"></i> Đã tải lần lượt ${editedImages.length} ảnh về máy!`);
+            } catch (error) { showToast('Lỗi tải ảnh: ' + error.message, true); }
         });
 
         document.getElementById('btn-save-drive').addEventListener('click', async () => {
             document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');
             try {
                 const editedImages = await processAllEditedImages(); 
-                if (editedImages.length === 0) {
-                    closeAlert();
-                    return;
-                }
-                closeAlert();
+                if (editedImages.length === 0) return;
+                showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang tải lên Drive...');
                 
-                showToast(`✅ Đã lưu thành công ${editedImages.length}/${editedImages.length} ảnh vào "ĐÃ CHỈNH SỬA"!`);
-
-                (async () => {
-                    try {
-                        let newFolderId = null;
-                        let existingFolder = currentDriveItems.find(i => i.name === "ĐÃ CHỈNH SỬA" && i.type === "folder");
-                        
-                        if (existingFolder) {
-                            newFolderId = existingFolder.id;
-                        } else {
-                            let createRes = await bgApiCall('createFolder', { name: "ĐÃ CHỈNH SỬA" });
-                            if(createRes && createRes.success) {
-                                newFolderId = createRes.folderId || createRes.id;
-                                currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
-                                renderItems(currentDriveItems);
-                            }
-                        }
-                        if (!newFolderId) return;
-                        
-                        for (let i = 0; i < editedImages.length; i++) {
-                            let img = editedImages[i];
-                            await bgApiCall('upload', { folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data });
-                        }
-                    } catch (err) {
-                        console.error('Lỗi khi lưu ảnh ngầm lên Drive:', err);
+                let newFolderId = null;
+                let existingFolder = currentDriveItems.find(i => i.name === "ĐÃ CHỈNH SỬA" && i.type === "folder");
+                
+                if (existingFolder) {
+                    newFolderId = existingFolder.id;
+                } else {
+                    let createRes = await apiCall('createFolder', { name: "ĐÃ CHỈNH SỬA" });
+                    newFolderId = createRes.folderId || createRes.id;
+                    if (newFolderId) {
+                        currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
+                        renderItems(currentDriveItems);
                     }
-                })();
-                
-            } catch (error) { closeAlert(); showToast('❌ Lỗi xử lý ảnh: ' + error.message); }
+                }
+                if (!newFolderId) throw new Error("Không thể truy cập thư mục lưu trữ.");
+                let successCount = 0;
+                for (let i = 0; i < editedImages.length; i++) {
+                    let img = editedImages[i];
+                    let uploadRes = await window.apiCall('upload', { folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data });
+                    if (uploadRes && uploadRes.success) successCount++;
+                }
+                showToast(`<i class="fas fa-check-circle mr-2"></i> Đã lưu thành công ${successCount}/${editedImages.length} ảnh vào "ĐÃ CHỈNH SỬA"!`);
+            } catch (error) { showToast('Lỗi lưu Drive: ' + error.message, true); }
         });
 
         let scrollInterval = null;
@@ -1539,21 +1611,6 @@
             });
         };
         
-        document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                if (btn.dataset.target === 'rename-chung') {
-                    document.getElementById('rename-chung').style.display = 'flex';
-                    document.getElementById('rename-rieng').style.display = 'none';
-                } else {
-                    document.getElementById('rename-chung').style.display = 'none';
-                    document.getElementById('rename-rieng').style.display = 'flex';
-                    window.renderRenameList();
-                }
-            });
-        });
-
         document.getElementById('btn-apply-batch-name').addEventListener('click', function() { 
             const bn = document.getElementById('batch-name-input').value.trim(); if(!bn) return; 
             getTargetImages().forEach((img, idx) => img.customName = `${bn}_${idx+1}`); 
@@ -1695,14 +1752,14 @@
         document.getElementById('btn-delete-wm').addEventListener('click', () => { getTargetImages().forEach(i=>i.wms=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
 
         document.getElementById('btn-save-text-wm').addEventListener('click', () => {
-            const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showAlert('Không có chữ.');
+            const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showToast('Không có chữ.', true);
             let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
             const c=document.createElement('canvas'); const cx=c.getContext('2d'); c.width=800; c.height=200;
             cx.font=`${t.fontStyle} ${t.fontWeight} 60px '${t.fontFamily}'`; cx.fillStyle=t.color; cx.textAlign='center'; cx.textBaseline='middle';
             if(t.textShadow!=='none'){ cx.shadowColor="rgba(0,0,0,0.8)"; cx.shadowBlur=4; cx.shadowOffsetX=2; cx.shadowOffsetY=2; }
             if(t.stroke!=='transparent'){ cx.strokeStyle=t.stroke; cx.lineWidth=6; cx.lineJoin="round"; cx.strokeText(t.val,400,100); }
             cx.shadowColor="transparent"; cx.fillText(t.val,400,100);
-            state.savedWatermarks.push(c.toDataURL()); saveStorageWMs(); renderWMLibrary(); showToast('Đã lưu thành Watermark');
+            state.savedWatermarks.push(c.toDataURL()); saveStorageWMs(); renderWMLibrary(); showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark');
         });
 
         document.getElementById('wm-upload').addEventListener('change', e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ state.savedWatermarks.push(ev.target.result); saveStorageWMs(); const sI=generateId(); getTargetImages().forEach(i=>i.wms.push(createWm(ev.target.result,sI))); state.layerOrder.push({id:sI,type:'wm'}); state.activeElementId=sI; state.activeEditTarget='wm'; document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; renderWMLibrary(); renderImages(); renderLayers(); syncSliders(); }; r.readAsDataURL(f); });
@@ -1747,92 +1804,6 @@
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
-        /* =========================
-   PATCH FIX GIỮ VỊ TRÍ SCROLL KHI BACK
-========================= */
-
-const SCROLL_KEY = 'vinhloc_scroll_positions_v2';
-
-function getScrollStore() {
-    try {
-        return JSON.parse(localStorage.getItem(SCROLL_KEY) || '{}');
-    } catch(e) {
-        return {};
-    }
-}
-
-function saveScrollPosition(folderId) {
-    if (!folderId) return;
-    const store = getScrollStore();
-
-    store[folderId] = {
-        top: document.getElementById('contentArea')?.scrollTop || 0,
-        time: Date.now()
-    };
-
-    localStorage.setItem(SCROLL_KEY, JSON.stringify(store));
-}
-
-function restoreScrollPosition(folderId) {
-    if (!folderId) return;
-
-    const store = getScrollStore();
-    const saved = store[folderId];
-
-    if (!saved) return;
-
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            const content = document.getElementById('contentArea');
-            if (content) {
-                content.scrollTop = saved.top || 0;
-            }
-        });
-    });
-}
-
-/* lưu scroll realtime */
-const contentAreaEl = document.getElementById('contentArea');
-
-if (contentAreaEl) {
-    let scrollSaveTimer = null;
-
-    contentAreaEl.addEventListener('scroll', () => {
-        clearTimeout(scrollSaveTimer);
-
-        scrollSaveTimer = setTimeout(() => {
-            saveScrollPosition(currentFolderId);
-        }, 80);
-    }, { passive: true });
-}
-
-/* patch loadFolder */
-const __oldLoadFolder = loadFolder;
-
-loadFolder = async function(folderId, folderName, isNewNavigation = false, isPopState = false) {
-
-    /* lưu vị trí hiện tại trước khi chuyển */
-    saveScrollPosition(currentFolderId);
-
-    await __oldLoadFolder(folderId, folderName, isNewNavigation, isPopState);
-
-    /* khôi phục vị trí cuộn */
-    restoreScrollPosition(folderId);
-};
-
-/* patch nút back */
-const __oldPopState = window.onpopstate;
-
-window.addEventListener('popstate', () => {
-    setTimeout(() => {
-        restoreScrollPosition(currentFolderId);
-    }, 50);
-});
-
-/* lưu trước khi reload */
-window.addEventListener('beforeunload', () => {
-    saveScrollPosition(currentFolderId);
-});
     </script>
 </body>
 </html>
