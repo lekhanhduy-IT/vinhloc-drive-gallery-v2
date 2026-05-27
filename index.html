@@ -874,15 +874,47 @@
             document.getElementById('infoModal').classList.remove('flex');
         }
 
+        // --- ĐÃ SỬA: NÉN ẢNH TRỰC TIẾP TRÊN TRÌNH DUYỆT BẰNG CANVAS ĐỂ VƯỢT GIỚI HẠN SHEET ---
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
+
             const reader = new FileReader();
             reader.onload = function(e) {
-                const b64 = e.target.result;
-                document.getElementById('infoCoverPreview').src = b64;
-                document.getElementById('infoCoverPreview').classList.remove('hidden');
-                document.getElementById('infoCoverPlaceholder').classList.add('hidden');
+                const img = new Image();
+                img.onload = function() {
+                    // Cấu hình kích thước tối đa cho ảnh xem trước
+                    const MAX_WIDTH = 500;
+                    const MAX_HEIGHT = 500;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Nén thành JPEG với chất lượng 0.7 để rút gọn chuỗi base64 xuống mức an toàn (<50k ký tự)
+                    const b64 = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    document.getElementById('infoCoverPreview').src = b64;
+                    document.getElementById('infoCoverPreview').classList.remove('hidden');
+                    document.getElementById('infoCoverPlaceholder').classList.add('hidden');
+                };
+                img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         };
@@ -1386,7 +1418,6 @@
             } catch (error) { closeAlert(); showToast('❌ Lỗi tải ảnh: ' + error.message); }
         });
 
-        // CHỈNH SỬA: LƯU THẲNG LÊN DRIVE CHẠY NGẦM, HIỂN THỊ TOAST NGAY LẬP TỨC
         document.getElementById('btn-save-drive').addEventListener('click', async () => {
             document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');
             try {
@@ -1397,10 +1428,8 @@
                 }
                 closeAlert();
                 
-                // HIỂN THỊ TOAST THÔNG BÁO NGAY LẬP TỨC CHO NGƯỜI DÙNG THOÁT RA LÀM VIỆC KHÁC
                 showToast(`✅ Đã lưu thành công ${editedImages.length}/${editedImages.length} ảnh vào "ĐÃ CHỈNH SỬA"!`);
 
-                // QUÁ TRÌNH LƯU DRIVE SẼ ĐƯỢC CHẠY BÊN DƯỚI BACKGROUND
                 (async () => {
                     try {
                         let newFolderId = null;
@@ -1420,7 +1449,6 @@
                         
                         for (let i = 0; i < editedImages.length; i++) {
                             let img = editedImages[i];
-                            // Sử dụng bgApiCall để đẩy từng ảnh ngầm (và hiển thị indicator Sync)
                             await bgApiCall('upload', { folderId: newFolderId, filename: img.fileName, mimeType: 'image/jpeg', data: img.data });
                         }
                     } catch (err) {
@@ -1511,7 +1539,6 @@
             });
         };
         
-        // CHỈNH SỬA CHIA TAB BỐ CỤC ĐỔI TÊN
         document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
