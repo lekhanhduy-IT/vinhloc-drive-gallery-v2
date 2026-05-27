@@ -816,6 +816,80 @@
             }
         };
 
+        // ------------------ BẮT ĐẦU KHU VỰC CẬP NHẬT GIAO DIỆN CHỐNG GIẬT ------------------
+
+        // Hàm cập nhật siêu mượt: Chỉ đổi chữ/ảnh, không vẽ lại DOM
+        function smoothUpdateUI(newMeta) {
+            for (let id in newMeta) {
+                const meta = newMeta[id];
+                
+                // Cập nhật Tên
+                document.querySelectorAll(`.item-name-${id}`).forEach(el => {
+                    if (meta.name && el.textContent !== meta.name) {
+                        el.textContent = meta.name;
+                        el.title = meta.name; 
+                    }
+                });
+
+                // Cập nhật Mô tả
+                document.querySelectorAll(`.item-desc-${id}`).forEach(el => {
+                    const newDesc = meta.desc || 'Chưa có mô tả';
+                    if (el.textContent !== newDesc) {
+                        el.textContent = newDesc;
+                        if(meta.desc) el.classList.remove('hidden');
+                    }
+                });
+
+                // Cập nhật Ảnh Cover
+                document.querySelectorAll(`.item-cover-img-${id}`).forEach(img => {
+                    const icon = document.querySelector(`.item-cover-icon-${id}`);
+                    if (meta.cover) {
+                        if(img.src !== meta.cover) img.src = meta.cover;
+                        img.classList.remove('hidden');
+                        if(icon) icon.classList.add('hidden');
+                    } else {
+                        img.classList.add('hidden');
+                        if(icon) icon.classList.remove('hidden');
+                    }
+                });
+            }
+        }
+
+        // ĐỘNG CƠ REALTIME NGẦM: Không gọi renderItems nữa
+        async function silentFetchMeta() {
+            try {
+                const res = await fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'getMeta' })
+                }).then(r => r.json());
+
+                if(res && res.success && res.meta) {
+                    const isChanged = JSON.stringify(appMeta) !== JSON.stringify(res.meta);
+                    if (isChanged) {
+                        appMeta = res.meta;
+                        localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
+                        
+                        // Gọi hàm cập nhật siêu mượt thay vì đập đi xây lại
+                        smoothUpdateUI(appMeta);
+                    }
+                }
+            } catch (e) {}
+        }
+
+        setInterval(() => {
+            if (document.getElementById('infoModal').classList.contains('hidden')) {
+                silentFetchMeta();
+            }
+        }, 2500);
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                silentFetchMeta();
+            }
+        });
+
+        // Gắn class item-name, item-desc, item-cover vào lúc Render lần đầu
         function renderSubFolders(megaId, subFolders) {
             const container = document.getElementById(`acc-${megaId}`);
             if(subFolders.length === 0) {
@@ -825,16 +899,18 @@
             
             container.innerHTML = subFolders.map(item => {
                 const meta = getMeta(item.id);
-                const imgHtml = meta.cover 
-                    ? `<img src="${meta.cover}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm">`
-                    : `<div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-500 text-xl"><i class="fas fa-folder"></i></div>`;
+                // Dùng cơ chế ẩn/hiện class thay vì if-else HTML để lúc update không bị lỗi
+                const imgHtml = `
+                    <img src="${meta.cover || ''}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm item-cover-img-${item.id} ${meta.cover ? '' : 'hidden'}">
+                    <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-500 text-xl item-cover-icon-${item.id} ${meta.cover ? 'hidden' : ''}"><i class="fas fa-folder"></i></div>
+                `;
                 
                 return `
                 <div class="subfolder-row group" onclick="loadFolder('${item.id}', '${item.name}', true)">
                     ${imgHtml}
                     <div class="flex-1 overflow-hidden">
-                        <h4 class="text-sm font-bold text-gray-800 truncate">${item.name}</h4>
-                        <p class="text-[11px] text-gray-500 truncate mt-0.5">${meta.desc || 'Chưa có mô tả'}</p>
+                        <h4 class="text-sm font-bold text-gray-800 truncate item-name-${item.id}">${item.name}</h4>
+                        <p class="text-[11px] text-gray-500 truncate mt-0.5 item-desc-${item.id}">${meta.desc || 'Chưa có mô tả'}</p>
                     </div>
                     <div class="relative" onclick="event.stopPropagation()">
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
@@ -872,21 +948,20 @@
                             <div class="flex items-center gap-3 overflow-hidden">
                                 <i id="icon-${item.id}" class="fas fa-chevron-right text-gray-400 text-sm transition-transform duration-200 w-4 text-center"></i>
                                 <div class="flex flex-col overflow-hidden">
-                                    <span class="truncate uppercase text-blue-800">${item.name}</span>
-                                    ${meta.desc ? `<span class="text-[11px] font-normal text-gray-500 truncate mt-1">${meta.desc}</span>` : ''}
+                                    <span class="truncate uppercase text-blue-800 item-name-${item.id}">${item.name}</span>
+                                    <span class="text-[11px] font-normal text-gray-500 truncate mt-1 item-desc-${item.id} ${meta.desc ? '' : 'hidden'}">${meta.desc || ''}</span>
                                 </div>
                             </div>
                             <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                                 <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm mục</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm thư mục con</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
                             </div>
                         </div>
-                        <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100">
-                        </div>
+                        <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100"></div>
                     </div>`;
                 }).join('');
                 
@@ -903,7 +978,7 @@
                     <div class="bg-white p-4 border-b border-gray-200 flex items-center justify-between cursor-pointer" onclick="loadFolder('${item.id}', '${item.name}', true)">
                         <div class="flex items-center gap-3">
                             <i class="fas fa-folder text-blue-500 text-2xl"></i>
-                            <span class="font-bold text-gray-800">${item.name}</span>
+                            <span class="font-bold text-gray-800 item-name-${item.id}">${item.name}</span>
                         </div>
                         <div class="relative" onclick="event.stopPropagation()">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
@@ -942,13 +1017,14 @@
                         </div>
                         
                         <div class="px-1 flex flex-col justify-center flex-1">
-                            <span class="text-[13px] font-bold text-gray-800 line-clamp-2 leading-tight drive-img-name" title="${item.name}">${item.name}</span>
+                            <span class="text-[13px] font-bold text-gray-800 line-clamp-2 leading-tight drive-img-name item-name-${item.id}" title="${item.name}">${item.name}</span>
                             <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
                         </div>
                     </div>`;
                 }).join('');
             }
         }
+        // ------------------ KẾT THÚC KHU VỰC ------------------
 
         // TẠO THƯ MỤC CÓ THỂ LÀ GỐC HOẶC CON (OPTIMISTIC)
         window.uiPromptFolder = function(targetParentId = null, e = null) {
