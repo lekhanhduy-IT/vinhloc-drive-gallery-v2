@@ -496,7 +496,6 @@
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
         
-        // THƯ MỤC CHỨA WATERMARK TRÊN GOOGLE DRIVE
         const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -668,7 +667,7 @@
             try {
                 localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
             } catch (e) {
-                console.warn("LocalStorage đã đầy. Ứng dụng vẫn sẽ chạy và đẩy dữ liệu lên Sheet.");
+                console.warn("LocalStorage đã đầy.");
             }
         }
 
@@ -1427,6 +1426,7 @@
             }
         }
 
+        // ĐÃ SỬA LỖI KHÔNG TẠO THƯ MỤC CHUẨN
         window.uiPromptFolder = function(targetParentId = null, e = null) {
             if(e) { e.stopPropagation(); document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden')); }
             closeFab(); 
@@ -1441,50 +1441,42 @@
             btn.textContent = 'Lưu';
             btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
             
-            btn.onclick = () => { 
+            btn.onclick = async () => { 
                 const val = document.getElementById('modalInput').value.trim(); 
                 if (val) {
                     const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
-                    const fakeId = 'temp_folder_' + Date.now();
-                    const newItem = { id: fakeId, name: val, type: 'folder' };
                     
-                    if (parentIdToUse === currentFolderId) {
-                        if(folderStack.length === 1) {
-                            appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
-                            saveLocalMeta();
-                        }
-                        currentDriveItems.unshift(newItem);
-                        folderDataCache[currentFolderId] = currentDriveItems; 
-                        renderItems(currentDriveItems);
-                    } else if (subFolderCache[parentIdToUse]) {
-                        subFolderCache[parentIdToUse].unshift(newItem);
-                        renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
-                    }
                     closeModal(); 
-                    showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
+                    showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang tạo mục "${val}"...`);
                     
-                    bgApiCall('createFolder', { name: val, folderId: parentIdToUse }).then(res => { 
+                    try {
+                        const res = await apiCall('createFolder', { name: val, folderId: parentIdToUse });
+                        
                         if (res && res.success) {
                             const realId = res.folderId || res.id;
+                            const newItem = { id: realId, name: val, type: 'folder' };
+                            
                             if (parentIdToUse === currentFolderId) {
-                                const idx = currentDriveItems.findIndex(i => i.id === fakeId);
-                                if(idx > -1) {
-                                    currentDriveItems[idx].id = realId;
-                                    folderDataCache[currentFolderId] = currentDriveItems;
-                                }
-                                
                                 if(folderStack.length === 1) {
-                                    appMeta[realId] = appMeta[fakeId];
-                                    delete appMeta[fakeId];
+                                    appMeta[realId] = { type: currentCategory, desc: '', cover: '' };
                                     saveLocalMeta();
                                     bgApiCall('updateSingleMeta', { meta: { id: realId, name: val, type: currentCategory, desc: '', cover: '' } });
                                 }
+                                currentDriveItems.unshift(newItem);
+                                folderDataCache[currentFolderId] = currentDriveItems; 
+                                renderItems(currentDriveItems);
                             } else if (subFolderCache[parentIdToUse]) {
-                                const idx = subFolderCache[parentIdToUse].findIndex(i => i.id === fakeId);
-                                if(idx > -1) subFolderCache[parentIdToUse][idx].id = realId;
+                                subFolderCache[parentIdToUse].unshift(newItem);
+                                renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
                             }
+                            
+                            showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
+                        } else {
+                            showToast(`Lỗi: Không thể tạo thư mục!`, true);
                         }
-                    });
+                    } catch (err) {
+                        showToast(`Lỗi kết nối khi tạo thư mục!`, true);
+                    }
                 } 
             }; 
             document.getElementById('customModal').classList.remove('hidden');
@@ -1571,7 +1563,6 @@
         
         function cleanUpLayerOrder() { state.layerOrder = state.layerOrder.filter(layer => { return state.images.some(img => { if (layer.type === 'text') return img.texts.some(t => t.id === layer.id); return img.wms.some(w => w.id === layer.id); }); }); }
         
-        // Load danh sách WM đã được cấu trúc lại cho object {id, src}
         function loadStorageWMs() { try { const data = localStorage.getItem('vinhloc_wms_drive_v3'); if (data) state.savedWatermarks = JSON.parse(data); } catch (e) {} }
         function saveStorageWMs() { try { localStorage.setItem('vinhloc_wms_drive_v3', JSON.stringify(state.savedWatermarks)); } catch (e) {} }
         loadStorageWMs(); 
@@ -1767,17 +1758,7 @@
             renderImages();
         };
 
-        ['brightness', 'darkness', 'sharpness', 'contrast', 'saturate', 'rotate'].forEach(p => {
-            const slider = document.getElementById(`slider-filter-${p}`);
-            if(slider) {
-                slider.addEventListener('input', e => {
-                    const stateProp = 'filter' + p.charAt(0).toUpperCase() + p.slice(1);
-                    window.updateFilter(stateProp, e.target.value);
-                });
-            }
-        });
-
-        // ĐÃ BỔ SUNG SỰ KIỆN CLICK CHO CÁC TAB BỘ LỌC (Sáng, Tối, Nét...)
+        // KÍCH HOẠT LẠI TAB BỘ LỌC
         document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach((btn, idx) => { 
             btn.addEventListener('click', () => { 
                 document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active')); 
@@ -1786,6 +1767,16 @@
                     d.style.display = i === idx ? 'flex' : 'none';
                 }); 
             }); 
+        });
+
+        ['brightness', 'darkness', 'sharpness', 'contrast', 'saturate', 'rotate'].forEach(p => {
+            const slider = document.getElementById(`slider-filter-${p}`);
+            if(slider) {
+                slider.addEventListener('input', e => {
+                    const stateProp = 'filter' + p.charAt(0).toUpperCase() + p.slice(1);
+                    window.updateFilter(stateProp, e.target.value);
+                });
+            }
         });
 
         document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach((btn, idx) => { btn.addEventListener('click', () => { document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('#adjust-sliders .slider-row').forEach((d,i)=>d.style.display=i===idx?'flex':'none'); }); });
@@ -1971,7 +1962,7 @@
         document.getElementById('btn-delete-text').addEventListener('click', () => { getTargetImages().forEach(i=>i.texts=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
         document.getElementById('btn-delete-wm').addEventListener('click', () => { getTargetImages().forEach(i=>i.wms=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
 
-        // NÚT LƯU CHỮ LÊN THƯ VIỆN DRIVE
+        // NÚT LƯU CHỮ LÊN THƯ VIỆN DRIVE + LOCAL CACHE
         document.getElementById('btn-save-text-wm').addEventListener('click', async () => {
             const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showToast('Không có chữ.', true);
             let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
@@ -1990,7 +1981,7 @@
                 showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark trên Drive');
                 const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
                 state.savedWatermarks.push({id: res.id, src: srcUrl});
-                saveStorageWMs();
+                saveStorageWMs(); // Lưu ngay vào bộ nhớ máy
                 renderWMLibrary();
             } else {
                 showToast('Lỗi lưu Watermark', true);
@@ -2000,16 +1991,15 @@
         const wmP = document.getElementById('watermark-popup');
         let isFetchingWM = false;
         
-        // MỞ THƯ VIỆN TỪ DRIVE + LOCAL CACHE
+        // MỞ THƯ VIỆN: HIỂN THỊ TỪ CACHE NGAY LẬP TỨC VÀ ĐỒNG BỘ NGẦM
         document.getElementById('btn-open-wm-library').addEventListener('click', async () => { 
             wmP.style.display='flex'; 
-            renderWMLibrary(); // Hiển thị ngay từ Cache
+            renderWMLibrary(); 
             
             if (isFetchingWM) return;
             isFetchingWM = true;
             
             try {
-                // Đồng bộ ngầm để cập nhật cache từ Drive
                 let res = await bgApiCall('list', { folderId: WM_FOLDER_ID });
                 if(res && res.success) {
                     const files = res.data.filter(i => i.type === 'file');
@@ -2021,7 +2011,6 @@
                     if(JSON.stringify(state.savedWatermarks) !== JSON.stringify(newWms)) {
                         state.savedWatermarks = newWms;
                         saveStorageWMs();
-                        // Chỉ render lại nếu popup đang mở
                         if(wmP.style.display === 'flex') renderWMLibrary();
                     }
                 }
@@ -2034,7 +2023,7 @@
         
         document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
 
-        // HIỂN THỊ WATERMARK
+        // HIỂN THỊ WATERMARK TỪ STATE
         function renderWMLibrary() {
             const grid = document.getElementById('wm-library-grid'); 
             grid.innerHTML = '';
@@ -2049,7 +2038,7 @@
                     e.stopPropagation(); 
                     bgApiCall('delete', { id: wm.id, type: 'file' });
                     state.savedWatermarks.splice(idx,1); 
-                    saveStorageWMs(); // Lưu lại vào cache
+                    saveStorageWMs(); 
                     renderWMLibrary(); 
                 });
                 i.addEventListener('click', () => { 
@@ -2066,7 +2055,7 @@
             });
         }
 
-        // TẢI LOGO TRỰC TIẾP LÊN DRIVE
+        // TẢI LOGO TRỰC TIẾP LÊN DRIVE + CẬP NHẬT CACHE
         (function(){
             const wmBtn = document.getElementById('btn-upload-wm-local');
             if(wmBtn){
@@ -2146,7 +2135,6 @@
             });
         }
 
-        // --- KHỞI CHẠY APP KHI VỪA MỞ ---
         window.addEventListener('DOMContentLoaded', () => {
             const initItem = folderStack[folderStack.length - 1];
             loadFolder(initItem.id, initItem.name, false, false);

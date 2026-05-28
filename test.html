@@ -1147,47 +1147,6 @@
                 };
             }
 
-            const wmBtn = document.getElementById('btn-upload-wm-local');
-            if(wmBtn){
-                wmBtn.onclick = async function(e){
-                    e.preventDefault();
-                    e.stopPropagation();
-                    await pickLocalFiles({
-                        accept:'image/*',
-                        multiple:false,
-                        callback: function(ev){
-                            const f = ev.target.files[0];
-                            if(!f) return;
-                            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu Logo lên Drive...');
-                            const r = new FileReader();
-                            r.onload = async function(evt){
-                                const b64 = evt.target.result;
-                                const base64Data = b64.split(',')[1];
-                                
-                                let res = await apiCall('upload', { folderId: WM_FOLDER_ID, filename: f.name || 'WM_Logo.png', mimeType: f.type || 'image/png', data: base64Data });
-                                if (res && res.success) {
-                                    showToast('<i class="fas fa-check mr-2"></i> Đã tải Logo lên Thư viện');
-                                    const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
-                                    const sI = generateId();
-                                    getTargetImages().forEach(i=>{
-                                        i.wms.push(createWm(srcUrl,sI));
-                                    });
-                                    state.layerOrder.push({ id:sI, type:'wm' });
-                                    state.activeElementId = sI;
-                                    state.activeEditTarget = 'wm';
-                                    document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true;
-                                    renderImages();
-                                    renderLayers();
-                                    syncSliders();
-                                } else {
-                                    showToast('Lỗi tải lên logo!', true);
-                                }
-                            };
-                            r.readAsDataURL(f);
-                        }
-                    });
-                };
-            }
         })();
 
         window.handleCoverUpload = function(event) {
@@ -1611,6 +1570,11 @@
         function getTargetImages() { const selected = state.images.filter(img => img.selected); return selected.length > 0 ? selected : state.images; }
         
         function cleanUpLayerOrder() { state.layerOrder = state.layerOrder.filter(layer => { return state.images.some(img => { if (layer.type === 'text') return img.texts.some(t => t.id === layer.id); return img.wms.some(w => w.id === layer.id); }); }); }
+        
+        // Load danh sách WM đã được cấu trúc lại cho object {id, src}
+        function loadStorageWMs() { try { const data = localStorage.getItem('vinhloc_wms_drive_v3'); if (data) state.savedWatermarks = JSON.parse(data); } catch (e) {} }
+        function saveStorageWMs() { try { localStorage.setItem('vinhloc_wms_drive_v3', JSON.stringify(state.savedWatermarks)); } catch (e) {} }
+        loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
             const driveImages = currentDriveItems
@@ -1813,6 +1777,19 @@
             }
         });
 
+        // ĐÃ BỔ SUNG SỰ KIỆN CLICK CHO CÁC TAB BỘ LỌC (Sáng, Tối, Nét...)
+        document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach((btn, idx) => { 
+            btn.addEventListener('click', () => { 
+                document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active')); 
+                btn.classList.add('active'); 
+                document.querySelectorAll('#filter-sliders .slider-row').forEach((d, i) => {
+                    d.style.display = i === idx ? 'flex' : 'none';
+                }); 
+            }); 
+        });
+
+        document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach((btn, idx) => { btn.addEventListener('click', () => { document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('#adjust-sliders .slider-row').forEach((d,i)=>d.style.display=i===idx?'flex':'none'); }); });
+        
         document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
@@ -1956,7 +1933,6 @@
         }
 
         document.querySelectorAll('input[name="adjust-target"]').forEach(r => r.addEventListener('change', e => { state.activeEditTarget=e.target.value; state.activeElementId=null; syncSliders(); renderLayers(); }));
-        document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach((btn, idx) => { btn.addEventListener('click', () => { document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('#adjust-sliders .slider-row').forEach((d,i)=>d.style.display=i===idx?'flex':'none'); }); });
         ['scale','x','y','opacity'].forEach(p => document.getElementById(`slider-${p}`).addEventListener('input', e => window.updateProp(p, e.target.value)));
 
         const colorContainer = document.getElementById('color-picker-container');
@@ -2012,51 +1988,68 @@
             let res = await bgApiCall('upload', { folderId: WM_FOLDER_ID, filename: 'TEXT_WM_' + Date.now() + '.png', mimeType: 'image/png', data: base64Data });
             if(res && res.success) {
                 showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark trên Drive');
+                const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
+                state.savedWatermarks.push({id: res.id, src: srcUrl});
+                saveStorageWMs();
+                renderWMLibrary();
             } else {
                 showToast('Lỗi lưu Watermark', true);
             }
         });
 
         const wmP = document.getElementById('watermark-popup');
+        let isFetchingWM = false;
         
-        // MỞ THƯ VIỆN TỪ DRIVE
+        // MỞ THƯ VIỆN TỪ DRIVE + LOCAL CACHE
         document.getElementById('btn-open-wm-library').addEventListener('click', async () => { 
             wmP.style.display='flex'; 
-            const grid = document.getElementById('wm-library-grid');
-            grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #6b7280; font-size: 13px; padding: 20px 0;"><i class="fas fa-spinner fa-spin mr-2"></i>Đang tải dữ liệu...</div>';
+            renderWMLibrary(); // Hiển thị ngay từ Cache
+            
+            if (isFetchingWM) return;
+            isFetchingWM = true;
             
             try {
-                let res = await apiCall('list', { folderId: WM_FOLDER_ID });
+                // Đồng bộ ngầm để cập nhật cache từ Drive
+                let res = await bgApiCall('list', { folderId: WM_FOLDER_ID });
                 if(res && res.success) {
                     const files = res.data.filter(i => i.type === 'file');
-                    state.savedWatermarks = files.map(f => ({
+                    const newWms = files.map(f => ({
                         id: f.id,
                         src: `https://drive.google.com/thumbnail?id=${f.id}&sz=w800`
                     }));
-                    renderWMLibrary();
-                } else {
-                    grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #ef4444; font-size: 13px; padding: 20px 0;">Lỗi tải thư viện.</div>';
+                    
+                    if(JSON.stringify(state.savedWatermarks) !== JSON.stringify(newWms)) {
+                        state.savedWatermarks = newWms;
+                        saveStorageWMs();
+                        // Chỉ render lại nếu popup đang mở
+                        if(wmP.style.display === 'flex') renderWMLibrary();
+                    }
                 }
             } catch(e) {
-                grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #ef4444; font-size: 13px; padding: 20px 0;">Lỗi kết nối.</div>';
+                console.log("Lỗi đồng bộ thư viện WM ngầm.");
+            } finally {
+                isFetchingWM = false;
             }
         });
         
         document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
 
-        // HIỂN THỊ WATERMARK TỪ DRIVE
+        // HIỂN THỊ WATERMARK
         function renderWMLibrary() {
-            const grid=document.getElementById('wm-library-grid'); grid.innerHTML='';
+            const grid = document.getElementById('wm-library-grid'); 
+            grid.innerHTML = '';
             if(state.savedWatermarks.length === 0) {
                 grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #6b7280; font-size: 13px; padding: 20px 0;">Chưa có logo nào.</div>';
                 return;
             }
             state.savedWatermarks.forEach((wm,idx) => {
-                const i=document.createElement('div'); i.className='wm-item'; i.innerHTML=`<img src="${wm.src}"><div class="wm-delete-btn"><i class="fa-solid fa-times"></i></div>`;
+                const i = document.createElement('div'); i.className = 'wm-item'; 
+                i.innerHTML = `<img src="${wm.src}"><div class="wm-delete-btn"><i class="fa-solid fa-times"></i></div>`;
                 i.querySelector('.wm-delete-btn').addEventListener('click', e => { 
                     e.stopPropagation(); 
                     bgApiCall('delete', { id: wm.id, type: 'file' });
                     state.savedWatermarks.splice(idx,1); 
+                    saveStorageWMs(); // Lưu lại vào cache
                     renderWMLibrary(); 
                 });
                 i.addEventListener('click', () => { 
@@ -2073,7 +2066,7 @@
             });
         }
 
-        // TẢI LOGO TRỰC TIẾP LÊN DRIVE THAY VÌ LOCAL STORAGE
+        // TẢI LOGO TRỰC TIẾP LÊN DRIVE
         (function(){
             const wmBtn = document.getElementById('btn-upload-wm-local');
             if(wmBtn){
@@ -2098,6 +2091,11 @@
                             if (res && res.success) {
                                 showToast('<i class="fas fa-check mr-2"></i> Đã tải Logo lên Thư viện');
                                 const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
+                                
+                                state.savedWatermarks.push({id: res.id, src: srcUrl});
+                                saveStorageWMs();
+                                renderWMLibrary();
+                                
                                 const sI = generateId();
                                 getTargetImages().forEach(i=>{
                                     i.wms.push(createWm(srcUrl,sI));
