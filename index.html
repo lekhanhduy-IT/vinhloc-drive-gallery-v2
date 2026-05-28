@@ -2108,215 +2108,159 @@
 </script>
 <script>
 /* =========================================================
-   PATCH FIX:
-   PREVIEW IMAGE PICKER
-   DÙNG CHUNG CƠ CHẾ LOCAL PICKER NHƯ UPLOAD KHÁC
+   FORCE LOCAL GALLERY PICKER
+   KHÔNG MỞ GOOGLE PHOTOS
 ========================================================= */
 
 (function(){
 
-    /* =====================================================
-       TÌM INPUT UPLOAD ĐANG HOẠT ĐỘNG TỐT
-    ===================================================== */
-
-    function findWorkingPicker(){
-
-        const selectors = [
-
-            'input[type="file"][accept*="image"]',
-            'input[type="file"][multiple]',
-            '#fileInput',
-            '#imageInput',
-            '.image-input',
-            '.upload-input'
-
-        ];
-
-        for(const sel of selectors){
-
-            const el = document.querySelector(sel);
-
-            if(el){
-
-                return el;
-
-            }
-
-        }
-
-        return null;
-
-    }
-
-    /* =====================================================
-       TẠO INPUT GIỐNG HỆ THỐNG UPLOAD ẢNH
-    ===================================================== */
-
-    function createNativeLikePicker(){
-
-        const src = findWorkingPicker();
+    async function pickPreviewImage(){
 
         const input = document.createElement('input');
 
         input.type = 'file';
 
+        /* =================================================
+           QUAN TRỌNG
+        ================================================= */
+
         input.accept = 'image/*';
 
         input.multiple = false;
 
-        /* =========================================
-           COPY ATTR ĐỂ GIỐNG PICKER ĐANG HOẠT ĐỘNG
-        ========================================= */
+        input.capture = 'environment';
 
-        if(src){
+        /* =================================================
+           XÓA CÁC ATTR GÂY GOOGLE PHOTOS
+        ================================================= */
 
-            [...src.attributes].forEach(attr=>{
-
-                try{
-
-                    input.setAttribute(
-                        attr.name,
-                        attr.value
-                    );
-
-                }catch(e){}
-
-            });
-
-        }
-
-        /* =========================================
-           FORCE LOCAL MEDIA
-        ========================================= */
-
-        input.removeAttribute('multiple');
-
-        input.setAttribute('accept','image/*');
+        input.removeAttribute('webkitdirectory');
+        input.removeAttribute('directory');
+        input.removeAttribute('mozdirectory');
 
         input.setAttribute(
-            'capture',
-            'environment'
-        );
-
-        input.setAttribute(
-            'data-local-only',
+            'data-no-google-photos',
             '1'
         );
 
         input.style.position = 'fixed';
         input.style.left = '-99999px';
+        input.style.top = '-99999px';
         input.style.opacity = '0';
 
         document.body.appendChild(input);
 
-        return input;
+        input.addEventListener('change', function(e){
+
+            const file =
+                e.target.files &&
+                e.target.files[0];
+
+            if(!file){
+
+                input.remove();
+                return;
+
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = function(ev){
+
+                const base64 = ev.target.result;
+
+                /* ==============================
+                   SAVE
+                ============================== */
+
+                window.previewImageBase64 =
+                    base64;
+
+                try{
+
+                    localStorage.setItem(
+                        'previewImage',
+                        base64
+                    );
+
+                }catch(err){}
+
+                /* ==============================
+                   UPDATE UI
+                ============================== */
+
+                [
+
+                    '#previewImage',
+                    '#settingsPreviewImage',
+                    '.preview-image',
+                    '.preview-thumb',
+                    '[data-preview-image]'
+
+                ].forEach(sel=>{
+
+                    document
+                        .querySelectorAll(sel)
+                        .forEach(el=>{
+
+                            if(
+                                el.tagName === 'IMG'
+                            ){
+
+                                el.src = base64;
+
+                            }else{
+
+                                el.style.backgroundImage =
+                                    `url(${base64})`;
+
+                            }
+
+                        });
+
+                });
+
+                /* ==============================
+                   RENDER
+                ============================== */
+
+                try{
+
+                    renderAll?.();
+                    renderPreview?.();
+
+                }catch(err){}
+
+                setTimeout(()=>{
+
+                    input.remove();
+
+                },300);
+
+            };
+
+            reader.readAsDataURL(file);
+
+        });
+
+        /* =================================================
+           FORCE NATIVE PICKER
+        ================================================= */
+
+        if(input.showPicker){
+
+            input.showPicker();
+
+        }else{
+
+            input.click();
+
+        }
 
     }
 
     /* =====================================================
-       ĐỌC FILE
-    ===================================================== */
-
-    function applyPreviewImage(file){
-
-        if(!file) return;
-
-        const reader = new FileReader();
-
-        reader.onload = function(e){
-
-            const base64 = e.target.result;
-
-            /* =====================================
-               SAVE STATE
-            ===================================== */
-
-            if(window.state){
-
-                state.previewImage = base64;
-
-            }
-
-            window.previewImageBase64 = base64;
-
-            /* =====================================
-               UPDATE IMG UI
-            ===================================== */
-
-            const targets = [
-
-                '#previewImage',
-                '#settingsPreviewImage',
-                '.preview-image',
-                '.preview-thumb',
-                '.settings-preview img',
-                '[data-preview-image]'
-
-            ];
-
-            targets.forEach(sel=>{
-
-                document
-                    .querySelectorAll(sel)
-                    .forEach(img=>{
-
-                        img.src = base64;
-
-                    });
-
-            });
-
-            /* =====================================
-               SAVE CACHE
-            ===================================== */
-
-            try{
-
-                localStorage.setItem(
-                    'previewImage',
-                    base64
-                );
-
-            }catch(err){}
-
-            /* =====================================
-               RENDER
-            ===================================== */
-
-            try{
-
-                if(typeof renderPreview==='function'){
-
-                    renderPreview();
-
-                }
-
-                if(typeof renderSettings==='function'){
-
-                    renderSettings();
-
-                }
-
-                if(typeof renderAll==='function'){
-
-                    renderAll();
-
-                }
-
-            }catch(err){
-
-                console.log(err);
-
-            }
-
-        };
-
-        reader.readAsDataURL(file);
-
-    }
-
-    /* =====================================================
-       OVERRIDE NÚT CHỌN ẢNH XEM TRƯỚC
+       OVERRIDE BUTTON
     ===================================================== */
 
     document.addEventListener(
@@ -2325,11 +2269,11 @@
 
             const btn = e.target.closest(
 
+                '#choosePreviewImage,' +
+                '#btnChoosePreview,' +
                 '.btn-preview-image,' +
                 '.preview-picker,' +
-                '[data-preview-picker],' +
-                '#choosePreviewImage,' +
-                '#btnChoosePreview'
+                '[data-preview-picker]'
 
             );
 
@@ -2338,26 +2282,7 @@
             e.preventDefault();
             e.stopPropagation();
 
-            const input =
-                createNativeLikePicker();
-
-            input.onchange = function(ev){
-
-                const file =
-                    ev.target.files &&
-                    ev.target.files[0];
-
-                applyPreviewImage(file);
-
-                setTimeout(()=>{
-
-                    input.remove();
-
-                },500);
-
-            };
-
-            input.click();
+            pickPreviewImage();
 
         },
         true
