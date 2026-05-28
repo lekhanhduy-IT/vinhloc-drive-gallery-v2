@@ -497,18 +497,17 @@
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 
         let savedStack = localStorage.getItem('appFolderStack');
-        let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "Triển khai" }];
+        let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }];
         let currentFolderId = folderStack[folderStack.length - 1].id;
         
         let currentDriveItems = [];
         let subFolderCache = {}; 
+        let folderDataCache = {}; // Cache dữ liệu các thư mục trên RAM
         
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         
-        // --- BỔ SUNG QUAN TRỌNG: TỰ ĐỘNG DỌN RÁC BỘ NHỚ LỖI TỪ TRƯỚC ĐÓ ---
         let metaCleaned = false;
         for (let id in appMeta) {
-            // Nếu ảnh cũ bị lưu quá dung lượng, nó sẽ xóa đi để giải phóng RAM/LocalStorage
             if (appMeta[id].cover && appMeta[id].cover.length > 30000) {
                 appMeta[id].cover = ''; 
                 metaCleaned = true;
@@ -517,7 +516,6 @@
         if (metaCleaned) {
             try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
         }
-        // -------------------------------------------------------------------
 
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
@@ -640,7 +638,7 @@
                     const isChanged = JSON.stringify(appMeta) !== JSON.stringify(res.meta);
                     if (isChanged) {
                         appMeta = res.meta;
-                        saveLocalMeta(); // Dùng hàm an toàn
+                        saveLocalMeta(); 
                         smoothUpdateUI(appMeta);
                     }
                 }
@@ -659,7 +657,6 @@
             }
         });
 
-        // --- BỔ SUNG TRY CATCH ĐỂ CHỐNG SẬP KHI LƯU ---
         function saveLocalMeta() { 
             try {
                 localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
@@ -705,10 +702,10 @@
             toggleSidebar();
             
             if(navigate) {
-                folderStack = [{ id: ROOT_FOLDER_ID, name: cat }];
+                folderStack = [{ id: ROOT_FOLDER_ID, name: cat, scrollTop: 0 }];
                 localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
                 history.pushState({ id: ROOT_FOLDER_ID }, '', ''); 
-                loadFolder(ROOT_FOLDER_ID, cat);
+                loadFolder(ROOT_FOLDER_ID, cat, false, false);
             }
         }
 
@@ -761,14 +758,22 @@
         }
 
         async function loadFolder(folderId, folderName, isNewNavigation = false, isPopState = false) {
+            // 1. Lưu lại Scroll Position của trang hiện tại trước khi chuyển hướng tới thư mục con
+            if (isNewNavigation && !isPopState) {
+                if (folderStack.length > 0) {
+                    folderStack[folderStack.length - 1].scrollTop = document.getElementById('contentArea').scrollTop;
+                }
+            }
+
             currentFolderId = folderId;
             
+            // 2. Cập nhật đường dẫn lịch sử
             if (isNewNavigation && !isPopState) { 
                 const existingIdx = folderStack.findIndex(f => f.id === folderId);
                 if(existingIdx !== -1) {
                     folderStack = folderStack.slice(0, existingIdx + 1);
                 } else {
-                    folderStack.push({ id: folderId, name: folderName }); 
+                    folderStack.push({ id: folderId, name: folderName, scrollTop: 0 }); 
                 }
                 localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
                 history.pushState({ id: folderId }, '', ''); 
@@ -776,16 +781,52 @@
             updateBreadcrumbs(); 
             searchInput.value = ''; 
             clearSearchBtn.classList.add('hidden');
-            
-            folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
-            fileListEl.innerHTML = '';
 
-            const res = await apiCall('list');
-            if (res && res.success) { 
-                currentDriveItems = res.data;
-                renderItems(currentDriveItems); 
+            const restoreScroll = () => {
+                const targetStackItem = folderStack[folderStack.length - 1];
+                if (targetStackItem && targetStackItem.scrollTop) {
+                    setTimeout(() => {
+                        document.getElementById('contentArea').scrollTop = targetStackItem.scrollTop;
+                    }, 10); // Đảm bảo DOM đã vẽ xong
+                } else {
+                    document.getElementById('contentArea').scrollTop = 0;
+                }
+            };
+            
+            // 3. Xử lý Load dữ liệu với RAM Cache
+            if (folderDataCache[folderId]) {
+                currentDriveItems = folderDataCache[folderId];
+                renderItems(currentDriveItems);
+                restoreScroll();
+
+                // Đồng bộ ngầm để luôn lấy dữ liệu mới nhất (không làm chặn UI)
+                apiCall('list', { folderId: folderId }).then(res => {
+                    if (res && res.success) {
+                        // Chỉ re-render nếu thực sự có thay đổi từ Google Drive
+                        if (JSON.stringify(folderDataCache[folderId]) !== JSON.stringify(res.data)) {
+                            folderDataCache[folderId] = res.data;
+                            if (currentFolderId === folderId) {
+                                currentDriveItems = res.data;
+                                const currentScroll = document.getElementById('contentArea').scrollTop;
+                                renderItems(currentDriveItems);
+                                document.getElementById('contentArea').scrollTop = currentScroll;
+                            }
+                        }
+                    }
+                });
             } else {
-                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full italic">Lỗi kết nối hoặc thư mục trống.</div>';
+                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
+                fileListEl.innerHTML = '';
+
+                const res = await apiCall('list', { folderId: folderId });
+                if (res && res.success) { 
+                    currentDriveItems = res.data;
+                    folderDataCache[folderId] = res.data; // Lưu vào RAM
+                    renderItems(currentDriveItems); 
+                    restoreScroll();
+                } else {
+                    folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full italic">Lỗi kết nối hoặc thư mục trống.</div>';
+                }
             }
         }
 
@@ -1139,7 +1180,6 @@
             }
         })();
 
-        // ÉP NÉN XUỐNG 150PX BẢO ĐẢM NHẸ TÊNH
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1174,7 +1214,6 @@
             reader.readAsDataURL(file);
         };
 
-        // CHỐNG SẬP TẠI NÚT LƯU
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
             if(!currentEditId) return closeInfoModal();
             
@@ -1187,17 +1226,16 @@
 
             appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
             
-            // Đã bọc Try Catch để không bao giờ bị đơ ứng dụng
             saveLocalMeta();
 
             let nameChanged = false;
             
-            // Đã thay flat() thành reduce() để chạy mượt 100% trên Zalo Webview/Safari cũ
             const allSubItems = Object.values(subFolderCache).reduce((acc, arr) => acc.concat(arr), []);
             const oldItem = currentDriveItems.find(i => i.id === currentEditId) || allSubItems.find(i => i.id === currentEditId);
             
             if (newName && oldItem && newName !== oldItem.name) {
                 nameChanged = true;
+                folderDataCache[currentFolderId] = currentDriveItems; 
             }
 
             smoothUpdateUI(appMeta); 
@@ -1228,6 +1266,7 @@
             
             btn.onclick = () => {
                 currentDriveItems = currentDriveItems.filter(i => i.id !== id);
+                folderDataCache[currentFolderId] = currentDriveItems; // Đồng bộ RAM Cache
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
                 }
@@ -1446,6 +1485,7 @@
                             saveLocalMeta();
                         }
                         currentDriveItems.unshift(newItem);
+                        folderDataCache[currentFolderId] = currentDriveItems; 
                         renderItems(currentDriveItems);
                     } else if (subFolderCache[parentIdToUse]) {
                         subFolderCache[parentIdToUse].unshift(newItem);
@@ -1459,7 +1499,10 @@
                             const realId = res.folderId || res.id;
                             if (parentIdToUse === currentFolderId) {
                                 const idx = currentDriveItems.findIndex(i => i.id === fakeId);
-                                if(idx > -1) currentDriveItems[idx].id = realId;
+                                if(idx > -1) {
+                                    currentDriveItems[idx].id = realId;
+                                    folderDataCache[currentFolderId] = currentDriveItems;
+                                }
                                 
                                 if(folderStack.length === 1) {
                                     appMeta[realId] = appMeta[fakeId];
@@ -1494,6 +1537,7 @@
                 tempFilesToUpload.push({ file: file, item: newItem });
                 currentDriveItems.push(newItem); 
             }
+            folderDataCache[currentFolderId] = currentDriveItems; // Đồng bộ RAM Cache
             renderItems(currentDriveItems);
 
             for (let obj of tempFilesToUpload) {
@@ -1506,6 +1550,7 @@
                         if(idx > -1) {
                             currentDriveItems[idx].id = res.fileId || res.id;
                             delete currentDriveItems[idx].tempUrl;
+                            folderDataCache[currentFolderId] = currentDriveItems; 
                             renderItems(currentDriveItems); 
                         }
                     }
@@ -1684,6 +1729,7 @@
                     newFolderId = createRes.folderId || createRes.id;
                     if (newFolderId) {
                         currentDriveItems.unshift({ id: newFolderId, name: "ĐÃ CHỈNH SỬA", type: "folder" });
+                        folderDataCache[currentFolderId] = currentDriveItems; 
                         renderItems(currentDriveItems);
                     }
                 }
@@ -1995,6 +2041,13 @@
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
+
+        // --- KHỞI CHẠY APP KHI VỪA MỞ ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const initItem = folderStack[folderStack.length - 1];
+            loadFolder(initItem.id, initItem.name, false, false);
+        });
+
     </script>
 </body>
 </html>
