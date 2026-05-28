@@ -504,6 +504,21 @@
         let subFolderCache = {}; 
         
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
+        
+        // --- BỔ SUNG QUAN TRỌNG: TỰ ĐỘNG DỌN RÁC BỘ NHỚ LỖI TỪ TRƯỚC ĐÓ ---
+        let metaCleaned = false;
+        for (let id in appMeta) {
+            // Nếu ảnh cũ bị lưu quá dung lượng, nó sẽ xóa đi để giải phóng RAM/LocalStorage
+            if (appMeta[id].cover && appMeta[id].cover.length > 30000) {
+                appMeta[id].cover = ''; 
+                metaCleaned = true;
+            }
+        }
+        if (metaCleaned) {
+            try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
+        }
+        // -------------------------------------------------------------------
+
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
         function showToast(msg, isError = false) {
@@ -571,13 +586,10 @@
             });
         }
 
-        // ĐÃ FIX: Chỉnh hàm này để khi cập nhật Meta, dữ liệu underlying object (currentDriveItems, subFolderCache) cũng được cập nhật. 
-        // Tránh tình trạng reload UI hoặc click vào thư mục bị trả lại tên cũ.
         function smoothUpdateUI(newMeta) {
             for (let id in newMeta) {
                 const meta = newMeta[id];
 
-                // Cập nhật bộ nhớ biến tạm
                 let targetInCurrent = currentDriveItems.find(i => i.id === id);
                 if (targetInCurrent && meta.name) targetInCurrent.name = meta.name;
 
@@ -586,7 +598,6 @@
                     if (targetInSub && meta.name) targetInSub.name = meta.name;
                 }
                 
-                // Cập nhật trực tiếp trên DOM đang hiển thị
                 document.querySelectorAll(`.item-name-${id}`).forEach(el => {
                     if (meta.name && el.textContent !== meta.name) {
                         el.textContent = meta.name;
@@ -600,7 +611,7 @@
                         el.textContent = newDesc;
                     }
                     if(meta.desc) el.classList.remove('hidden');
-                    else el.classList.add('hidden'); // Fix để ẩn đi nếu người dùng xóa mô tả
+                    else el.classList.add('hidden');
                 });
 
                 document.querySelectorAll(`.item-cover-img-${id}`).forEach(img => {
@@ -629,7 +640,7 @@
                     const isChanged = JSON.stringify(appMeta) !== JSON.stringify(res.meta);
                     if (isChanged) {
                         appMeta = res.meta;
-                        localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta));
+                        saveLocalMeta(); // Dùng hàm an toàn
                         smoothUpdateUI(appMeta);
                     }
                 }
@@ -648,7 +659,15 @@
             }
         });
 
-        function saveLocalMeta() { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); }
+        // --- BỔ SUNG TRY CATCH ĐỂ CHỐNG SẬP KHI LƯU ---
+        function saveLocalMeta() { 
+            try {
+                localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
+            } catch (e) {
+                console.warn("LocalStorage đã đầy. Ứng dụng vẫn sẽ chạy và đẩy dữ liệu lên Sheet.");
+            }
+        }
+
         function getMeta(id) { 
             if(!appMeta[id]) { appMeta[id] = { type: currentCategory, desc: '', cover: '' }; }
             return appMeta[id];
@@ -704,7 +723,7 @@
 
         btnBack.addEventListener('click', () => {
             if (folderStack.length > 1) {
-                history.back(); // Gọi native back để đồng bộ history state
+                history.back();
             }
         });
 
@@ -741,7 +760,6 @@
             }
         }
 
-        // ĐÃ FIX: Không sử dụng lưu dữ liệu List vào LocalStorage nữa để tránh kẹt Loading. 
         async function loadFolder(folderId, folderName, isNewNavigation = false, isPopState = false) {
             currentFolderId = folderId;
             
@@ -1121,7 +1139,7 @@
             }
         })();
 
-        // ĐÃ FIX: Điều chỉnh Max Width & Height xuống 200px. Resize triệt để tránh vượt quá 50,000 ký tự.
+        // ÉP NÉN XUỐNG 150PX BẢO ĐẢM NHẸ TÊNH
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1129,8 +1147,8 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    const MAX_WIDTH = 200; 
-                    const MAX_HEIGHT = 200;
+                    const MAX_WIDTH = 150; 
+                    const MAX_HEIGHT = 150;
                     let width = img.width;
                     let height = img.height;
 
@@ -1145,7 +1163,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    const b64 = canvas.toDataURL('image/jpeg', 0.6); // Quality xuống 60%
+                    const b64 = canvas.toDataURL('image/jpeg', 0.5); 
                     
                     document.getElementById('infoCoverPreview').src = b64;
                     document.getElementById('infoCoverPreview').classList.remove('hidden');
@@ -1156,7 +1174,7 @@
             reader.readAsDataURL(file);
         };
 
-        // ĐÃ FIX: Không gọi renderItems sau khi Save để tránh bị collapse accordion. Gọi thẳng smoothUpdateUI để cập nhật.
+        // CHỐNG SẬP TẠI NÚT LƯU
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
             if(!currentEditId) return closeInfoModal();
             
@@ -1168,15 +1186,20 @@
             if(!newCover.startsWith('data:')) newCover = appMeta[currentEditId]?.cover || '';
 
             appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
+            
+            // Đã bọc Try Catch để không bao giờ bị đơ ứng dụng
             saveLocalMeta();
 
             let nameChanged = false;
-            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
+            
+            // Đã thay flat() thành reduce() để chạy mượt 100% trên Zalo Webview/Safari cũ
+            const allSubItems = Object.values(subFolderCache).reduce((acc, arr) => acc.concat(arr), []);
+            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || allSubItems.find(i => i.id === currentEditId);
+            
             if (newName && oldItem && newName !== oldItem.name) {
                 nameChanged = true;
             }
 
-            // Đồng bộ lập tức mượt mà
             smoothUpdateUI(appMeta); 
             closeInfoModal();
             showToast(`<i class="fas fa-check mr-2"></i> Đã lưu cài đặt`);
