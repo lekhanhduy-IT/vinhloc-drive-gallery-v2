@@ -1,6 +1,7 @@
- const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
         
+        // THƯ MỤC CHỨA WATERMARK TRÊN GOOGLE DRIVE
         const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -156,7 +157,6 @@
             } catch (e) {}
         }
 
-        // TÍNH NĂNG MỚI: ĐỒNG BỘ CẤU TRÚC FOLDER SILENTLY NGẦM (THÊM/XÓA)
         async function silentFetchFolder() {
             if (!currentFolderId || syncQueueCount > 0) return;
             
@@ -1336,7 +1336,7 @@
 
         document.querySelectorAll('input[name="adjust-target"]').forEach(r => r.addEventListener('change', e => { state.activeEditTarget=e.target.value; state.activeElementId=null; syncSliders(); renderLayers(); }));
         
-        // KÍCH HOẠT LẠI SỰ KIỆN CLICK CHO CÁC TAB CON CỦA BỘ LỌC CHỈNH ẢNH
+        // KÍCH HOẠT SỰ KIỆN CLICK CHO CÁC TAB BỘ LỌC CHỈNH ẢNH
         document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach((btn, idx) => { 
             btn.addEventListener('click', () => { 
                 document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active')); 
@@ -1518,7 +1518,7 @@
             }); 
         });
 
-        // NÚT LƯU CHỮ LÊN THƯ VIỆN DRIVE + LOCAL CACHE
+        // NÚT LƯU CHỮ LÊN THƯ VIỆN DRIVE
         document.getElementById('btn-save-text-wm').addEventListener('click', async () => {
             const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showToast('Không có chữ.', true);
             let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
@@ -1536,9 +1536,8 @@
             if(res && res.success) {
                 showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark trên Drive');
                 const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
-                state.savedWatermarks.push({id: res.id, src: srcUrl});
-                saveStorageWMs(); // Lưu ngay vào bộ nhớ máy
-                renderWMLibrary();
+                state.savedWatermarks.unshift({id: res.id, src: srcUrl}); 
+                if(wmP.style.display === 'flex') renderWMLibrary();
             } else {
                 showToast('Lỗi lưu Watermark', true);
             }
@@ -1547,16 +1546,21 @@
         const wmP = document.getElementById('watermark-popup');
         let isFetchingWM = false;
         
-        // MỞ THƯ VIỆN: HIỂN THỊ TỪ CACHE NGAY LẬP TỨC VÀ ĐỒNG BỘ NGẦM
+        // MỞ THƯ VIỆN LẤY TRỰC TIẾP TỪ DRIVE KHÔNG QUA LOCALSTORAGE
         document.getElementById('btn-open-wm-library').addEventListener('click', async () => { 
             wmP.style.display='flex'; 
-            renderWMLibrary(); 
+            
+            if (state.savedWatermarks.length === 0) {
+                document.getElementById('wm-library-grid').innerHTML = '<div style="grid-column: span 3; text-align: center; padding: 30px;"><div class="loader mx-auto border-blue-500 mb-2"></div><span class="text-sm text-gray-500">Đang tải Thư viện Logo từ Drive...</span></div>';
+            } else {
+                renderWMLibrary();
+            }
             
             if (isFetchingWM) return;
             isFetchingWM = true;
             
             try {
-                let res = await bgApiCall('list', { folderId: WM_FOLDER_ID });
+                let res = await apiCall('list', { folderId: WM_FOLDER_ID }); // Dùng apiCall để có Loading
                 if(res && res.success) {
                     const files = res.data.filter(i => i.type === 'file');
                     const newWms = files.map(f => ({
@@ -1564,14 +1568,15 @@
                         src: `https://drive.google.com/thumbnail?id=${f.id}&sz=w800`
                     }));
                     
-                    if(JSON.stringify(state.savedWatermarks) !== JSON.stringify(newWms)) {
-                        state.savedWatermarks = newWms;
-                        saveStorageWMs();
-                        if(wmP.style.display === 'flex') renderWMLibrary();
+                    state.savedWatermarks = newWms;
+                    if(wmP.style.display === 'flex') renderWMLibrary();
+                } else {
+                    if (state.savedWatermarks.length === 0) {
+                        document.getElementById('wm-library-grid').innerHTML = '<div style="grid-column: span 3; text-align: center; color: #ef4444; font-size: 13px; padding: 20px 0;">Thư mục Logo rỗng hoặc lỗi.</div>';
                     }
                 }
             } catch(e) {
-                console.log("Lỗi đồng bộ thư viện WM ngầm.");
+                console.log("Lỗi đồng bộ thư viện WM ngầm.", e);
             } finally {
                 isFetchingWM = false;
             }
@@ -1579,7 +1584,7 @@
         
         document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
 
-        // HIỂN THỊ WATERMARK TỪ STATE
+        // HIỂN THỊ WATERMARK TỪ RAM (STATE) VÀ FIX LỖI NÚT XÓA BẰNG ID
         function renderWMLibrary() {
             const grid = document.getElementById('wm-library-grid'); 
             grid.innerHTML = '';
@@ -1587,16 +1592,21 @@
                 grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #6b7280; font-size: 13px; padding: 20px 0;">Chưa có logo nào.</div>';
                 return;
             }
-            state.savedWatermarks.forEach((wm,idx) => {
+            state.savedWatermarks.forEach((wm) => {
                 const i = document.createElement('div'); i.className = 'wm-item'; 
                 i.innerHTML = `<img src="${wm.src}"><div class="wm-delete-btn"><i class="fa-solid fa-times"></i></div>`;
+                
                 i.querySelector('.wm-delete-btn').addEventListener('click', e => { 
                     e.stopPropagation(); 
-                    bgApiCall('delete', { id: wm.id, type: 'file' });
-                    state.savedWatermarks.splice(idx,1); 
-                    saveStorageWMs(); 
+                    bgApiCall('delete', { id: wm.id, type: 'file' }).then(res => {
+                        if(res && res.success) showToast('<i class="fas fa-trash mr-2"></i> Đã xóa Logo');
+                    });
+                    
+                    // Xóa bằng ID để không bị sai lệch index
+                    state.savedWatermarks = state.savedWatermarks.filter(w => w.id !== wm.id); 
                     renderWMLibrary(); 
                 });
+                
                 i.addEventListener('click', () => { 
                     const sI=generateId(); 
                     getTargetImages().forEach(im=>im.wms.push(createWm(wm.src,sI))); 
@@ -1611,7 +1621,7 @@
             });
         }
 
-        // TẢI LOGO TRỰC TIẾP LÊN DRIVE + CẬP NHẬT CACHE
+        // TẢI LOGO TRỰC TIẾP LÊN DRIVE
         (function(){
             const wmBtn = document.getElementById('btn-upload-wm-local');
             if(wmBtn){
@@ -1637,9 +1647,8 @@
                                 showToast('<i class="fas fa-check mr-2"></i> Đã tải Logo lên Thư viện');
                                 const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
                                 
-                                state.savedWatermarks.push({id: res.id, src: srcUrl});
-                                saveStorageWMs();
-                                renderWMLibrary();
+                                state.savedWatermarks.unshift({id: res.id, src: srcUrl}); // Đưa lên đầu mảng
+                                if(wmP.style.display === 'flex') renderWMLibrary();
                                 
                                 const sI = generateId();
                                 getTargetImages().forEach(i=>{
@@ -1695,3 +1704,4 @@
             const initItem = folderStack[folderStack.length - 1];
             loadFolder(initItem.id, initItem.name, false, false);
         });
+
