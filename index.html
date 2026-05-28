@@ -496,15 +496,17 @@
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 
-        let savedStack = localStorage.getItem('appFolderStack');
+        // Dùng sessionStorage cho điều hướng để mượt hơn, tự xóa khi đóng app
+        let savedStack = sessionStorage.getItem('appFolderStack');
         let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "Triển khai" }];
         let currentFolderId = folderStack[folderStack.length - 1].id;
         
         let currentDriveItems = [];
         let subFolderCache = {}; 
         
+        // Vẫn giữ lại meta ở localStorage vì nó chỉ là chuỗi text nhỏ gọn chứa tên
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
-        let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
+        let expandedMegas = JSON.parse(sessionStorage.getItem('expandedMegas')) || [];
         
         function showToast(msg, isError = false) {
             let t = document.createElement('div');
@@ -535,7 +537,7 @@
         function updateSyncIndicator() {
             if (syncQueueCount > 0) {
                 syncIcon.innerHTML = '<i class="fas fa-circle-notch fa-spin text-blue-600"></i>';
-                syncText.textContent = 'Đang lưu ngầm...';
+                syncText.textContent = 'Đang lưu...';
                 syncText.className = 'text-blue-600';
                 syncIndicator.classList.remove('opacity-0');
             } else {
@@ -548,61 +550,23 @@
             }
         }
 
-        // ĐÃ SỬA: Thêm AbortController với thời gian timeout 20s để không bị treo fetch mãi mãi trên PWA
-        async function apiCall(action, payload = {}) {
-            if(action !== 'getMeta') loading.classList.remove('hidden');
-            payload.action = action; 
-            if (!payload.folderId) payload.folderId = currentFolderId;
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 20000); // Ngắt kết nối sau 20 giây
-
-            try {
-                const response = await fetch(SCRIPT_URL, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload),
-                    redirect: 'follow',
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                const data = await response.json();
-                if(action !== 'getMeta') loading.classList.add('hidden'); 
-                return data;
-            } catch (error) {
-                clearTimeout(timeoutId);
-                if(action !== 'getMeta') loading.classList.add('hidden'); 
-                console.error("API Call Error:", error);
-                return { success: false, error: 'network_or_timeout' };
-            }
-        }
-
-        // ĐÃ SỬA: Thêm timeout cho bgApiCall để không kẹt bộ đếm đồng bộ
         async function bgApiCall(action, payload = {}) {
             syncQueueCount++;
             updateSyncIndicator();
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
             
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 20000);
-
             fetch(SCRIPT_URL, { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload),
-                redirect: 'follow',
-                signal: controller.signal
+                redirect: 'follow'
             })
             .then(res => res.json())
             .then(data => {
-                clearTimeout(timeoutId);
                 if(!data.success) console.error("Lỗi từ Google Apps Script:", data.error || data.message);
             })
-            .catch(err => {
-                clearTimeout(timeoutId);
-                console.error("Lỗi kết nối mạng ngầm:", err);
-            })
+            .catch(err => console.error("Lỗi kết nối mạng:", err))
             .finally(() => {
                 syncQueueCount--;
                 updateSyncIndicator();
@@ -644,16 +608,11 @@
 
         async function silentFetchMeta() {
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-                
                 const res = await fetch(SCRIPT_URL, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action: 'getMeta' }),
-                    signal: controller.signal
+                    body: JSON.stringify({ action: 'getMeta' })
                 }).then(r => r.json());
-                clearTimeout(timeoutId);
 
                 if(res && res.success && res.meta) {
                     const isChanged = JSON.stringify(appMeta) !== JSON.stringify(res.meta);
@@ -756,7 +715,21 @@
             }
         }
 
-        // ĐÃ SỬA: Hiển thị lỗi nếu quá timeout mạng ở màn hình LoadFolder
+        async function apiCall(action, payload = {}) {
+            if(action !== 'getMeta') loading.classList.remove('hidden');
+            payload.action = action; 
+            if (!payload.folderId) payload.folderId = currentFolderId;
+            try {
+                const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const data = await response.json();
+                if(action !== 'getMeta') loading.classList.add('hidden'); 
+                return data;
+            } catch (error) {
+                if(action !== 'getMeta') loading.classList.add('hidden'); 
+                return { success: false };
+            }
+        }
+
         async function loadFolder(folderId, folderName, isNewNavigation = false, isPopState = false) {
             currentFolderId = folderId;
             
@@ -767,7 +740,7 @@
                 } else {
                     folderStack.push({ id: folderId, name: folderName }); 
                 }
-                localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
+                sessionStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
                 history.pushState({ id: folderId }, '', ''); 
             }
             updateBreadcrumbs(); 
@@ -777,25 +750,15 @@
             folderListEl.innerHTML = '';
             fileListEl.innerHTML = '';
 
-            const cachedData = localStorage.getItem(`folder_${folderId}`);
-            if (cachedData) {
-                currentDriveItems = JSON.parse(cachedData);
-                renderItems(currentDriveItems);
-            } else {
-                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
-            }
+            // BỎ LOCAL STORAGE Ở ĐÂY - Luôn ưu tiên dùng mạng để lấy dữ liệu thật
+            folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu trực tiếp...</div>';
 
             const res = await apiCall('list');
             if (res && res.success) { 
                 currentDriveItems = res.data;
-                localStorage.setItem(`folder_${folderId}`, JSON.stringify(currentDriveItems)); 
                 renderItems(currentDriveItems); 
             } else {
-                if (!cachedData) {
-                    folderListEl.innerHTML = `<div class="text-center text-red-500 mt-10 w-full"><i class="fas fa-wifi text-4xl mb-3 opacity-50"></i><br>Lỗi mạng hoặc tải quá lâu.<br>Vui lòng thử lại.</div>`;
-                } else {
-                    showToast("Mạng chậm, đang hiển thị bản lưu ngoại tuyến.", true);
-                }
+                folderListEl.innerHTML = '<div class="text-center text-red-500 mt-10 w-full">Lỗi tải dữ liệu. Vui lòng kiểm tra kết nối mạng.</div>';
             }
         }
 
@@ -840,7 +803,7 @@
                     sessionStorage.setItem('lastSearchKeyword', keyword);
                     renderItems(res.data, true);
                 } else {
-                    folderListEl.innerHTML = '<div class="text-center text-red-400 mt-8 w-full italic">Không có kết quả hoặc lỗi mạng.</div>';
+                    folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không có kết quả trong phạm vi ứng dụng.</div>';
                 }
             }, 800);
         });
@@ -960,7 +923,7 @@
                         throw new Error("Không lấy được dữ liệu tệp.");
                     }
                 } catch(e) {
-                    showToast(`Đang tải tệp lớn ngầm trong App...`, true);
+                    showToast(`Đang tải...`, true);
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
                     iframe.src = `https://drive.google.com/uc?export=download&id=${id}`;
@@ -1076,7 +1039,7 @@
                 setTimeout(()=>{ input.remove(); }, 10000);
             }
 
-            // Gắn patch cho nút Chọn Ảnh Xem Trước trong Popup Info (Bọc arrow function tránh lỗi hoisting)
+            // Gắn patch cho nút Chọn Ảnh Xem Trước trong Popup Info
             const infoCoverWrapper = document.getElementById('infoCoverWrapper');
             if(infoCoverWrapper){
                 infoCoverWrapper.onclick = async function(e){
@@ -1085,7 +1048,7 @@
                     await pickLocalFiles({
                         accept: 'image/*',
                         multiple: false,
-                        callback: (ev) => window.handleCoverUpload(ev)
+                        callback: window.handleCoverUpload
                     });
                 };
             }
@@ -1154,7 +1117,6 @@
             }
         })();
 
-        // ĐÃ SỬA: Ép kích thước ảnh xem trước thành dạng Thumbnail cực gọn để k bao giờ vượt giới hạn kí tự Google Sheets
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1162,8 +1124,9 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    const MAX_WIDTH = 120; // Nén xuống chỉ còn 120px
-                    const MAX_HEIGHT = 120;
+                    // Ép kích thước xuống rất nhỏ để làm Thumbnail (tránh vượt 50.000 ký tự của Google Sheet)
+                    const MAX_WIDTH = 250;
+                    const MAX_HEIGHT = 250;
                     let width = img.width;
                     let height = img.height;
 
@@ -1178,8 +1141,8 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // Thiết lập chất lượng ảnh nén JPEG là 0.6 để chuỗi Base64 rất ngắn
-                    const b64 = canvas.toDataURL('image/jpeg', 0.6);
+                    // Nén chất lượng JPEG xuống 0.5 để base64 cực nhẹ
+                    const b64 = canvas.toDataURL('image/jpeg', 0.5);
                     
                     document.getElementById('infoCoverPreview').src = b64;
                     document.getElementById('infoCoverPreview').classList.remove('hidden');
@@ -1243,7 +1206,7 @@
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
                 }
-                localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
+                
                 renderItems(currentDriveItems);
                 closeModal();
                 showToast(`<i class="fas fa-trash mr-2"></i> Đã xóa thành công`);
@@ -1260,7 +1223,6 @@
             document.getElementById('customModal').classList.remove('flex');
         }
 
-        // ĐÃ SỬA: Thêm hiển thị báo lỗi nếu toggleAccordion bị kẹt tải
         window.toggleAccordion = async function(id, forceOpen = false) {
             const body = document.getElementById(`acc-${id}`);
             const icon = document.getElementById(`icon-${id}`);
@@ -1282,9 +1244,7 @@
                         subFolderCache[id] = res.data.filter(i => i.type === 'folder'); 
                         renderSubFolders(id, subFolderCache[id]);
                     } else {
-                        body.innerHTML = '<div class="text-center text-red-400 py-3 text-sm cursor-pointer">Lỗi tải. Chạm để thử lại!</div>';
-                        icon.style.transform = 'rotate(0deg)'; 
-                        expandedMegas = expandedMegas.filter(m => m !== id);
+                        body.innerHTML = '<div class="text-center text-gray-400 py-3 text-sm">Lỗi tải dữ liệu</div>';
                     }
                 } else {
                     renderSubFolders(id, subFolderCache[id]);
@@ -1434,8 +1394,133 @@
                 }).join('');
             }
         }
-        // ... (phần code Design bên dưới vẫn giữ nguyên y hệt, không cần thay đổi)
-        // ... (đã lược bỏ để file gọn gàng trong text hiển thị, bạn có thể copy từ đoạn dưới)
+
+        window.uiPromptFolder = function(targetParentId = null, e = null) {
+            if(e) { e.stopPropagation(); document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden')); }
+            closeFab(); 
+            
+            document.getElementById('modalTitle').textContent = 'Thư mục mới';
+            document.getElementById('modalDesc').classList.add('hidden'); 
+            document.getElementById('modalInput').classList.remove('hidden'); 
+            document.getElementById('modalInput').value = ''; 
+            document.getElementById('modalInput').placeholder = "Nhập tên thư mục..."; 
+            
+            const btn = document.getElementById('modalConfirmBtn');
+            btn.textContent = 'Lưu';
+            btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
+            
+            btn.onclick = () => { 
+                const val = document.getElementById('modalInput').value.trim(); 
+                if (val) {
+                    const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
+                    const fakeId = 'temp_folder_' + Date.now();
+                    const newItem = { id: fakeId, name: val, type: 'folder' };
+                    
+                    if (parentIdToUse === currentFolderId) {
+                        if(folderStack.length === 1) {
+                            appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
+                            saveLocalMeta();
+                        }
+                        currentDriveItems.unshift(newItem);
+                        renderItems(currentDriveItems);
+                    } else if (subFolderCache[parentIdToUse]) {
+                        subFolderCache[parentIdToUse].unshift(newItem);
+                        renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
+                    }
+                    closeModal(); 
+                    showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
+                    
+                    bgApiCall('createFolder', { name: val, folderId: parentIdToUse }).then(res => { 
+                        if (res && res.success) {
+                            const realId = res.folderId || res.id;
+                            if (parentIdToUse === currentFolderId) {
+                                const idx = currentDriveItems.findIndex(i => i.id === fakeId);
+                                if(idx > -1) currentDriveItems[idx].id = realId;
+                                
+                                if(folderStack.length === 1) {
+                                    appMeta[realId] = appMeta[fakeId];
+                                    delete appMeta[fakeId];
+                                    saveLocalMeta();
+                                    bgApiCall('updateSingleMeta', { meta: { id: realId, name: val, type: currentCategory, desc: '', cover: '' } });
+                                }
+                                
+                            } else if (subFolderCache[parentIdToUse]) {
+                                const idx = subFolderCache[parentIdToUse].findIndex(i => i.id === fakeId);
+                                if(idx > -1) subFolderCache[parentIdToUse][idx].id = realId;
+                            }
+                        }
+                    });
+                } 
+            }; 
+            document.getElementById('customModal').classList.remove('hidden');
+            document.getElementById('customModal').classList.add('flex');
+            setTimeout(() => document.getElementById('modalInput').focus(), 100); 
+        }
+
+        async function handleMultipleFileUpload(event) {
+            closeFab();
+            const files = event.target.files; 
+            if (!files || files.length === 0) return;
+            let tempFilesToUpload = [];
+
+            for (let i = 0; i < files.length; i++) {
+                let file = files[i];
+                let fakeId = 'temp_file_' + Date.now() + i;
+                let tempUrl = URL.createObjectURL(file); 
+                let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
+                tempFilesToUpload.push({ file: file, item: newItem });
+                currentDriveItems.push(newItem); 
+            }
+            renderItems(currentDriveItems);
+
+            for (let obj of tempFilesToUpload) {
+                let reader = new FileReader();
+                reader.onload = async function(e) {
+                    let base64Data = e.target.result.split(',')[1];
+                    let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
+                    if (res && res.success) {
+                        let idx = currentDriveItems.findIndex(i => i.id === obj.item.id);
+                        if(idx > -1) {
+                            currentDriveItems[idx].id = res.fileId || res.id;
+                            delete currentDriveItems[idx].tempUrl;
+                            
+                            renderItems(currentDriveItems); 
+                        }
+                    }
+                };
+                reader.readAsDataURL(obj.file);
+            }
+            event.target.value = ''; 
+        }
+
+        let curMediaIdForDownload = null;
+        let curMediaNameForDownload = null;
+        function openMedia(id, mimeType, name, tempUrlFull = null) {
+            closeFab(); document.getElementById('mediaTitle').textContent = name;
+            curMediaIdForDownload = id;
+            curMediaNameForDownload = name;
+            
+            document.getElementById('mediaViewer').classList.remove('hidden'); document.getElementById('mediaViewer').classList.add('flex');
+            if (mimeType.includes('image')) { 
+                let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
+                document.getElementById('mediaContent').innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`; 
+            } else { 
+                document.getElementById('mediaContent').innerHTML = `<video controls class="max-w-full max-h-full rounded-lg" src="${tempUrlFull || ''}"><p class="text-white">Video cần tải về để xem.</p></video>`; 
+            }
+        }
+
+        document.getElementById('btnDownloadCurrentMedia').addEventListener('click', (e) => {
+            if(curMediaIdForDownload) window.downloadItem(curMediaIdForDownload, 'file', curMediaNameForDownload, e);
+        });
+
+        function closeMedia() { 
+            document.getElementById('mediaViewer').classList.add('hidden'); 
+            document.getElementById('mediaViewer').classList.remove('flex'); 
+            document.getElementById('mediaContent').innerHTML = ''; 
+            curMediaIdForDownload = null;
+        }
+
+        function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
 
@@ -1757,6 +1842,7 @@
         document.getElementById('select-all-btn').addEventListener('click', e => { aSel=!aSel; state.images.forEach(i=>i.selected=aSel); e.target.innerHTML=aSel?'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Bỏ chọn':'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả'; renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
         document.getElementById('delete-selected-btn').addEventListener('click', () => { state.images=state.images.filter(i=>!i.selected); renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
 
+        // SỬA SỰ KIỆN CHUYỂN TAB ĐỂ RENDER LIST KHI BẤM VÀO TAB "ĐỔI TÊN"
         document.querySelectorAll('.nav-item').forEach(item => { 
             item.addEventListener('click', () => { 
                 const tP = document.getElementById(item.dataset.panel); 
@@ -1767,6 +1853,7 @@
                     document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); 
                     item.classList.add('active'); tP.classList.add('active'); 
                     if(item.dataset.panel==='panel-rename') {
+                        // Gọi render danh sách nếu tab Tên riêng đang mở
                         if(document.getElementById('rename-individual').style.display === 'flex') {
                             window.renderRenameList();
                         }
