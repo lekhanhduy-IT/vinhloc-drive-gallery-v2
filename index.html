@@ -571,10 +571,22 @@
             });
         }
 
+        // ĐÃ FIX: Chỉnh hàm này để khi cập nhật Meta, dữ liệu underlying object (currentDriveItems, subFolderCache) cũng được cập nhật. 
+        // Tránh tình trạng reload UI hoặc click vào thư mục bị trả lại tên cũ.
         function smoothUpdateUI(newMeta) {
             for (let id in newMeta) {
                 const meta = newMeta[id];
+
+                // Cập nhật bộ nhớ biến tạm
+                let targetInCurrent = currentDriveItems.find(i => i.id === id);
+                if (targetInCurrent && meta.name) targetInCurrent.name = meta.name;
+
+                for (let megaId in subFolderCache) {
+                    let targetInSub = subFolderCache[megaId].find(i => i.id === id);
+                    if (targetInSub && meta.name) targetInSub.name = meta.name;
+                }
                 
+                // Cập nhật trực tiếp trên DOM đang hiển thị
                 document.querySelectorAll(`.item-name-${id}`).forEach(el => {
                     if (meta.name && el.textContent !== meta.name) {
                         el.textContent = meta.name;
@@ -586,8 +598,9 @@
                     const newDesc = meta.desc || 'Chưa có mô tả';
                     if (el.textContent !== newDesc) {
                         el.textContent = newDesc;
-                        if(meta.desc) el.classList.remove('hidden');
                     }
+                    if(meta.desc) el.classList.remove('hidden');
+                    else el.classList.add('hidden'); // Fix để ẩn đi nếu người dùng xóa mô tả
                 });
 
                 document.querySelectorAll(`.item-cover-img-${id}`).forEach(img => {
@@ -728,6 +741,7 @@
             }
         }
 
+        // ĐÃ FIX: Không sử dụng lưu dữ liệu List vào LocalStorage nữa để tránh kẹt Loading. 
         async function loadFolder(folderId, folderName, isNewNavigation = false, isPopState = false) {
             currentFolderId = folderId;
             
@@ -745,22 +759,15 @@
             searchInput.value = ''; 
             clearSearchBtn.classList.add('hidden');
             
-            folderListEl.innerHTML = '';
+            folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
             fileListEl.innerHTML = '';
-
-            const cachedData = localStorage.getItem(`folder_${folderId}`);
-            if (cachedData) {
-                currentDriveItems = JSON.parse(cachedData);
-                renderItems(currentDriveItems);
-            } else {
-                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
-            }
 
             const res = await apiCall('list');
             if (res && res.success) { 
                 currentDriveItems = res.data;
-                localStorage.setItem(`folder_${folderId}`, JSON.stringify(currentDriveItems)); 
                 renderItems(currentDriveItems); 
+            } else {
+                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full italic">Lỗi kết nối hoặc thư mục trống.</div>';
             }
         }
 
@@ -991,7 +998,6 @@
             document.getElementById('infoModal').classList.remove('flex');
         }
 
-        // ĐOẠN PATCH SỬ DỤNG GIAO DIỆN CHỌN ẢNH NATIVE KHI Ở TRONG PWA
         (function(){
             async function pickLocalFiles({ accept = 'image/*', multiple = true, callback }) {
                 try {
@@ -1041,7 +1047,6 @@
                 setTimeout(()=>{ input.remove(); }, 10000);
             }
 
-            // Gắn patch cho nút Chọn Ảnh Xem Trước trong Popup Info
             const infoCoverWrapper = document.getElementById('infoCoverWrapper');
             if(infoCoverWrapper){
                 infoCoverWrapper.onclick = async function(e){
@@ -1055,7 +1060,6 @@
                 };
             }
 
-            // Gắn patch cho mục Up Ảnh
             const uploadImageLabel = document.querySelector('label:has(#uploadImage)');
             if(uploadImageLabel){
                 uploadImageLabel.onclick = async function(e){
@@ -1069,7 +1073,6 @@
                 };
             }
 
-            // Gắn patch cho mục Up Video
             const uploadVideoLabel = document.querySelector('label:has(#uploadVideo)');
             if(uploadVideoLabel){
                 uploadVideoLabel.onclick = async function(e){
@@ -1083,7 +1086,6 @@
                 };
             }
 
-            // Gắn patch cho nút Up ảnh mới (Watermark)
             const wmBtn = document.getElementById('btn-upload-wm-local');
             if(wmBtn){
                 wmBtn.onclick = async function(e){
@@ -1119,6 +1121,7 @@
             }
         })();
 
+        // ĐÃ FIX: Điều chỉnh Max Width & Height xuống 200px. Resize triệt để tránh vượt quá 50,000 ký tự.
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1126,8 +1129,8 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    const MAX_WIDTH = 500;
-                    const MAX_HEIGHT = 500;
+                    const MAX_WIDTH = 200; 
+                    const MAX_HEIGHT = 200;
                     let width = img.width;
                     let height = img.height;
 
@@ -1142,7 +1145,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    const b64 = canvas.toDataURL('image/jpeg', 0.7);
+                    const b64 = canvas.toDataURL('image/jpeg', 0.6); // Quality xuống 60%
                     
                     document.getElementById('infoCoverPreview').src = b64;
                     document.getElementById('infoCoverPreview').classList.remove('hidden');
@@ -1153,6 +1156,7 @@
             reader.readAsDataURL(file);
         };
 
+        // ĐÃ FIX: Không gọi renderItems sau khi Save để tránh bị collapse accordion. Gọi thẳng smoothUpdateUI để cập nhật.
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
             if(!currentEditId) return closeInfoModal();
             
@@ -1166,16 +1170,14 @@
             appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
             saveLocalMeta();
 
-            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || 
-                            Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
-
             let nameChanged = false;
+            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
             if (newName && oldItem && newName !== oldItem.name) {
-                oldItem.name = newName;
                 nameChanged = true;
             }
 
-            renderItems(currentDriveItems);
+            // Đồng bộ lập tức mượt mà
+            smoothUpdateUI(appMeta); 
             closeInfoModal();
             showToast(`<i class="fas fa-check mr-2"></i> Đã lưu cài đặt`);
 
@@ -1206,7 +1208,6 @@
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
                 }
-                localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                 renderItems(currentDriveItems);
                 closeModal();
                 showToast(`<i class="fas fa-trash mr-2"></i> Đã xóa thành công`);
@@ -1443,7 +1444,6 @@
                                     saveLocalMeta();
                                     bgApiCall('updateSingleMeta', { meta: { id: realId, name: val, type: currentCategory, desc: '', cover: '' } });
                                 }
-                                localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                             } else if (subFolderCache[parentIdToUse]) {
                                 const idx = subFolderCache[parentIdToUse].findIndex(i => i.id === fakeId);
                                 if(idx > -1) subFolderCache[parentIdToUse][idx].id = realId;
@@ -1483,7 +1483,6 @@
                         if(idx > -1) {
                             currentDriveItems[idx].id = res.fileId || res.id;
                             delete currentDriveItems[idx].tempUrl;
-                            localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                             renderItems(currentDriveItems); 
                         }
                     }
@@ -1738,7 +1737,6 @@
             }
         });
 
-        // XỬ LÝ SỰ KIỆN CHUYỂN SUB-TAB ĐỔI TÊN
         document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
@@ -1842,7 +1840,6 @@
         document.getElementById('select-all-btn').addEventListener('click', e => { aSel=!aSel; state.images.forEach(i=>i.selected=aSel); e.target.innerHTML=aSel?'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Bỏ chọn':'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả'; renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
         document.getElementById('delete-selected-btn').addEventListener('click', () => { state.images=state.images.filter(i=>!i.selected); renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
 
-        // SỬA SỰ KIỆN CHUYỂN TAB ĐỂ RENDER LIST KHI BẤM VÀO TAB "ĐỔI TÊN"
         document.querySelectorAll('.nav-item').forEach(item => { 
             item.addEventListener('click', () => { 
                 const tP = document.getElementById(item.dataset.panel); 
@@ -1853,7 +1850,6 @@
                     document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); 
                     item.classList.add('active'); tP.classList.add('active'); 
                     if(item.dataset.panel==='panel-rename') {
-                        // Gọi render danh sách nếu tab Tên riêng đang mở
                         if(document.getElementById('rename-individual').style.display === 'flex') {
                             window.renderRenameList();
                         }
