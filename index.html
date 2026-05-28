@@ -495,6 +495,9 @@
     <script>
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
+        
+        // THƯ MỤC CHỨA WATERMARK TRÊN GOOGLE DRIVE
+        const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
         let savedStack = localStorage.getItem('appFolderStack');
         let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }];
@@ -502,7 +505,7 @@
         
         let currentDriveItems = [];
         let subFolderCache = {}; 
-        let folderDataCache = {}; // Cache dữ liệu các thư mục trên RAM
+        let folderDataCache = {}; 
         
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         
@@ -567,7 +570,7 @@
             payload.action = action; 
             if (!payload.folderId) payload.folderId = currentFolderId;
             
-            fetch(SCRIPT_URL, { 
+            return fetch(SCRIPT_URL, { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload),
@@ -576,8 +579,12 @@
             .then(res => res.json())
             .then(data => {
                 if(!data.success) console.error("Lỗi từ Google Apps Script:", data.error || data.message);
+                return data;
             })
-            .catch(err => console.error("Lỗi kết nối mạng:", err))
+            .catch(err => {
+                console.error("Lỗi kết nối mạng:", err);
+                return { success: false };
+            })
             .finally(() => {
                 syncQueueCount--;
                 updateSyncIndicator();
@@ -758,7 +765,6 @@
         }
 
         async function loadFolder(folderId, folderName, isNewNavigation = false, isPopState = false) {
-            // 1. Lưu lại Scroll Position của trang hiện tại trước khi chuyển hướng tới thư mục con
             if (isNewNavigation && !isPopState) {
                 if (folderStack.length > 0) {
                     folderStack[folderStack.length - 1].scrollTop = document.getElementById('contentArea').scrollTop;
@@ -767,7 +773,6 @@
 
             currentFolderId = folderId;
             
-            // 2. Cập nhật đường dẫn lịch sử
             if (isNewNavigation && !isPopState) { 
                 const existingIdx = folderStack.findIndex(f => f.id === folderId);
                 if(existingIdx !== -1) {
@@ -787,22 +792,19 @@
                 if (targetStackItem && targetStackItem.scrollTop) {
                     setTimeout(() => {
                         document.getElementById('contentArea').scrollTop = targetStackItem.scrollTop;
-                    }, 10); // Đảm bảo DOM đã vẽ xong
+                    }, 10); 
                 } else {
                     document.getElementById('contentArea').scrollTop = 0;
                 }
             };
             
-            // 3. Xử lý Load dữ liệu với RAM Cache
             if (folderDataCache[folderId]) {
                 currentDriveItems = folderDataCache[folderId];
                 renderItems(currentDriveItems);
                 restoreScroll();
 
-                // Đồng bộ ngầm để luôn lấy dữ liệu mới nhất (không làm chặn UI)
                 apiCall('list', { folderId: folderId }).then(res => {
                     if (res && res.success) {
-                        // Chỉ re-render nếu thực sự có thay đổi từ Google Drive
                         if (JSON.stringify(folderDataCache[folderId]) !== JSON.stringify(res.data)) {
                             folderDataCache[folderId] = res.data;
                             if (currentFolderId === folderId) {
@@ -821,7 +823,7 @@
                 const res = await apiCall('list', { folderId: folderId });
                 if (res && res.success) { 
                     currentDriveItems = res.data;
-                    folderDataCache[folderId] = res.data; // Lưu vào RAM
+                    folderDataCache[folderId] = res.data; 
                     renderItems(currentDriveItems); 
                     restoreScroll();
                 } else {
@@ -1153,25 +1155,33 @@
                     await pickLocalFiles({
                         accept:'image/*',
                         multiple:false,
-                        callback:function(ev){
+                        callback: function(ev){
                             const f = ev.target.files[0];
                             if(!f) return;
+                            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu Logo lên Drive...');
                             const r = new FileReader();
-                            r.onload = function(evt){
-                                state.savedWatermarks.push(evt.target.result);
-                                saveStorageWMs();
-                                const sI = generateId();
-                                getTargetImages().forEach(i=>{
-                                    i.wms.push(createWm(evt.target.result,sI));
-                                });
-                                state.layerOrder.push({ id:sI, type:'wm' });
-                                state.activeElementId = sI;
-                                state.activeEditTarget = 'wm';
-                                document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true;
-                                renderWMLibrary();
-                                renderImages();
-                                renderLayers();
-                                syncSliders();
+                            r.onload = async function(evt){
+                                const b64 = evt.target.result;
+                                const base64Data = b64.split(',')[1];
+                                
+                                let res = await apiCall('upload', { folderId: WM_FOLDER_ID, filename: f.name || 'WM_Logo.png', mimeType: f.type || 'image/png', data: base64Data });
+                                if (res && res.success) {
+                                    showToast('<i class="fas fa-check mr-2"></i> Đã tải Logo lên Thư viện');
+                                    const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
+                                    const sI = generateId();
+                                    getTargetImages().forEach(i=>{
+                                        i.wms.push(createWm(srcUrl,sI));
+                                    });
+                                    state.layerOrder.push({ id:sI, type:'wm' });
+                                    state.activeElementId = sI;
+                                    state.activeEditTarget = 'wm';
+                                    document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true;
+                                    renderImages();
+                                    renderLayers();
+                                    syncSliders();
+                                } else {
+                                    showToast('Lỗi tải lên logo!', true);
+                                }
                             };
                             r.readAsDataURL(f);
                         }
@@ -1266,7 +1276,7 @@
             
             btn.onclick = () => {
                 currentDriveItems = currentDriveItems.filter(i => i.id !== id);
-                folderDataCache[currentFolderId] = currentDriveItems; // Đồng bộ RAM Cache
+                folderDataCache[currentFolderId] = currentDriveItems; 
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
                 }
@@ -1537,7 +1547,7 @@
                 tempFilesToUpload.push({ file: file, item: newItem });
                 currentDriveItems.push(newItem); 
             }
-            folderDataCache[currentFolderId] = currentDriveItems; // Đồng bộ RAM Cache
+            folderDataCache[currentFolderId] = currentDriveItems; 
             renderItems(currentDriveItems);
 
             for (let obj of tempFilesToUpload) {
@@ -1601,9 +1611,6 @@
         function getTargetImages() { const selected = state.images.filter(img => img.selected); return selected.length > 0 ? selected : state.images; }
         
         function cleanUpLayerOrder() { state.layerOrder = state.layerOrder.filter(layer => { return state.images.some(img => { if (layer.type === 'text') return img.texts.some(t => t.id === layer.id); return img.wms.some(w => w.id === layer.id); }); }); }
-        function loadStorageWMs() { try { const data = localStorage.getItem('vinhloc_wms_v2'); if (data) state.savedWatermarks = JSON.parse(data); } catch (e) {} }
-        function saveStorageWMs() { try { localStorage.setItem('vinhloc_wms_v2', JSON.stringify(state.savedWatermarks)); } catch (e) {} }
-        loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
             const driveImages = currentDriveItems
@@ -1988,32 +1995,131 @@
         document.getElementById('btn-delete-text').addEventListener('click', () => { getTargetImages().forEach(i=>i.texts=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
         document.getElementById('btn-delete-wm').addEventListener('click', () => { getTargetImages().forEach(i=>i.wms=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
 
-        document.getElementById('btn-save-text-wm').addEventListener('click', () => {
+        // NÚT LƯU CHỮ LÊN THƯ VIỆN DRIVE
+        document.getElementById('btn-save-text-wm').addEventListener('click', async () => {
             const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showToast('Không có chữ.', true);
             let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
+            
             const c=document.createElement('canvas'); const cx=c.getContext('2d'); c.width=800; c.height=200;
             cx.font=`${t.fontStyle} ${t.fontWeight} 60px '${t.fontFamily}'`; cx.fillStyle=t.color; cx.textAlign='center'; cx.textBaseline='middle';
             if(t.textShadow!=='none'){ cx.shadowColor="rgba(0,0,0,0.8)"; cx.shadowBlur=4; cx.shadowOffsetX=2; cx.shadowOffsetY=2; }
             if(t.stroke!=='transparent'){ cx.strokeStyle=t.stroke; cx.lineWidth=6; cx.lineJoin="round"; cx.strokeText(t.val,400,100); }
             cx.shadowColor="transparent"; cx.fillText(t.val,400,100);
-            state.savedWatermarks.push(c.toDataURL()); saveStorageWMs(); renderWMLibrary(); showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark');
+            
+            const base64Data = c.toDataURL('image/png').split(',')[1];
+            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu chữ lên Drive...');
+            
+            let res = await bgApiCall('upload', { folderId: WM_FOLDER_ID, filename: 'TEXT_WM_' + Date.now() + '.png', mimeType: 'image/png', data: base64Data });
+            if(res && res.success) {
+                showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark trên Drive');
+            } else {
+                showToast('Lỗi lưu Watermark', true);
+            }
         });
 
-        document.getElementById('wm-upload').addEventListener('change', e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ state.savedWatermarks.push(ev.target.result); saveStorageWMs(); const sI=generateId(); getTargetImages().forEach(i=>i.wms.push(createWm(ev.target.result,sI))); state.layerOrder.push({id:sI,type:'wm'}); state.activeElementId=sI; state.activeEditTarget='wm'; document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; renderWMLibrary(); renderImages(); renderLayers(); syncSliders(); }; r.readAsDataURL(f); });
-
         const wmP = document.getElementById('watermark-popup');
-        document.getElementById('btn-open-wm-library').addEventListener('click', () => { renderWMLibrary(); wmP.style.display='flex'; });
+        
+        // MỞ THƯ VIỆN TỪ DRIVE
+        document.getElementById('btn-open-wm-library').addEventListener('click', async () => { 
+            wmP.style.display='flex'; 
+            const grid = document.getElementById('wm-library-grid');
+            grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #6b7280; font-size: 13px; padding: 20px 0;"><i class="fas fa-spinner fa-spin mr-2"></i>Đang tải dữ liệu...</div>';
+            
+            try {
+                let res = await apiCall('list', { folderId: WM_FOLDER_ID });
+                if(res && res.success) {
+                    const files = res.data.filter(i => i.type === 'file');
+                    state.savedWatermarks = files.map(f => ({
+                        id: f.id,
+                        src: `https://drive.google.com/thumbnail?id=${f.id}&sz=w800`
+                    }));
+                    renderWMLibrary();
+                } else {
+                    grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #ef4444; font-size: 13px; padding: 20px 0;">Lỗi tải thư viện.</div>';
+                }
+            } catch(e) {
+                grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #ef4444; font-size: 13px; padding: 20px 0;">Lỗi kết nối.</div>';
+            }
+        });
+        
         document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
 
+        // HIỂN THỊ WATERMARK TỪ DRIVE
         function renderWMLibrary() {
             const grid=document.getElementById('wm-library-grid'); grid.innerHTML='';
-            state.savedWatermarks.forEach((src,idx) => {
-                const i=document.createElement('div'); i.className='wm-item'; i.innerHTML=`<img src="${src}"><div class="wm-delete-btn"><i class="fa-solid fa-times"></i></div>`;
-                i.querySelector('.wm-delete-btn').addEventListener('click', e => { e.stopPropagation(); state.savedWatermarks.splice(idx,1); saveStorageWMs(); renderWMLibrary(); });
-                i.addEventListener('click', () => { const sI=generateId(); getTargetImages().forEach(im=>im.wms.push(createWm(src,sI))); state.layerOrder.push({id:sI,type:'wm'}); state.activeElementId=sI; state.activeEditTarget='wm'; document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; renderImages(); renderLayers(); syncSliders(); wmP.style.display='none'; });
+            if(state.savedWatermarks.length === 0) {
+                grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #6b7280; font-size: 13px; padding: 20px 0;">Chưa có logo nào.</div>';
+                return;
+            }
+            state.savedWatermarks.forEach((wm,idx) => {
+                const i=document.createElement('div'); i.className='wm-item'; i.innerHTML=`<img src="${wm.src}"><div class="wm-delete-btn"><i class="fa-solid fa-times"></i></div>`;
+                i.querySelector('.wm-delete-btn').addEventListener('click', e => { 
+                    e.stopPropagation(); 
+                    bgApiCall('delete', { id: wm.id, type: 'file' });
+                    state.savedWatermarks.splice(idx,1); 
+                    renderWMLibrary(); 
+                });
+                i.addEventListener('click', () => { 
+                    const sI=generateId(); 
+                    getTargetImages().forEach(im=>im.wms.push(createWm(wm.src,sI))); 
+                    state.layerOrder.push({id:sI,type:'wm'}); 
+                    state.activeElementId=sI; 
+                    state.activeEditTarget='wm'; 
+                    document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; 
+                    renderImages(); renderLayers(); syncSliders(); 
+                    wmP.style.display='none'; 
+                });
                 grid.appendChild(i);
             });
         }
+
+        // TẢI LOGO TRỰC TIẾP LÊN DRIVE THAY VÌ LOCAL STORAGE
+        (function(){
+            const wmBtn = document.getElementById('btn-upload-wm-local');
+            if(wmBtn){
+                wmBtn.onclick = async function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.style.display = 'none';
+                    document.body.appendChild(input);
+                    input.addEventListener('change', function(ev) {
+                        const f = ev.target.files[0];
+                        if(!f) return;
+                        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang tải Logo lên Drive...');
+                        const r = new FileReader();
+                        r.onload = async function(evt){
+                            const b64 = evt.target.result;
+                            const base64Data = b64.split(',')[1];
+                            
+                            let res = await bgApiCall('upload', { folderId: WM_FOLDER_ID, filename: f.name || 'WM_Logo.png', mimeType: f.type || 'image/png', data: base64Data });
+                            if (res && res.success) {
+                                showToast('<i class="fas fa-check mr-2"></i> Đã tải Logo lên Thư viện');
+                                const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
+                                const sI = generateId();
+                                getTargetImages().forEach(i=>{
+                                    i.wms.push(createWm(srcUrl,sI));
+                                });
+                                state.layerOrder.push({ id:sI, type:'wm' });
+                                state.activeElementId = sI;
+                                state.activeEditTarget = 'wm';
+                                document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true;
+                                renderImages();
+                                renderLayers();
+                                syncSliders();
+                            } else {
+                                showToast('Lỗi tải lên logo!', true);
+                            }
+                        };
+                        r.readAsDataURL(f);
+                        setTimeout(() => input.remove(), 1000);
+                    });
+                    input.click();
+                };
+            }
+        })();
 
         function loadImage(src) {
             return new Promise(async (resolve, reject) => {
