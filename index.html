@@ -2107,70 +2107,54 @@
 })();
 </script>
 <script>
-/* =====================================================
-   PATCH:
+/* =========================================================
+   PATCH FIX:
    PREVIEW IMAGE PICKER
-   DÙNG LOCAL MEDIA PICKER GIỐNG UP ẢNH
-===================================================== */
+   DÙNG CHUNG CƠ CHẾ LOCAL PICKER NHƯ UPLOAD KHÁC
+========================================================= */
 
 (function(){
 
-    async function openLocalPreviewPicker(onSelect){
+    /* =====================================================
+       TÌM INPUT UPLOAD ĐANG HOẠT ĐỘNG TỐT
+    ===================================================== */
 
-        try{
+    function findWorkingPicker(){
 
-            /* =========================
-               MODERN ANDROID PICKER
-            ========================= */
+        const selectors = [
 
-            if(window.showOpenFilePicker){
+            'input[type="file"][accept*="image"]',
+            'input[type="file"][multiple]',
+            '#fileInput',
+            '#imageInput',
+            '.image-input',
+            '.upload-input'
 
-                const handles = await window.showOpenFilePicker({
+        ];
 
-                    multiple:false,
+        for(const sel of selectors){
 
-                    excludeAcceptAllOption:true,
+            const el = document.querySelector(sel);
 
-                    types:[
-                        {
-                            description:'Images',
-                            accept:{
-                                'image/*':[
-                                    '.png',
-                                    '.jpg',
-                                    '.jpeg',
-                                    '.webp',
-                                    '.gif'
-                                ]
-                            }
-                        }
-                    ]
+            if(el){
 
-                });
-
-                if(handles && handles.length){
-
-                    const file = await handles[0].getFile();
-
-                    onSelect(file);
-
-                    return;
-                }
+                return el;
 
             }
 
-        }catch(err){
-
-            console.log(
-                'Preview picker fallback:',
-                err
-            );
-
         }
 
-        /* =========================
-           LEGACY FALLBACK
-        ========================= */
+        return null;
+
+    }
+
+    /* =====================================================
+       TẠO INPUT GIỐNG HỆ THỐNG UPLOAD ẢNH
+    ===================================================== */
+
+    function createNativeLikePicker(){
+
+        const src = findWorkingPicker();
 
         const input = document.createElement('input');
 
@@ -2178,126 +2162,206 @@
 
         input.accept = 'image/*';
 
-        input.style.display = 'none';
+        input.multiple = false;
+
+        /* =========================================
+           COPY ATTR ĐỂ GIỐNG PICKER ĐANG HOẠT ĐỘNG
+        ========================================= */
+
+        if(src){
+
+            [...src.attributes].forEach(attr=>{
+
+                try{
+
+                    input.setAttribute(
+                        attr.name,
+                        attr.value
+                    );
+
+                }catch(e){}
+
+            });
+
+        }
+
+        /* =========================================
+           FORCE LOCAL MEDIA
+        ========================================= */
+
+        input.removeAttribute('multiple');
+
+        input.setAttribute('accept','image/*');
+
+        input.setAttribute(
+            'capture',
+            'environment'
+        );
+
+        input.setAttribute(
+            'data-local-only',
+            '1'
+        );
+
+        input.style.position = 'fixed';
+        input.style.left = '-99999px';
+        input.style.opacity = '0';
 
         document.body.appendChild(input);
 
-        input.onchange = function(e){
+        return input;
 
-            const file = e.target.files[0];
+    }
 
-            if(file){
+    /* =====================================================
+       ĐỌC FILE
+    ===================================================== */
 
-                onSelect(file);
+    function applyPreviewImage(file){
+
+        if(!file) return;
+
+        const reader = new FileReader();
+
+        reader.onload = function(e){
+
+            const base64 = e.target.result;
+
+            /* =====================================
+               SAVE STATE
+            ===================================== */
+
+            if(window.state){
+
+                state.previewImage = base64;
+
+            }
+
+            window.previewImageBase64 = base64;
+
+            /* =====================================
+               UPDATE IMG UI
+            ===================================== */
+
+            const targets = [
+
+                '#previewImage',
+                '#settingsPreviewImage',
+                '.preview-image',
+                '.preview-thumb',
+                '.settings-preview img',
+                '[data-preview-image]'
+
+            ];
+
+            targets.forEach(sel=>{
+
+                document
+                    .querySelectorAll(sel)
+                    .forEach(img=>{
+
+                        img.src = base64;
+
+                    });
+
+            });
+
+            /* =====================================
+               SAVE CACHE
+            ===================================== */
+
+            try{
+
+                localStorage.setItem(
+                    'previewImage',
+                    base64
+                );
+
+            }catch(err){}
+
+            /* =====================================
+               RENDER
+            ===================================== */
+
+            try{
+
+                if(typeof renderPreview==='function'){
+
+                    renderPreview();
+
+                }
+
+                if(typeof renderSettings==='function'){
+
+                    renderSettings();
+
+                }
+
+                if(typeof renderAll==='function'){
+
+                    renderAll();
+
+                }
+
+            }catch(err){
+
+                console.log(err);
 
             }
 
         };
 
-        input.click();
-
-        setTimeout(()=>{
-
-            input.remove();
-
-        },10000);
+        reader.readAsDataURL(file);
 
     }
 
-    /* =================================================
-       AUTO PATCH PREVIEW BUTTON
-    ================================================= */
+    /* =====================================================
+       OVERRIDE NÚT CHỌN ẢNH XEM TRƯỚC
+    ===================================================== */
 
-    document.addEventListener('click', async function(e){
+    document.addEventListener(
+        'click',
+        function(e){
 
-        const btn = e.target.closest(
-            '[data-preview-picker], .preview-picker, .btn-preview-image'
-        );
+            const btn = e.target.closest(
 
-        if(!btn) return;
+                '.btn-preview-image,' +
+                '.preview-picker,' +
+                '[data-preview-picker],' +
+                '#choosePreviewImage,' +
+                '#btnChoosePreview'
 
-        e.preventDefault();
-        e.stopPropagation();
+            );
 
-        await openLocalPreviewPicker(function(file){
+            if(!btn) return;
 
-            const reader = new FileReader();
+            e.preventDefault();
+            e.stopPropagation();
 
-            reader.onload = function(ev){
+            const input =
+                createNativeLikePicker();
 
-                const base64 = ev.target.result;
+            input.onchange = function(ev){
 
-                /* =================================
-                   AUTO APPLY PREVIEW IMAGE
-                ================================= */
+                const file =
+                    ev.target.files &&
+                    ev.target.files[0];
 
-                if(window.state){
+                applyPreviewImage(file);
 
-                    state.previewImage = base64;
+                setTimeout(()=>{
 
-                }
+                    input.remove();
 
-                /* =================================
-                   TRY UPDATE UI
-                ================================= */
-
-                const previewTargets = [
-
-                    '#previewImage',
-                    '.preview-image',
-                    '.preview-thumb',
-                    '.settings-preview img'
-
-                ];
-
-                previewTargets.forEach(sel=>{
-
-                    document
-                        .querySelectorAll(sel)
-                        .forEach(img=>{
-
-                            img.src = base64;
-
-                        });
-
-                });
-
-                /* =================================
-                   OPTIONAL SAVE
-                ================================= */
-
-                try{
-
-                    localStorage.setItem(
-                        'previewImage',
-                        base64
-                    );
-
-                }catch(err){}
-
-                /* =================================
-                   OPTIONAL RENDER
-                ================================= */
-
-                try{
-
-                    if(typeof renderSettings==='function'){
-                        renderSettings();
-                    }
-
-                    if(typeof renderPreview==='function'){
-                        renderPreview();
-                    }
-
-                }catch(err){}
+                },500);
 
             };
 
-            reader.readAsDataURL(file);
+            input.click();
 
-        });
-
-    }, true);
+        },
+        true
+    );
 
 })();
 </script>
