@@ -761,11 +761,6 @@
                 currentDriveItems = res.data;
                 localStorage.setItem(`folder_${folderId}`, JSON.stringify(currentDriveItems)); 
                 renderItems(currentDriveItems); 
-            } else {
-                // XỬ LÝ LỖI MẠNG HOẶC API TỪ PWA
-                if (!cachedData) {
-                    folderListEl.innerHTML = '<div class="text-center text-red-500 mt-10 w-full"><i class="fas fa-exclamation-triangle mb-2 text-2xl"></i><br>Không thể tải dữ liệu.<br>Vui lòng kiểm tra mạng và tải lại.</div>';
-                }
             }
         }
 
@@ -1131,9 +1126,8 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    // ĐÃ FIX: Thu nhỏ kích thước tối đa xuống 200px (thay vì 500px)
-                    const MAX_WIDTH = 200;
-                    const MAX_HEIGHT = 200;
+                    const MAX_WIDTH = 500;
+                    const MAX_HEIGHT = 500;
                     let width = img.width;
                     let height = img.height;
 
@@ -1148,8 +1142,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // ĐÃ FIX: Giảm chất lượng (quality) nén JPEG xuống 0.5 để tối ưu hóa lưu trên Sheet
-                    const b64 = canvas.toDataURL('image/jpeg', 0.5);
+                    const b64 = canvas.toDataURL('image/jpeg', 0.7);
                     
                     document.getElementById('infoCoverPreview').src = b64;
                     document.getElementById('infoCoverPreview').classList.remove('hidden');
@@ -1251,9 +1244,7 @@
                         subFolderCache[id] = res.data.filter(i => i.type === 'folder'); 
                         renderSubFolders(id, subFolderCache[id]);
                     } else {
-                        // BẮT LỖI MẠNG ĐỂ KHÔNG BỊ KẸT CHỮ "Tải..."
-                        body.innerHTML = `<div class="text-center text-red-400 py-3 text-sm cursor-pointer" onclick="window.toggleAccordion('${id}', true)">Lỗi tải dữ liệu. Nhấn để thử lại.</div>`;
-                        delete subFolderCache[id]; // Cho phép click lại để tải lại
+                        body.innerHTML = '<div class="text-center text-gray-400 py-3 text-sm">Lỗi tải dữ liệu</div>';
                     }
                 } else {
                     renderSubFolders(id, subFolderCache[id]);
@@ -1862,6 +1853,7 @@
                     document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); 
                     item.classList.add('active'); tP.classList.add('active'); 
                     if(item.dataset.panel==='panel-rename') {
+                        // Gọi render danh sách nếu tab Tên riêng đang mở
                         if(document.getElementById('rename-individual').style.display === 'flex') {
                             window.renderRenameList();
                         }
@@ -1942,6 +1934,8 @@
             state.savedWatermarks.push(c.toDataURL()); saveStorageWMs(); renderWMLibrary(); showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark');
         });
 
+        document.getElementById('wm-upload').addEventListener('change', e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ state.savedWatermarks.push(ev.target.result); saveStorageWMs(); const sI=generateId(); getTargetImages().forEach(i=>i.wms.push(createWm(ev.target.result,sI))); state.layerOrder.push({id:sI,type:'wm'}); state.activeElementId=sI; state.activeEditTarget='wm'; document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true; renderWMLibrary(); renderImages(); renderLayers(); syncSliders(); }; r.readAsDataURL(f); });
+
         const wmP = document.getElementById('watermark-popup');
         document.getElementById('btn-open-wm-library').addEventListener('click', () => { renderWMLibrary(); wmP.style.display='flex'; });
         document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
@@ -1982,13 +1976,6 @@
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
-        
-        // --- KHỞI CHẠY ỨNG DỤNG LẦN ĐẦU (SỬA LỖI PWA TRẮNG TRANG HOẶC KẸT TẢI) ---
-        window.addEventListener('DOMContentLoaded', () => {
-            updateBreadcrumbs();
-            loadFolder(currentFolderId, folderStack[folderStack.length - 1].name);
-        });
-
     </script>
 </body>
 </html>
