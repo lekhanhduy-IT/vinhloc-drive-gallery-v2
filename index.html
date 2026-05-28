@@ -2106,5 +2106,200 @@
 
 })();
 </script>
+<script>
+/* =====================================================
+   PATCH:
+   PREVIEW IMAGE PICKER
+   DÙNG LOCAL MEDIA PICKER GIỐNG UP ẢNH
+===================================================== */
+
+(function(){
+
+    async function openLocalPreviewPicker(onSelect){
+
+        try{
+
+            /* =========================
+               MODERN ANDROID PICKER
+            ========================= */
+
+            if(window.showOpenFilePicker){
+
+                const handles = await window.showOpenFilePicker({
+
+                    multiple:false,
+
+                    excludeAcceptAllOption:true,
+
+                    types:[
+                        {
+                            description:'Images',
+                            accept:{
+                                'image/*':[
+                                    '.png',
+                                    '.jpg',
+                                    '.jpeg',
+                                    '.webp',
+                                    '.gif'
+                                ]
+                            }
+                        }
+                    ]
+
+                });
+
+                if(handles && handles.length){
+
+                    const file = await handles[0].getFile();
+
+                    onSelect(file);
+
+                    return;
+                }
+
+            }
+
+        }catch(err){
+
+            console.log(
+                'Preview picker fallback:',
+                err
+            );
+
+        }
+
+        /* =========================
+           LEGACY FALLBACK
+        ========================= */
+
+        const input = document.createElement('input');
+
+        input.type = 'file';
+
+        input.accept = 'image/*';
+
+        input.style.display = 'none';
+
+        document.body.appendChild(input);
+
+        input.onchange = function(e){
+
+            const file = e.target.files[0];
+
+            if(file){
+
+                onSelect(file);
+
+            }
+
+        };
+
+        input.click();
+
+        setTimeout(()=>{
+
+            input.remove();
+
+        },10000);
+
+    }
+
+    /* =================================================
+       AUTO PATCH PREVIEW BUTTON
+    ================================================= */
+
+    document.addEventListener('click', async function(e){
+
+        const btn = e.target.closest(
+            '[data-preview-picker], .preview-picker, .btn-preview-image'
+        );
+
+        if(!btn) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        await openLocalPreviewPicker(function(file){
+
+            const reader = new FileReader();
+
+            reader.onload = function(ev){
+
+                const base64 = ev.target.result;
+
+                /* =================================
+                   AUTO APPLY PREVIEW IMAGE
+                ================================= */
+
+                if(window.state){
+
+                    state.previewImage = base64;
+
+                }
+
+                /* =================================
+                   TRY UPDATE UI
+                ================================= */
+
+                const previewTargets = [
+
+                    '#previewImage',
+                    '.preview-image',
+                    '.preview-thumb',
+                    '.settings-preview img'
+
+                ];
+
+                previewTargets.forEach(sel=>{
+
+                    document
+                        .querySelectorAll(sel)
+                        .forEach(img=>{
+
+                            img.src = base64;
+
+                        });
+
+                });
+
+                /* =================================
+                   OPTIONAL SAVE
+                ================================= */
+
+                try{
+
+                    localStorage.setItem(
+                        'previewImage',
+                        base64
+                    );
+
+                }catch(err){}
+
+                /* =================================
+                   OPTIONAL RENDER
+                ================================= */
+
+                try{
+
+                    if(typeof renderSettings==='function'){
+                        renderSettings();
+                    }
+
+                    if(typeof renderPreview==='function'){
+                        renderPreview();
+                    }
+
+                }catch(err){}
+
+            };
+
+            reader.readAsDataURL(file);
+
+        });
+
+    }, true);
+
+})();
+</script>
 </body>
 </html>
