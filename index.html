@@ -106,6 +106,10 @@
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
 
+        .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
+        .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
+        .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
+        .rename-right::-webkit-scrollbar { display: none; }
         .rename-item { display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb; flex-shrink: 0;}
         .rename-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db; flex-shrink: 0;}
         .rename-item input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
@@ -213,7 +217,7 @@
             <label class="bg-white text-purple-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
                 <span class="text-sm pl-2">Up Video</span>
                 <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center"><i class="fas fa-video"></i></div>
-                <input type="file" id="uploadVideo" class="hidden" multiple accept="video/mp4,video/*" onchange="handleMultipleFileUpload(event)">
+                <input type="file" id="uploadVideo" class="hidden" multiple accept="video/*" onchange="handleMultipleFileUpload(event)">
             </label>
         </div>
     </div>
@@ -252,14 +256,14 @@
 
                 <div id="info-field-cover" class="mb-5 hidden">
                     <label class="block text-sm font-bold text-gray-700 mb-1">Ảnh xem trước</label>
-                    <div class="w-full h-32 bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden cursor-pointer" onclick="document.getElementById('infoCoverInput').click()">
+                    <div id="infoCoverWrapper" class="w-full h-32 bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden cursor-pointer">
                         <img id="infoCoverPreview" src="" class="w-full h-full object-cover hidden">
                         <div id="infoCoverPlaceholder" class="text-gray-400 flex flex-col items-center">
                             <i class="fas fa-camera text-2xl mb-1"></i>
                             <span class="text-xs font-medium">Bấm để tải ảnh lên</span>
                         </div>
                     </div>
-                    <input type="file" id="infoCoverInput" class="hidden" accept="image/png, image/jpeg, image/webp" onchange="handleCoverUpload(event)">
+                    <input type="file" id="infoCoverInput" class="hidden" accept="image/*">
                 </div>
             </div>
 
@@ -411,10 +415,9 @@
         <div class="control-panel" id="panel-wm">
             <div class="panel-content">
                 <div class="action-row" style="margin-bottom: 10px;">
-                    <label for="wm-upload" class="btn btn-outline" style="flex:1; justify-content:center;">
+                    <button class="btn btn-outline" id="btn-upload-wm-local" style="flex:1; justify-content:center;">
                         <i class="fa-solid fa-upload"></i> Up ảnh mới
-                    </label>
-                    <input type="file" id="wm-upload" accept="image/*" style="display:none;">
+                    </button>
                     <button class="btn btn-blue" id="btn-open-wm-library" style="flex:1; justify-content:center;">
                         <i class="fa-solid fa-images"></i> Thư viện
                     </button>
@@ -503,7 +506,6 @@
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         let expandedMegas = JSON.parse(localStorage.getItem('expandedMegas')) || [];
         
-        // HỆ THỐNG TOAST NOTIFICATION
         function showToast(msg, isError = false) {
             let t = document.createElement('div');
             t.className = `toast-popup ${isError ? 'bg-red-600' : 'bg-gray-900'}`; 
@@ -516,7 +518,6 @@
             }, 1500); 
         }
 
-        // XỬ LÝ LỊCH SỬ PWA (NÚT BACK VẬT LÝ)
         window.addEventListener('popstate', (e) => {
             if (folderStack.length > 1) {
                 folderStack.pop();
@@ -701,7 +702,6 @@
                 btnMenu.classList.remove('hidden');
                 btnOpenDesign.classList.add('hidden');
             } else {
-                // BREADCRUMBS: a > b > c
                 currentFolderName.innerHTML = folderStack.map((f, i) => {
                     if (i === folderStack.length - 1) return `<span class="font-bold">${f.name}</span>`;
                     return `<span class="font-normal opacity-70 cursor-pointer" onclick="loadFolder('${f.id}','${f.name}')">${f.name}</span>`;
@@ -732,7 +732,6 @@
             currentFolderId = folderId;
             
             if (isNewNavigation && !isPopState) { 
-                // Xóa bớt stack nếu click vào breadcrumb cũ
                 const existingIdx = folderStack.findIndex(f => f.id === folderId);
                 if(existingIdx !== -1) {
                     folderStack = folderStack.slice(0, existingIdx + 1);
@@ -765,7 +764,6 @@
             }
         }
 
-        // CHỨC NĂNG TÌM KIẾM TOÀN CỤC TRONG PHẠM VI ROOT_FOLDER_ID
         let searchTimeout;
         let lastSearchResults = JSON.parse(sessionStorage.getItem('lastSearchResults')) || null;
         let lastSearchKeyword = sessionStorage.getItem('lastSearchKeyword') || '';
@@ -830,7 +828,6 @@
             }
         });
 
-        // Xử lý Custom Select cho Loại
         const selectValueDiv = document.getElementById('customSelectValue');
         const selectOptionsDiv = document.getElementById('customSelectOptions');
         const hiddenTypeInput = document.getElementById('infoType');
@@ -848,7 +845,6 @@
             });
         });
 
-        // === GIẢI QUYẾT LỖI TẢI XUỐNG ===
         window.downloadItem = async function(id, type, name, e) {
             if(e) e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
@@ -904,7 +900,6 @@
                         const byteArray = new Uint8Array(byteNumbers);
                         const blob = new Blob([byteArray], {type: b64Res.mimeType});
                         
-                        // SỬ DỤNG WEB SHARE API (Mở bảng chọn 'Lưu vào máy/Zalo') ĐỂ KHÔNG HIỆN THÔNG BÁO TẢI CHROME LÀM KẸT MÀN HÌNH
                         const fileObj = new File([blob], name, { type: b64Res.mimeType });
                         if (navigator.canShare && navigator.canShare({ files: [fileObj] })) {
                             try {
@@ -919,7 +914,6 @@
                             }
                         }
 
-                        // Nếu không share được thì tải kiểu cũ
                         const link = document.createElement('a');
                         link.href = URL.createObjectURL(blob);
                         link.download = name;
@@ -931,7 +925,6 @@
                         throw new Error("Không lấy được dữ liệu tệp.");
                     }
                 } catch(e) {
-                    // GIẢI PHÁP CHO FILE LỚN: DÙNG IFRAME ẨN THAY VÌ MỞ TAB MỚI, TRÁNH VĂNG RA KHỎI APP
                     showToast(`Đang tải tệp lớn ngầm trong App...`, true);
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
@@ -997,6 +990,134 @@
             document.getElementById('infoModal').classList.add('hidden');
             document.getElementById('infoModal').classList.remove('flex');
         }
+
+        // ĐOẠN PATCH SỬ DỤNG GIAO DIỆN CHỌN ẢNH NATIVE KHI Ở TRONG PWA
+        (function(){
+            async function pickLocalFiles({ accept = 'image/*', multiple = true, callback }) {
+                try {
+                    if(window.showOpenFilePicker) {
+                        const pickerTypes = [];
+                        if(accept.includes('image')){
+                            pickerTypes.push({
+                                description: 'Images',
+                                accept: {
+                                    'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif']
+                                }
+                            });
+                        }
+                        if(accept.includes('video')){
+                            pickerTypes.push({
+                                description: 'Videos',
+                                accept: {
+                                    'video/*': ['.mp4', '.mov', '.webm', '.mkv']
+                                }
+                            });
+                        }
+                        const handles = await window.showOpenFilePicker({
+                            multiple,
+                            excludeAcceptAllOption: true,
+                            types: pickerTypes
+                        });
+                        const files = [];
+                        for(const handle of handles){
+                            const file = await handle.getFile();
+                            files.push(file);
+                        }
+                        callback({ target: { files } });
+                        return;
+                    }
+                } catch(err) {
+                    console.log('Native picker fallback:', err);
+                }
+
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = accept;
+                input.multiple = multiple;
+                input.style.display = 'none';
+                document.body.appendChild(input);
+                input.addEventListener('change', callback);
+                input.click();
+                setTimeout(()=>{ input.remove(); }, 10000);
+            }
+
+            // Gắn patch cho nút Chọn Ảnh Xem Trước trong Popup Info
+            const infoCoverWrapper = document.getElementById('infoCoverWrapper');
+            if(infoCoverWrapper){
+                infoCoverWrapper.onclick = async function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await pickLocalFiles({
+                        accept: 'image/*',
+                        multiple: false,
+                        callback: window.handleCoverUpload
+                    });
+                };
+            }
+
+            // Gắn patch cho mục Up Ảnh
+            const uploadImageLabel = document.querySelector('label:has(#uploadImage)');
+            if(uploadImageLabel){
+                uploadImageLabel.onclick = async function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await pickLocalFiles({
+                        accept:'image/*',
+                        multiple:true,
+                        callback:handleMultipleFileUpload
+                    });
+                };
+            }
+
+            // Gắn patch cho mục Up Video
+            const uploadVideoLabel = document.querySelector('label:has(#uploadVideo)');
+            if(uploadVideoLabel){
+                uploadVideoLabel.onclick = async function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await pickLocalFiles({
+                        accept:'video/*',
+                        multiple:true,
+                        callback:handleMultipleFileUpload
+                    });
+                };
+            }
+
+            // Gắn patch cho nút Up ảnh mới (Watermark)
+            const wmBtn = document.getElementById('btn-upload-wm-local');
+            if(wmBtn){
+                wmBtn.onclick = async function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await pickLocalFiles({
+                        accept:'image/*',
+                        multiple:false,
+                        callback:function(ev){
+                            const f = ev.target.files[0];
+                            if(!f) return;
+                            const r = new FileReader();
+                            r.onload = function(evt){
+                                state.savedWatermarks.push(evt.target.result);
+                                saveStorageWMs();
+                                const sI = generateId();
+                                getTargetImages().forEach(i=>{
+                                    i.wms.push(createWm(evt.target.result,sI));
+                                });
+                                state.layerOrder.push({ id:sI, type:'wm' });
+                                state.activeElementId = sI;
+                                state.activeEditTarget = 'wm';
+                                document.querySelector(`input[name="adjust-target"][value="wm"]`).checked=true;
+                                renderWMLibrary();
+                                renderImages();
+                                renderLayers();
+                                syncSliders();
+                            };
+                            r.readAsDataURL(f);
+                        }
+                    });
+                };
+            }
+        })();
 
         window.handleCoverUpload = function(event) {
             const file = event.target.files[0];
@@ -1855,440 +1976,6 @@
                 reject(new Error('Lỗi tải ảnh. Vui lòng tải lại trang hoặc kiểm tra kết nối mạng.'));
             });
         }
-        
     </script>
-    <script>
-
-/* =========================================
-   NATIVE LOCAL GALLERY PICKER
-   ƯU TIÊN ẢNH/VIDEO TRONG MÁY
-========================================= */
-
-(function(){
-
-    async function pickLocalFiles({
-        accept = 'image/*',
-        multiple = true,
-        callback
-    }){
-
-        try{
-
-            /* =========================
-               CHROME ANDROID MODERN
-            ========================= */
-
-            if(window.showOpenFilePicker){
-
-                const pickerTypes = [];
-
-                if(accept.includes('image')){
-                    pickerTypes.push({
-                        description: 'Images',
-                        accept: {
-                            'image/*': [
-                                '.png',
-                                '.jpg',
-                                '.jpeg',
-                                '.webp',
-                                '.gif'
-                            ]
-                        }
-                    });
-                }
-
-                if(accept.includes('video')){
-                    pickerTypes.push({
-                        description: 'Videos',
-                        accept: {
-                            'video/*': [
-                                '.mp4',
-                                '.mov',
-                                '.webm',
-                                '.mkv'
-                            ]
-                        }
-                    });
-                }
-
-                const handles = await window.showOpenFilePicker({
-
-                    multiple,
-
-                    excludeAcceptAllOption: true,
-
-                    types: pickerTypes
-
-                });
-
-                const files = [];
-
-                for(const handle of handles){
-
-                    const file = await handle.getFile();
-
-                    files.push(file);
-
-                }
-
-                callback({
-                    target:{
-                        files
-                    }
-                });
-
-                return;
-
-            }
-
-        }catch(err){
-
-            console.log('Native picker fallback:', err);
-
-        }
-
-        /* =========================
-           FALLBACK LEGACY
-        ========================= */
-
-        const input = document.createElement('input');
-
-        input.type = 'file';
-
-        input.accept = accept;
-
-        input.multiple = multiple;
-
-        input.style.display = 'none';
-
-        document.body.appendChild(input);
-
-        input.addEventListener('change', callback);
-
-        input.click();
-
-        setTimeout(()=>{
-            input.remove();
-        },10000);
-
-    }
-
-    /* =================================
-       UP ẢNH
-    ================================= */
-
-    const uploadImageLabel =
-        document.querySelector('label:has(#uploadImage)');
-
-    if(uploadImageLabel){
-
-        uploadImageLabel.onclick = async function(e){
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            await pickLocalFiles({
-
-                accept:'image/*',
-
-                multiple:true,
-
-                callback:handleMultipleFileUpload
-
-            });
-
-        };
-
-    }
-
-    /* =================================
-       UP VIDEO
-    ================================= */
-
-    const uploadVideoLabel =
-        document.querySelector('label:has(#uploadVideo)');
-
-    if(uploadVideoLabel){
-
-        uploadVideoLabel.onclick = async function(e){
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            await pickLocalFiles({
-
-                accept:'video/*',
-
-                multiple:true,
-
-                callback:handleMultipleFileUpload
-
-            });
-
-        };
-
-    }
-
-    /* =================================
-       WATERMARK
-    ================================= */
-
-    const wmBtn =
-        document.querySelector('label[for="wm-upload"]');
-
-    if(wmBtn){
-
-        wmBtn.onclick = async function(e){
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            await pickLocalFiles({
-
-                accept:'image/*',
-
-                multiple:false,
-
-                callback:function(ev){
-
-                    const f = ev.target.files[0];
-
-                    if(!f) return;
-
-                    const r = new FileReader();
-
-                    r.onload = function(evt){
-
-                        state.savedWatermarks.push(
-                            evt.target.result
-                        );
-
-                        saveStorageWMs();
-
-                        const sI = generateId();
-
-                        getTargetImages().forEach(i=>{
-
-                            i.wms.push(
-                                createWm(evt.target.result,sI)
-                            );
-
-                        });
-
-                        state.layerOrder.push({
-                            id:sI,
-                            type:'wm'
-                        });
-
-                        state.activeElementId = sI;
-
-                        state.activeEditTarget = 'wm';
-
-                        renderWMLibrary();
-
-                        renderImages();
-
-                        renderLayers();
-
-                        syncSliders();
-
-                    };
-
-                    r.readAsDataURL(f);
-
-                }
-
-            });
-
-        };
-
-    }
-
-})();
-</script>
-<script>
-/* =========================================================
-   FORCE LOCAL GALLERY PICKER
-   KHÔNG MỞ GOOGLE PHOTOS
-========================================================= */
-
-(function(){
-
-    async function pickPreviewImage(){
-
-        const input = document.createElement('input');
-
-        input.type = 'file';
-
-        /* =================================================
-           QUAN TRỌNG
-        ================================================= */
-
-        input.accept = 'image/*';
-
-        input.multiple = false;
-
-        input.capture = 'environment';
-
-        /* =================================================
-           XÓA CÁC ATTR GÂY GOOGLE PHOTOS
-        ================================================= */
-
-        input.removeAttribute('webkitdirectory');
-        input.removeAttribute('directory');
-        input.removeAttribute('mozdirectory');
-
-        input.setAttribute(
-            'data-no-google-photos',
-            '1'
-        );
-
-        input.style.position = 'fixed';
-        input.style.left = '-99999px';
-        input.style.top = '-99999px';
-        input.style.opacity = '0';
-
-        document.body.appendChild(input);
-
-        input.addEventListener('change', function(e){
-
-            const file =
-                e.target.files &&
-                e.target.files[0];
-
-            if(!file){
-
-                input.remove();
-                return;
-
-            }
-
-            const reader = new FileReader();
-
-            reader.onload = function(ev){
-
-                const base64 = ev.target.result;
-
-                /* ==============================
-                   SAVE
-                ============================== */
-
-                window.previewImageBase64 =
-                    base64;
-
-                try{
-
-                    localStorage.setItem(
-                        'previewImage',
-                        base64
-                    );
-
-                }catch(err){}
-
-                /* ==============================
-                   UPDATE UI
-                ============================== */
-
-                [
-
-                    '#previewImage',
-                    '#settingsPreviewImage',
-                    '.preview-image',
-                    '.preview-thumb',
-                    '[data-preview-image]'
-
-                ].forEach(sel=>{
-
-                    document
-                        .querySelectorAll(sel)
-                        .forEach(el=>{
-
-                            if(
-                                el.tagName === 'IMG'
-                            ){
-
-                                el.src = base64;
-
-                            }else{
-
-                                el.style.backgroundImage =
-                                    `url(${base64})`;
-
-                            }
-
-                        });
-
-                });
-
-                /* ==============================
-                   RENDER
-                ============================== */
-
-                try{
-
-                    renderAll?.();
-                    renderPreview?.();
-
-                }catch(err){}
-
-                setTimeout(()=>{
-
-                    input.remove();
-
-                },300);
-
-            };
-
-            reader.readAsDataURL(file);
-
-        });
-
-        /* =================================================
-           FORCE NATIVE PICKER
-        ================================================= */
-
-        if(input.showPicker){
-
-            input.showPicker();
-
-        }else{
-
-            input.click();
-
-        }
-
-    }
-
-    /* =====================================================
-       OVERRIDE BUTTON
-    ===================================================== */
-
-    document.addEventListener(
-        'click',
-        function(e){
-
-            const btn = e.target.closest(
-
-                '#choosePreviewImage,' +
-                '#btnChoosePreview,' +
-                '.btn-preview-image,' +
-                '.preview-picker,' +
-                '[data-preview-picker]'
-
-            );
-
-            if(!btn) return;
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            pickPreviewImage();
-
-        },
-        true
-    );
-
-})();
-</script>
 </body>
 </html>
