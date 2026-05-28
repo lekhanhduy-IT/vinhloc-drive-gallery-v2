@@ -1,4 +1,4 @@
-        body { -webkit-tap-highlight-color: transparent; background-color: #f4f7f6; }
+body { -webkit-tap-highlight-color: transparent; background-color: #f4f7f6; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 0px; background: transparent; }
@@ -85,10 +85,6 @@
         .btn-red { background: var(--primary-red); color: white; }
         .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
 
-        .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
-        .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
-        .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
-        .rename-right::-webkit-scrollbar { display: none; }
         .rename-item { display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb; flex-shrink: 0;}
         .rename-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db; flex-shrink: 0;}
         .rename-item input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
@@ -120,4 +116,3 @@
             white-space: nowrap; display: flex; align-items: center; gap: 8px;
         }
         .toast-popup.show { opacity: 1; top: 40px; }
-    

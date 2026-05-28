@@ -17,7 +17,10 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;700&family=Roboto:wght@400;700&family=Saira:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<link rel="stylesheet" href="/src/style.css">
+
+    <style src="/src/style.csss">
+        
+    </style>
 </head>
 
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
@@ -26,7 +29,7 @@
 
     <div id="sync-indicator" class="fixed top-6 right-4 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg text-xs font-bold text-gray-700 flex items-center gap-2 z-[9999] transition-opacity duration-300 opacity-0 pointer-events-none border border-gray-100">
         <div id="sync-icon"><i class="fas fa-circle-notch fa-spin text-blue-600"></i></div>
-        <span id="sync-text" class="text-blue-600">Đang lưu...</span>
+        <span id="sync-text" class="text-blue-600">Đang lưu ngầm...</span>
     </div>
 
     <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
@@ -93,7 +96,7 @@
             <label class="bg-white text-purple-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
                 <span class="text-sm pl-2">Up Video</span>
                 <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center"><i class="fas fa-video"></i></div>
-                <input type="file" id="uploadVideo" class="hidden" multiple accept="video/*" onchange="handleMultipleFileUpload(event)">
+                <input type="file" id="uploadVideo" class="hidden" multiple accept="video/mp4,video/*" onchange="handleMultipleFileUpload(event)">
             </label>
         </div>
     </div>
@@ -368,6 +371,8 @@
         </div>
     </div>
 
-    <script src="/src/script.js"></script>
+    <script src="/src/script.js">
+
+    </script>
 </body>
 </html>
