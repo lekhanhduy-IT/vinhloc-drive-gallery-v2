@@ -493,15 +493,24 @@
     </div>
 
     <script>
-        // --- ĐOẠN DỌN DẸP CACHE CŨ KHỎI PWA GIÚP GIẢI PHÓNG BỘ NHỚ ---
+        // --- ĐOẠN 1: TỰ ĐỘNG DỌN DẸP CACHE ẢNH KHỔNG LỒ TỪ BẢN CŨ GÂY TRÀN RAM ---
         try {
             Object.keys(localStorage).forEach(key => {
                 if (key.startsWith('folder_')) {
                     localStorage.removeItem(key);
                 }
             });
+            let tempMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
+            let isCleaned = false;
+            for (let k in tempMeta) {
+                if (tempMeta[k].cover && tempMeta[k].cover.length > 50000) {
+                    tempMeta[k].cover = ''; // Xóa sạch dữ liệu ảnh gây lỗi
+                    isCleaned = true;
+                }
+            }
+            if (isCleaned) localStorage.setItem('vinhloc_meta', JSON.stringify(tempMeta));
         } catch (e) {}
-        // -------------------------------------------------------------
+        // ------------------------------------------------------------------------
 
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
@@ -645,7 +654,16 @@
             }
         });
 
-        function saveLocalMeta() { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); }
+        function saveLocalMeta() { 
+            try {
+                localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
+            } catch(e) {
+                showToast("Bộ nhớ thiết bị đã đầy, vui lòng khởi động lại app!", true);
+                console.error("Quota Exceeded:", e);
+                throw e; // Ném lỗi để block catch bên ngoài xử lý
+            }
+        }
+
         function getMeta(id) { 
             if(!appMeta[id]) { appMeta[id] = { type: currentCategory, desc: '', cover: '' }; }
             return appMeta[id];
@@ -758,7 +776,6 @@
             folderListEl.innerHTML = '';
             fileListEl.innerHTML = '';
 
-            // Luôn gọi internet thay vì xài localStorage để tránh tràn bộ nhớ đệm
             folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
 
             const res = await apiCall('list');
@@ -1128,9 +1145,9 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    // GIẢM KÍCH THƯỚC XUỐNG 150 ĐỂ BASE64 KHÔNG BỊ TRÀN > 50K KÝ TỰ Ở SHEET
-                    const MAX_WIDTH = 150;
-                    const MAX_HEIGHT = 150;
+                    // --- ĐOẠN 2: ÉP KÍCH THƯỚC XUỐNG 120PX ĐỂ ĐẢM BẢO CHUỖI CỰC NGẮN ---
+                    const MAX_WIDTH = 120;
+                    const MAX_HEIGHT = 120;
                     let width = img.width;
                     let height = img.height;
 
@@ -1145,8 +1162,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // GIẢM CHẤT LƯỢNG JPEG ĐỂ TĂNG CƯỜNG NẾN
-                    const b64 = canvas.toDataURL('image/jpeg', 0.5);
+                    const b64 = canvas.toDataURL('image/jpeg', 0.4); // Chất lượng 0.4 cho siêu nhẹ
                     
                     document.getElementById('infoCoverPreview').src = b64;
                     document.getElementById('infoCoverPreview').classList.remove('hidden');
@@ -1157,38 +1173,64 @@
             reader.readAsDataURL(file);
         };
 
+        // --- ĐOẠN 3: BẢO VỆ CHỐNG SẬP (CRASH) KHI BẤM NÚT LƯU ---
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
-            if(!currentEditId) return closeInfoModal();
-            
-            const newName = document.getElementById('infoName').value.trim();
-            const newType = document.getElementById('infoType').value;
-            const newDesc = document.getElementById('infoDesc').value.trim();
-            
-            let newCover = document.getElementById('infoCoverPreview').src;
-            if(!newCover.startsWith('data:')) newCover = appMeta[currentEditId]?.cover || '';
+            try {
+                if(!currentEditId) return closeInfoModal();
+                
+                const newName = document.getElementById('infoName').value.trim();
+                const newType = document.getElementById('infoType').value;
+                const newDesc = document.getElementById('infoDesc').value.trim();
+                
+                let newCover = document.getElementById('infoCoverPreview').src;
+                if(!newCover.startsWith('data:')) newCover = appMeta[currentEditId]?.cover || '';
 
-            appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
-            saveLocalMeta();
+                if(newCover.length > 50000) {
+                    showToast('Lỗi: Ảnh vẫn quá lớn, vui lòng chọn lại!', true);
+                    return;
+                }
 
-            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || 
-                            Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
+                appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
+                
+                try {
+                    saveLocalMeta();
+                } catch(storageErr) {
+                    showToast('Bộ nhớ đệm đầy, đang tự dọn rác...', true);
+                    for (let k in appMeta) {
+                        if (appMeta[k].cover && appMeta[k].cover.length > 10000) appMeta[k].cover = '';
+                    }
+                    saveLocalMeta();
+                }
 
-            let nameChanged = false;
-            if (newName && oldItem && newName !== oldItem.name) {
-                oldItem.name = newName;
-                nameChanged = true;
-            }
+                // THAY THẾ .flat() BẰNG .concat() ĐỂ KHÔNG BỊ LIỆT NÚT TRÊN ZALO / TRÌNH DUYỆT CŨ
+                let oldItem = currentDriveItems.find(i => i.id === currentEditId);
+                if (!oldItem) {
+                    const allSubs = [].concat(...Object.values(subFolderCache));
+                    oldItem = allSubs.find(i => i.id === currentEditId);
+                }
 
-            renderItems(currentDriveItems);
-            closeInfoModal();
-            showToast(`<i class="fas fa-check mr-2"></i> Đã lưu cài đặt`);
+                let nameChanged = false;
+                if (newName && oldItem && newName !== oldItem.name) {
+                    oldItem.name = newName;
+                    nameChanged = true;
+                }
 
-            bgApiCall('updateSingleMeta', {
-                meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover }
-            });
+                // Cập nhật mượt mà UI ngay lập tức
+                smoothUpdateUI(appMeta);
 
-            if (nameChanged) {
-                bgApiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
+                closeInfoModal();
+                showToast(`<i class="fas fa-check mr-2"></i> Đã lưu cài đặt`);
+
+                bgApiCall('updateSingleMeta', {
+                    meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover }
+                });
+
+                if (nameChanged) {
+                    bgApiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
+                }
+            } catch (err) {
+                alert("Xảy ra lỗi phần mềm: " + err.message);
+                console.error(err);
             }
         });
 
@@ -1843,7 +1885,6 @@
         document.getElementById('select-all-btn').addEventListener('click', e => { aSel=!aSel; state.images.forEach(i=>i.selected=aSel); e.target.innerHTML=aSel?'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Bỏ chọn':'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả'; renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
         document.getElementById('delete-selected-btn').addEventListener('click', () => { state.images=state.images.filter(i=>!i.selected); renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
 
-        // SỬA SỰ KIỆN CHUYỂN TAB ĐỂ RENDER LIST KHI BẤM VÀO TAB "ĐỔI TÊN"
         document.querySelectorAll('.nav-item').forEach(item => { 
             item.addEventListener('click', () => { 
                 const tP = document.getElementById(item.dataset.panel); 
