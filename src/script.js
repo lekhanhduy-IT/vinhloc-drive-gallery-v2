@@ -376,7 +376,7 @@
                     }
                 });
             } else {
-                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
+                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải...</div>';
                 fileListEl.innerHTML = '';
 
                 const res = await apiCall('list', { folderId: folderId });
@@ -421,7 +421,7 @@
             }
 
             searchTimeout = setTimeout(async () => {
-                folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang quét đệ quy sâu thư mục gốc...</p></div>';
+                folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm...</p></div>';
                 fileListEl.innerHTML = '';
                 
                 const res = await apiCall('globalSearch', { keyword: keyword });
@@ -1530,7 +1530,7 @@
             cx.shadowColor="transparent"; cx.fillText(t.val,400,100);
             
             const base64Data = c.toDataURL('image/png').split(',')[1];
-            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu chữ lên Drive...');
+            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu mẫuchữ ...');
             
             let res = await bgApiCall('upload', { folderId: WM_FOLDER_ID, filename: 'TEXT_WM_' + Date.now() + '.png', mimeType: 'image/png', data: base64Data });
             if(res && res.success) {
@@ -1551,7 +1551,7 @@
             wmP.style.display='flex'; 
             
             if (state.savedWatermarks.length === 0) {
-                document.getElementById('wm-library-grid').innerHTML = '<div style="grid-column: span 3; text-align: center; padding: 30px;"><div class="loader mx-auto border-blue-500 mb-2"></div><span class="text-sm text-gray-500">Đang tải Thư viện Logo từ Drive...</span></div>';
+                document.getElementById('wm-library-grid').innerHTML = '<div style="grid-column: span 3; text-align: center; padding: 30px;"><div class="loader mx-auto border-blue-500 mb-2"></div><span class="text-sm text-gray-500">Đang tải mẫu...</span></div>';
             } else {
                 renderWMLibrary();
             }
@@ -1576,7 +1576,7 @@
                     }
                 }
             } catch(e) {
-                console.log("Lỗi đồng bộ thư viện WM ngầm.", e);
+                console.log("Lỗi đồng bộ thư viện.", e);
             } finally {
                 isFetchingWM = false;
             }
@@ -1636,7 +1636,7 @@
                     input.addEventListener('change', function(ev) {
                         const f = ev.target.files[0];
                         if(!f) return;
-                        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang tải Logo lên Drive...');
+                        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu mẫu...');
                         const r = new FileReader();
                         r.onload = async function(evt){
                             const b64 = evt.target.result;

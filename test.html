@@ -118,10 +118,12 @@
         #main-text-input { width: 100%; max-width: 400px; padding: 16px; font-size: 22px; border: 2px solid var(--primary-blue); border-radius: 12px; text-align: center; outline: none; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.1); }
         
         #watermark-popup { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: 55vh; background: white; border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 300; display: none; flex-direction: column; padding: 20px; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); }
-        .wm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; overflow-y: auto; margin-top: 15px; }
-        .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; }
-        .wm-item img { max-width: 90%; max-height: 90%; object-fit: contain; }
-        .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; z-index: 10; }
+        
+        /* ĐÃ FIX CSS LƯỚI LOGO TRÁNH ĐÈ DOMINO */
+        .wm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; overflow-y: auto; margin-top: 15px; padding: 5px; flex: 1; align-content: start; }
+        .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; background-color: white; }
+        .wm-item img { width: 100%; height: 100%; object-fit: contain; padding: 5px; pointer-events: none; }
+        .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; z-index: 10; pointer-events: auto; }
 
         /* CUSTOM SELECT */
         .custom-select-wrapper { position: relative; user-select: none; }
@@ -652,15 +654,69 @@
             } catch (e) {}
         }
 
+        async function silentFetchFolder() {
+            if (!currentFolderId || syncQueueCount > 0) return;
+            
+            try {
+                const hasTempItems = currentDriveItems.some(i => String(i.id).startsWith('temp_'));
+                if (!hasTempItems) {
+                    const res = await fetch(SCRIPT_URL, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ action: 'list', folderId: currentFolderId })
+                    }).then(r => r.json());
+
+                    if (res && res.success && res.data) {
+                        const currentIds = currentDriveItems.map(i => i.id).sort().join(',');
+                        const newIds = res.data.map(i => i.id).sort().join(',');
+                        
+                        if (currentIds !== newIds) {
+                            currentDriveItems = res.data;
+                            folderDataCache[currentFolderId] = currentDriveItems;
+                            const currentScroll = document.getElementById('contentArea').scrollTop;
+                            renderItems(currentDriveItems);
+                            document.getElementById('contentArea').scrollTop = currentScroll;
+                        }
+                    }
+                }
+
+                if (folderStack.length === 1 && expandedMegas.length > 0) {
+                    for (let megaId of expandedMegas) {
+                        const hasTempSub = (subFolderCache[megaId] || []).some(i => String(i.id).startsWith('temp_'));
+                        if (hasTempSub) continue;
+
+                        const subRes = await fetch(SCRIPT_URL, { 
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify({ action: 'list', folderId: megaId })
+                        }).then(r => r.json());
+
+                        if (subRes && subRes.success && subRes.data) {
+                            const newSubFolders = subRes.data.filter(i => i.type === 'folder');
+                            const currentSubIds = (subFolderCache[megaId] || []).map(i => i.id).sort().join(',');
+                            const newSubIds = newSubFolders.map(i => i.id).sort().join(',');
+
+                            if (currentSubIds !== newSubIds) {
+                                subFolderCache[megaId] = newSubFolders;
+                                renderSubFolders(megaId, newSubFolders);
+                            }
+                        }
+                    }
+                }
+            } catch (e) { }
+        }
+
         setInterval(() => {
-            if (document.getElementById('infoModal').classList.contains('hidden')) {
+            if (document.getElementById('infoModal').classList.contains('hidden') && syncQueueCount === 0) {
                 silentFetchMeta();
+                silentFetchFolder();
             }
-        }, 2500);
+        }, 5000);
 
         document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible") {
+            if (document.visibilityState === "visible" && syncQueueCount === 0) {
                 silentFetchMeta();
+                silentFetchFolder();
             }
         });
 
@@ -668,7 +724,7 @@
             try {
                 localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
             } catch (e) {
-                console.warn("LocalStorage đã đầy. Ứng dụng vẫn sẽ chạy và đẩy dữ liệu lên Sheet.");
+                console.warn("LocalStorage đã đầy.");
             }
         }
 
@@ -1441,50 +1497,42 @@
             btn.textContent = 'Lưu';
             btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
             
-            btn.onclick = () => { 
+            btn.onclick = async () => { 
                 const val = document.getElementById('modalInput').value.trim(); 
                 if (val) {
                     const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
-                    const fakeId = 'temp_folder_' + Date.now();
-                    const newItem = { id: fakeId, name: val, type: 'folder' };
                     
-                    if (parentIdToUse === currentFolderId) {
-                        if(folderStack.length === 1) {
-                            appMeta[fakeId] = { type: currentCategory, desc: '', cover: '' };
-                            saveLocalMeta();
-                        }
-                        currentDriveItems.unshift(newItem);
-                        folderDataCache[currentFolderId] = currentDriveItems; 
-                        renderItems(currentDriveItems);
-                    } else if (subFolderCache[parentIdToUse]) {
-                        subFolderCache[parentIdToUse].unshift(newItem);
-                        renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
-                    }
                     closeModal(); 
-                    showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
+                    showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang tạo mục "${val}"...`);
                     
-                    bgApiCall('createFolder', { name: val, folderId: parentIdToUse }).then(res => { 
+                    try {
+                        const res = await apiCall('createFolder', { name: val, folderId: parentIdToUse });
+                        
                         if (res && res.success) {
                             const realId = res.folderId || res.id;
+                            const newItem = { id: realId, name: val, type: 'folder' };
+                            
                             if (parentIdToUse === currentFolderId) {
-                                const idx = currentDriveItems.findIndex(i => i.id === fakeId);
-                                if(idx > -1) {
-                                    currentDriveItems[idx].id = realId;
-                                    folderDataCache[currentFolderId] = currentDriveItems;
-                                }
-                                
                                 if(folderStack.length === 1) {
-                                    appMeta[realId] = appMeta[fakeId];
-                                    delete appMeta[fakeId];
+                                    appMeta[realId] = { type: currentCategory, desc: '', cover: '' };
                                     saveLocalMeta();
                                     bgApiCall('updateSingleMeta', { meta: { id: realId, name: val, type: currentCategory, desc: '', cover: '' } });
                                 }
+                                currentDriveItems.unshift(newItem);
+                                folderDataCache[currentFolderId] = currentDriveItems; 
+                                renderItems(currentDriveItems);
                             } else if (subFolderCache[parentIdToUse]) {
-                                const idx = subFolderCache[parentIdToUse].findIndex(i => i.id === fakeId);
-                                if(idx > -1) subFolderCache[parentIdToUse][idx].id = realId;
+                                subFolderCache[parentIdToUse].unshift(newItem);
+                                renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
                             }
+                            
+                            showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
+                        } else {
+                            showToast(`Lỗi: Không thể tạo thư mục!`, true);
                         }
-                    });
+                    } catch (err) {
+                        showToast(`Lỗi kết nối khi tạo thư mục!`, true);
+                    }
                 } 
             }; 
             document.getElementById('customModal').classList.remove('hidden');
@@ -1570,11 +1618,6 @@
         function getTargetImages() { const selected = state.images.filter(img => img.selected); return selected.length > 0 ? selected : state.images; }
         
         function cleanUpLayerOrder() { state.layerOrder = state.layerOrder.filter(layer => { return state.images.some(img => { if (layer.type === 'text') return img.texts.some(t => t.id === layer.id); return img.wms.some(w => w.id === layer.id); }); }); }
-        
-        // Load danh sách WM đã được cấu trúc lại cho object {id, src}
-        function loadStorageWMs() { try { const data = localStorage.getItem('vinhloc_wms_drive_v3'); if (data) state.savedWatermarks = JSON.parse(data); } catch (e) {} }
-        function saveStorageWMs() { try { localStorage.setItem('vinhloc_wms_drive_v3', JSON.stringify(state.savedWatermarks)); } catch (e) {} }
-        loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
             const driveImages = currentDriveItems
@@ -1767,17 +1810,30 @@
             renderImages();
         };
 
-        ['brightness', 'darkness', 'sharpness', 'contrast', 'saturate', 'rotate'].forEach(p => {
-            const slider = document.getElementById(`slider-filter-${p}`);
-            if(slider) {
-                slider.addEventListener('input', e => {
-                    const stateProp = 'filter' + p.charAt(0).toUpperCase() + p.slice(1);
-                    window.updateFilter(stateProp, e.target.value);
-                });
-            }
-        });
+        function syncSliders() { 
+            const tg=getTargetImages(); 
+            if(tg.length>0){ 
+                const items=state.activeEditTarget==='text'?tg[0].texts:tg[0].wms; 
+                let ref=items.find(i=>i.id===state.activeElementId)||items[items.length-1]; 
+                if(ref){ 
+                    document.getElementById('slider-scale').value=ref.scale; 
+                    document.getElementById('slider-x').value=ref.x; 
+                    document.getElementById('slider-y').value=ref.y; 
+                    document.getElementById('slider-opacity').value=ref.opacity; 
+                } 
+                const imgRef = tg[0];
+                document.getElementById('slider-filter-brightness').value = imgRef.filterBrightness;
+                document.getElementById('slider-filter-darkness').value = imgRef.filterDarkness;
+                document.getElementById('slider-filter-sharpness').value = imgRef.filterSharpness;
+                document.getElementById('slider-filter-contrast').value = imgRef.filterContrast;
+                document.getElementById('slider-filter-saturate').value = imgRef.filterSaturate;
+                document.getElementById('slider-filter-rotate').value = imgRef.filterRotate;
+            } 
+        }
 
-        // ĐÃ BỔ SUNG SỰ KIỆN CLICK CHO CÁC TAB BỘ LỌC (Sáng, Tối, Nét...)
+        document.querySelectorAll('input[name="adjust-target"]').forEach(r => r.addEventListener('change', e => { state.activeEditTarget=e.target.value; state.activeElementId=null; syncSliders(); renderLayers(); }));
+        
+        // KÍCH HOẠT SỰ KIỆN CLICK CHO CÁC TAB BỘ LỌC CHỈNH ẢNH
         document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach((btn, idx) => { 
             btn.addEventListener('click', () => { 
                 document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active')); 
@@ -1788,8 +1844,56 @@
             }); 
         });
 
+        ['brightness', 'darkness', 'sharpness', 'contrast', 'saturate', 'rotate'].forEach(p => {
+            const slider = document.getElementById(`slider-filter-${p}`);
+            if(slider) {
+                slider.addEventListener('input', e => {
+                    const stateProp = 'filter' + p.charAt(0).toUpperCase() + p.slice(1);
+                    window.updateFilter(stateProp, e.target.value);
+                });
+            }
+        });
+
         document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach((btn, idx) => { btn.addEventListener('click', () => { document.querySelectorAll('#adjust-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('#adjust-sliders .slider-row').forEach((d,i)=>d.style.display=i===idx?'flex':'none'); }); });
         
+        ['scale','x','y','opacity'].forEach(p => document.getElementById(`slider-${p}`).addEventListener('input', e => window.updateProp(p, e.target.value)));
+
+        const colorContainer = document.getElementById('color-picker-container');
+        colorContainer.innerHTML = '';
+        
+        const pickerLabel = document.createElement('label');
+        pickerLabel.className = 'color-dot';
+        pickerLabel.style.background = 'linear-gradient(45deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff)';
+        pickerLabel.style.position = 'relative';
+        pickerLabel.style.display = 'block';
+        pickerLabel.innerHTML = '<input type="color" style="opacity:0; position:absolute; inset:0; width:100%; height:100%; cursor:pointer;" onchange="window.updateProp(state.colorMode, this.value)">';
+        colorContainer.appendChild(pickerLabel);
+        
+        const colors40 = [
+            '#ffffff','#f8f9fa','#e5e7eb','#9ca3af','#4b5563','#000000',
+            '#fecaca','#ef4444','#b91c1c','#7f1d1d',
+            '#fbcfe8','#ec4899','#be185d','#831843',
+            '#e9d5ff','#d946ef','#a21caf','#701a75',
+            '#bfdbfe','#3b82f6','#1d4ed8','#1e3a8a',
+            '#a7f3d0','#10b981','#047857','#064e3b',
+            '#fef08a','#f59e0b','#b45309','#78350f',
+            '#fed7aa','#f97316','#c2410c','#7c2d12',
+            '#e5e5e5','#a3a3a3','#525252','#262626',
+            '#fbbf24','#d97706'
+        ];
+        colors40.forEach(c => { 
+            const d=document.createElement('div'); d.className='color-dot'; d.style.background=c; d.addEventListener('click',()=>window.updateProp(state.colorMode,c)); colorContainer.appendChild(d); 
+        });
+
+        document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const tg=btn.dataset.target; document.getElementById('color-picker-wrapper').style.display=(tg==='color'||tg==='stroke')?'block':'none'; document.getElementById('font-picker-wrapper').style.display=tg==='font'?'block':'none'; document.getElementById('style-picker-container').style.display=tg==='style'?'flex':'none'; if(tg==='color') state.colorMode='color'; if(tg==='stroke') state.colorMode='stroke'; }); });
+
+        document.getElementById('btn-open-input').addEventListener('click', () => { if(state.activeElementId && state.activeEditTarget==='text'){ const t=getTargetImages()[0]?.texts.find(x=>x.id===state.activeElementId); document.getElementById('main-text-input').value=t?t.val:''; } else document.getElementById('main-text-input').value=''; document.getElementById('input-overlay').style.display='flex'; document.getElementById('main-text-input').focus(); });
+        document.getElementById('btn-close-input').addEventListener('click', () => document.getElementById('input-overlay').style.display='none');
+        document.getElementById('btn-apply-input').addEventListener('click', () => { const v=document.getElementById('main-text-input').value.trim(); if(!v) return; if(state.activeElementId && state.activeEditTarget==='text') window.updateProp('val', v); else { const sI=generateId(); getTargetImages().forEach(i=>i.texts.push(createText(v,sI))); state.layerOrder.push({id:sI,type:'text'}); state.activeElementId=sI; state.activeEditTarget='text'; document.querySelector(`input[name="adjust-target"][value="text"]`).checked=true; } renderImages(); renderLayers(); syncSliders(); document.getElementById('input-overlay').style.display='none'; });
+
+        document.getElementById('btn-delete-text').addEventListener('click', () => { getTargetImages().forEach(i=>i.texts=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
+        document.getElementById('btn-delete-wm').addEventListener('click', () => { getTargetImages().forEach(i=>i.wms=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
+
         document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('#rename-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active'));
@@ -1911,66 +2015,6 @@
             }); 
         });
 
-        function syncSliders() { 
-            const tg=getTargetImages(); 
-            if(tg.length>0){ 
-                const items=state.activeEditTarget==='text'?tg[0].texts:tg[0].wms; 
-                let ref=items.find(i=>i.id===state.activeElementId)||items[items.length-1]; 
-                if(ref){ 
-                    document.getElementById('slider-scale').value=ref.scale; 
-                    document.getElementById('slider-x').value=ref.x; 
-                    document.getElementById('slider-y').value=ref.y; 
-                    document.getElementById('slider-opacity').value=ref.opacity; 
-                } 
-                const imgRef = tg[0];
-                document.getElementById('slider-filter-brightness').value = imgRef.filterBrightness;
-                document.getElementById('slider-filter-darkness').value = imgRef.filterDarkness;
-                document.getElementById('slider-filter-sharpness').value = imgRef.filterSharpness;
-                document.getElementById('slider-filter-contrast').value = imgRef.filterContrast;
-                document.getElementById('slider-filter-saturate').value = imgRef.filterSaturate;
-                document.getElementById('slider-filter-rotate').value = imgRef.filterRotate;
-            } 
-        }
-
-        document.querySelectorAll('input[name="adjust-target"]').forEach(r => r.addEventListener('change', e => { state.activeEditTarget=e.target.value; state.activeElementId=null; syncSliders(); renderLayers(); }));
-        ['scale','x','y','opacity'].forEach(p => document.getElementById(`slider-${p}`).addEventListener('input', e => window.updateProp(p, e.target.value)));
-
-        const colorContainer = document.getElementById('color-picker-container');
-        colorContainer.innerHTML = '';
-        
-        const pickerLabel = document.createElement('label');
-        pickerLabel.className = 'color-dot';
-        pickerLabel.style.background = 'linear-gradient(45deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff)';
-        pickerLabel.style.position = 'relative';
-        pickerLabel.style.display = 'block';
-        pickerLabel.innerHTML = '<input type="color" style="opacity:0; position:absolute; inset:0; width:100%; height:100%; cursor:pointer;" onchange="window.updateProp(state.colorMode, this.value)">';
-        colorContainer.appendChild(pickerLabel);
-        
-        const colors40 = [
-            '#ffffff','#f8f9fa','#e5e7eb','#9ca3af','#4b5563','#000000',
-            '#fecaca','#ef4444','#b91c1c','#7f1d1d',
-            '#fbcfe8','#ec4899','#be185d','#831843',
-            '#e9d5ff','#d946ef','#a21caf','#701a75',
-            '#bfdbfe','#3b82f6','#1d4ed8','#1e3a8a',
-            '#a7f3d0','#10b981','#047857','#064e3b',
-            '#fef08a','#f59e0b','#b45309','#78350f',
-            '#fed7aa','#f97316','#c2410c','#7c2d12',
-            '#e5e5e5','#a3a3a3','#525252','#262626',
-            '#fbbf24','#d97706'
-        ];
-        colors40.forEach(c => { 
-            const d=document.createElement('div'); d.className='color-dot'; d.style.background=c; d.addEventListener('click',()=>window.updateProp(state.colorMode,c)); colorContainer.appendChild(d); 
-        });
-
-        document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#text-sub-tabs .sub-tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const tg=btn.dataset.target; document.getElementById('color-picker-wrapper').style.display=(tg==='color'||tg==='stroke')?'block':'none'; document.getElementById('font-picker-wrapper').style.display=tg==='font'?'block':'none'; document.getElementById('style-picker-container').style.display=tg==='style'?'flex':'none'; if(tg==='color') state.colorMode='color'; if(tg==='stroke') state.colorMode='stroke'; }); });
-
-        document.getElementById('btn-open-input').addEventListener('click', () => { if(state.activeElementId && state.activeEditTarget==='text'){ const t=getTargetImages()[0]?.texts.find(x=>x.id===state.activeElementId); document.getElementById('main-text-input').value=t?t.val:''; } else document.getElementById('main-text-input').value=''; document.getElementById('input-overlay').style.display='flex'; document.getElementById('main-text-input').focus(); });
-        document.getElementById('btn-close-input').addEventListener('click', () => document.getElementById('input-overlay').style.display='none');
-        document.getElementById('btn-apply-input').addEventListener('click', () => { const v=document.getElementById('main-text-input').value.trim(); if(!v) return; if(state.activeElementId && state.activeEditTarget==='text') window.updateProp('val', v); else { const sI=generateId(); getTargetImages().forEach(i=>i.texts.push(createText(v,sI))); state.layerOrder.push({id:sI,type:'text'}); state.activeElementId=sI; state.activeEditTarget='text'; document.querySelector(`input[name="adjust-target"][value="text"]`).checked=true; } renderImages(); renderLayers(); syncSliders(); document.getElementById('input-overlay').style.display='none'; });
-
-        document.getElementById('btn-delete-text').addEventListener('click', () => { getTargetImages().forEach(i=>i.texts=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
-        document.getElementById('btn-delete-wm').addEventListener('click', () => { getTargetImages().forEach(i=>i.wms=[]); cleanUpLayerOrder(); state.activeElementId=null; renderImages(); renderLayers(); });
-
         // NÚT LƯU CHỮ LÊN THƯ VIỆN DRIVE
         document.getElementById('btn-save-text-wm').addEventListener('click', async () => {
             const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showToast('Không có chữ.', true);
@@ -1989,9 +2033,8 @@
             if(res && res.success) {
                 showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark trên Drive');
                 const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
-                state.savedWatermarks.push({id: res.id, src: srcUrl});
-                saveStorageWMs();
-                renderWMLibrary();
+                state.savedWatermarks.unshift({id: res.id, src: srcUrl}); 
+                if(wmP.style.display === 'flex') renderWMLibrary();
             } else {
                 showToast('Lỗi lưu Watermark', true);
             }
@@ -2000,17 +2043,21 @@
         const wmP = document.getElementById('watermark-popup');
         let isFetchingWM = false;
         
-        // MỞ THƯ VIỆN TỪ DRIVE + LOCAL CACHE
+        // MỞ THƯ VIỆN LẤY TRỰC TIẾP TỪ DRIVE KHÔNG QUA LOCALSTORAGE
         document.getElementById('btn-open-wm-library').addEventListener('click', async () => { 
             wmP.style.display='flex'; 
-            renderWMLibrary(); // Hiển thị ngay từ Cache
+            
+            if (state.savedWatermarks.length === 0) {
+                document.getElementById('wm-library-grid').innerHTML = '<div style="grid-column: span 3; text-align: center; padding: 30px;"><div class="loader mx-auto border-blue-500 mb-2"></div><span class="text-sm text-gray-500">Đang tải Thư viện Logo từ Drive...</span></div>';
+            } else {
+                renderWMLibrary();
+            }
             
             if (isFetchingWM) return;
             isFetchingWM = true;
             
             try {
-                // Đồng bộ ngầm để cập nhật cache từ Drive
-                let res = await bgApiCall('list', { folderId: WM_FOLDER_ID });
+                let res = await apiCall('list', { folderId: WM_FOLDER_ID }); // Dùng apiCall để có Loading
                 if(res && res.success) {
                     const files = res.data.filter(i => i.type === 'file');
                     const newWms = files.map(f => ({
@@ -2018,15 +2065,15 @@
                         src: `https://drive.google.com/thumbnail?id=${f.id}&sz=w800`
                     }));
                     
-                    if(JSON.stringify(state.savedWatermarks) !== JSON.stringify(newWms)) {
-                        state.savedWatermarks = newWms;
-                        saveStorageWMs();
-                        // Chỉ render lại nếu popup đang mở
-                        if(wmP.style.display === 'flex') renderWMLibrary();
+                    state.savedWatermarks = newWms;
+                    if(wmP.style.display === 'flex') renderWMLibrary();
+                } else {
+                    if (state.savedWatermarks.length === 0) {
+                        document.getElementById('wm-library-grid').innerHTML = '<div style="grid-column: span 3; text-align: center; color: #ef4444; font-size: 13px; padding: 20px 0;">Thư mục Logo rỗng hoặc lỗi.</div>';
                     }
                 }
             } catch(e) {
-                console.log("Lỗi đồng bộ thư viện WM ngầm.");
+                console.log("Lỗi đồng bộ thư viện WM ngầm.", e);
             } finally {
                 isFetchingWM = false;
             }
@@ -2034,7 +2081,7 @@
         
         document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
 
-        // HIỂN THỊ WATERMARK
+        // HIỂN THỊ WATERMARK TỪ RAM (STATE) VÀ FIX LỖI NÚT XÓA BẰNG ID
         function renderWMLibrary() {
             const grid = document.getElementById('wm-library-grid'); 
             grid.innerHTML = '';
@@ -2042,16 +2089,21 @@
                 grid.innerHTML = '<div style="grid-column: span 3; text-align: center; color: #6b7280; font-size: 13px; padding: 20px 0;">Chưa có logo nào.</div>';
                 return;
             }
-            state.savedWatermarks.forEach((wm,idx) => {
+            state.savedWatermarks.forEach((wm) => {
                 const i = document.createElement('div'); i.className = 'wm-item'; 
                 i.innerHTML = `<img src="${wm.src}"><div class="wm-delete-btn"><i class="fa-solid fa-times"></i></div>`;
+                
                 i.querySelector('.wm-delete-btn').addEventListener('click', e => { 
                     e.stopPropagation(); 
-                    bgApiCall('delete', { id: wm.id, type: 'file' });
-                    state.savedWatermarks.splice(idx,1); 
-                    saveStorageWMs(); // Lưu lại vào cache
+                    bgApiCall('delete', { id: wm.id, type: 'file' }).then(res => {
+                        if(res && res.success) showToast('<i class="fas fa-trash mr-2"></i> Đã xóa Logo');
+                    });
+                    
+                    // Xóa bằng ID để không bị sai lệch index
+                    state.savedWatermarks = state.savedWatermarks.filter(w => w.id !== wm.id); 
                     renderWMLibrary(); 
                 });
+                
                 i.addEventListener('click', () => { 
                     const sI=generateId(); 
                     getTargetImages().forEach(im=>im.wms.push(createWm(wm.src,sI))); 
@@ -2092,9 +2144,8 @@
                                 showToast('<i class="fas fa-check mr-2"></i> Đã tải Logo lên Thư viện');
                                 const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
                                 
-                                state.savedWatermarks.push({id: res.id, src: srcUrl});
-                                saveStorageWMs();
-                                renderWMLibrary();
+                                state.savedWatermarks.unshift({id: res.id, src: srcUrl}); // Đưa lên đầu mảng
+                                if(wmP.style.display === 'flex') renderWMLibrary();
                                 
                                 const sI = generateId();
                                 getTargetImages().forEach(i=>{
@@ -2146,7 +2197,6 @@
             });
         }
 
-        // --- KHỞI CHẠY APP KHI VỪA MỞ ---
         window.addEventListener('DOMContentLoaded', () => {
             const initItem = folderStack[folderStack.length - 1];
             loadFolder(initItem.id, initItem.name, false, false);
