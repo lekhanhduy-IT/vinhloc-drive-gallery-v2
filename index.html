@@ -535,7 +535,7 @@
         function updateSyncIndicator() {
             if (syncQueueCount > 0) {
                 syncIcon.innerHTML = '<i class="fas fa-circle-notch fa-spin text-blue-600"></i>';
-                syncText.textContent = 'Đang lưu ngầm...';
+                syncText.textContent = 'Đang lưu...';
                 syncText.className = 'text-blue-600';
                 syncIndicator.classList.remove('opacity-0');
             } else {
@@ -925,7 +925,7 @@
                         throw new Error("Không lấy được dữ liệu tệp.");
                     }
                 } catch(e) {
-                    showToast(`Đang tải tệp lớn ngầm trong App...`, true);
+                    showToast(`Đang tải...`, true);
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
                     iframe.src = `https://drive.google.com/uc?export=download&id=${id}`;
