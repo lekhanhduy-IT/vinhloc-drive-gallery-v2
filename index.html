@@ -493,25 +493,6 @@
     </div>
 
     <script>
-        // --- ĐOẠN 1: TỰ ĐỘNG DỌN DẸP CACHE ẢNH KHỔNG LỒ TỪ BẢN CŨ GÂY TRÀN RAM ---
-        try {
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('folder_')) {
-                    localStorage.removeItem(key);
-                }
-            });
-            let tempMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
-            let isCleaned = false;
-            for (let k in tempMeta) {
-                if (tempMeta[k].cover && tempMeta[k].cover.length > 50000) {
-                    tempMeta[k].cover = ''; // Xóa sạch dữ liệu ảnh gây lỗi
-                    isCleaned = true;
-                }
-            }
-            if (isCleaned) localStorage.setItem('vinhloc_meta', JSON.stringify(tempMeta));
-        } catch (e) {}
-        // ------------------------------------------------------------------------
-
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 
@@ -654,16 +635,7 @@
             }
         });
 
-        function saveLocalMeta() { 
-            try {
-                localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
-            } catch(e) {
-                showToast("Bộ nhớ thiết bị đã đầy, vui lòng khởi động lại app!", true);
-                console.error("Quota Exceeded:", e);
-                throw e; // Ném lỗi để block catch bên ngoài xử lý
-            }
-        }
-
+        function saveLocalMeta() { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); }
         function getMeta(id) { 
             if(!appMeta[id]) { appMeta[id] = { type: currentCategory, desc: '', cover: '' }; }
             return appMeta[id];
@@ -719,7 +691,7 @@
 
         btnBack.addEventListener('click', () => {
             if (folderStack.length > 1) {
-                history.back();
+                history.back(); // Gọi native back để đồng bộ history state
             }
         });
 
@@ -776,14 +748,19 @@
             folderListEl.innerHTML = '';
             fileListEl.innerHTML = '';
 
-            folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
+            const cachedData = localStorage.getItem(`folder_${folderId}`);
+            if (cachedData) {
+                currentDriveItems = JSON.parse(cachedData);
+                renderItems(currentDriveItems);
+            } else {
+                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
+            }
 
             const res = await apiCall('list');
             if (res && res.success) { 
                 currentDriveItems = res.data;
+                localStorage.setItem(`folder_${folderId}`, JSON.stringify(currentDriveItems)); 
                 renderItems(currentDriveItems); 
-            } else {
-                folderListEl.innerHTML = '<div class="text-center text-red-500 mt-10 w-full italic">Lỗi kết nối. Vui lòng tải lại.</div>';
             }
         }
 
@@ -1064,6 +1041,7 @@
                 setTimeout(()=>{ input.remove(); }, 10000);
             }
 
+            // Gắn patch cho nút Chọn Ảnh Xem Trước trong Popup Info
             const infoCoverWrapper = document.getElementById('infoCoverWrapper');
             if(infoCoverWrapper){
                 infoCoverWrapper.onclick = async function(e){
@@ -1077,6 +1055,7 @@
                 };
             }
 
+            // Gắn patch cho mục Up Ảnh
             const uploadImageLabel = document.querySelector('label:has(#uploadImage)');
             if(uploadImageLabel){
                 uploadImageLabel.onclick = async function(e){
@@ -1090,6 +1069,7 @@
                 };
             }
 
+            // Gắn patch cho mục Up Video
             const uploadVideoLabel = document.querySelector('label:has(#uploadVideo)');
             if(uploadVideoLabel){
                 uploadVideoLabel.onclick = async function(e){
@@ -1103,6 +1083,7 @@
                 };
             }
 
+            // Gắn patch cho nút Up ảnh mới (Watermark)
             const wmBtn = document.getElementById('btn-upload-wm-local');
             if(wmBtn){
                 wmBtn.onclick = async function(e){
@@ -1145,9 +1126,8 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    // --- ĐOẠN 2: ÉP KÍCH THƯỚC XUỐNG 120PX ĐỂ ĐẢM BẢO CHUỖI CỰC NGẮN ---
-                    const MAX_WIDTH = 120;
-                    const MAX_HEIGHT = 120;
+                    const MAX_WIDTH = 500;
+                    const MAX_HEIGHT = 500;
                     let width = img.width;
                     let height = img.height;
 
@@ -1162,7 +1142,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    const b64 = canvas.toDataURL('image/jpeg', 0.4); // Chất lượng 0.4 cho siêu nhẹ
+                    const b64 = canvas.toDataURL('image/jpeg', 0.7);
                     
                     document.getElementById('infoCoverPreview').src = b64;
                     document.getElementById('infoCoverPreview').classList.remove('hidden');
@@ -1173,64 +1153,38 @@
             reader.readAsDataURL(file);
         };
 
-        // --- ĐOẠN 3: BẢO VỆ CHỐNG SẬP (CRASH) KHI BẤM NÚT LƯU ---
         document.getElementById('infoSaveBtn').addEventListener('click', () => {
-            try {
-                if(!currentEditId) return closeInfoModal();
-                
-                const newName = document.getElementById('infoName').value.trim();
-                const newType = document.getElementById('infoType').value;
-                const newDesc = document.getElementById('infoDesc').value.trim();
-                
-                let newCover = document.getElementById('infoCoverPreview').src;
-                if(!newCover.startsWith('data:')) newCover = appMeta[currentEditId]?.cover || '';
+            if(!currentEditId) return closeInfoModal();
+            
+            const newName = document.getElementById('infoName').value.trim();
+            const newType = document.getElementById('infoType').value;
+            const newDesc = document.getElementById('infoDesc').value.trim();
+            
+            let newCover = document.getElementById('infoCoverPreview').src;
+            if(!newCover.startsWith('data:')) newCover = appMeta[currentEditId]?.cover || '';
 
-                if(newCover.length > 50000) {
-                    showToast('Lỗi: Ảnh vẫn quá lớn, vui lòng chọn lại!', true);
-                    return;
-                }
+            appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
+            saveLocalMeta();
 
-                appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
-                
-                try {
-                    saveLocalMeta();
-                } catch(storageErr) {
-                    showToast('Bộ nhớ đệm đầy, đang tự dọn rác...', true);
-                    for (let k in appMeta) {
-                        if (appMeta[k].cover && appMeta[k].cover.length > 10000) appMeta[k].cover = '';
-                    }
-                    saveLocalMeta();
-                }
+            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || 
+                            Object.values(subFolderCache).flat().find(i => i.id === currentEditId);
 
-                // THAY THẾ .flat() BẰNG .concat() ĐỂ KHÔNG BỊ LIỆT NÚT TRÊN ZALO / TRÌNH DUYỆT CŨ
-                let oldItem = currentDriveItems.find(i => i.id === currentEditId);
-                if (!oldItem) {
-                    const allSubs = [].concat(...Object.values(subFolderCache));
-                    oldItem = allSubs.find(i => i.id === currentEditId);
-                }
+            let nameChanged = false;
+            if (newName && oldItem && newName !== oldItem.name) {
+                oldItem.name = newName;
+                nameChanged = true;
+            }
 
-                let nameChanged = false;
-                if (newName && oldItem && newName !== oldItem.name) {
-                    oldItem.name = newName;
-                    nameChanged = true;
-                }
+            renderItems(currentDriveItems);
+            closeInfoModal();
+            showToast(`<i class="fas fa-check mr-2"></i> Đã lưu cài đặt`);
 
-                // Cập nhật mượt mà UI ngay lập tức
-                smoothUpdateUI(appMeta);
+            bgApiCall('updateSingleMeta', {
+                meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover }
+            });
 
-                closeInfoModal();
-                showToast(`<i class="fas fa-check mr-2"></i> Đã lưu cài đặt`);
-
-                bgApiCall('updateSingleMeta', {
-                    meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover }
-                });
-
-                if (nameChanged) {
-                    bgApiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
-                }
-            } catch (err) {
-                alert("Xảy ra lỗi phần mềm: " + err.message);
-                console.error(err);
+            if (nameChanged) {
+                bgApiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
             }
         });
 
@@ -1252,6 +1206,7 @@
                 for(let megaId in subFolderCache) {
                     subFolderCache[megaId] = subFolderCache[megaId].filter(i => i.id !== id);
                 }
+                localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                 renderItems(currentDriveItems);
                 closeModal();
                 showToast(`<i class="fas fa-trash mr-2"></i> Đã xóa thành công`);
@@ -1488,6 +1443,7 @@
                                     saveLocalMeta();
                                     bgApiCall('updateSingleMeta', { meta: { id: realId, name: val, type: currentCategory, desc: '', cover: '' } });
                                 }
+                                localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                             } else if (subFolderCache[parentIdToUse]) {
                                 const idx = subFolderCache[parentIdToUse].findIndex(i => i.id === fakeId);
                                 if(idx > -1) subFolderCache[parentIdToUse][idx].id = realId;
@@ -1527,6 +1483,7 @@
                         if(idx > -1) {
                             currentDriveItems[idx].id = res.fileId || res.id;
                             delete currentDriveItems[idx].tempUrl;
+                            localStorage.setItem(`folder_${currentFolderId}`, JSON.stringify(currentDriveItems));
                             renderItems(currentDriveItems); 
                         }
                     }
@@ -1885,6 +1842,7 @@
         document.getElementById('select-all-btn').addEventListener('click', e => { aSel=!aSel; state.images.forEach(i=>i.selected=aSel); e.target.innerHTML=aSel?'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Bỏ chọn':'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả'; renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
         document.getElementById('delete-selected-btn').addEventListener('click', () => { state.images=state.images.filter(i=>!i.selected); renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
 
+        // SỬA SỰ KIỆN CHUYỂN TAB ĐỂ RENDER LIST KHI BẤM VÀO TAB "ĐỔI TÊN"
         document.querySelectorAll('.nav-item').forEach(item => { 
             item.addEventListener('click', () => { 
                 const tP = document.getElementById(item.dataset.panel); 
@@ -1895,6 +1853,7 @@
                     document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); 
                     item.classList.add('active'); tP.classList.add('active'); 
                     if(item.dataset.panel==='panel-rename') {
+                        // Gọi render danh sách nếu tab Tên riêng đang mở
                         if(document.getElementById('rename-individual').style.display === 'flex') {
                             window.renderRenameList();
                         }
