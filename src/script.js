@@ -1082,42 +1082,49 @@
             setTimeout(() => document.getElementById('modalInput').focus(), 100); 
         }
 
-        async function handleMultipleFileUpload(event) {
-            closeFab();
-            const files = event.target.files; 
-            if (!files || files.length === 0) return;
-            let tempFilesToUpload = [];
+// =====================================================================
+// PATCH 1: GIỮ NGUYÊN ẢNH XEM TRƯỚC TRONG SUỐT QUÁ TRÌNH UPLOAD VÀ SAU ĐÓ
+// =====================================================================
+async function handleMultipleFileUpload(event) {
+    closeFab();
+    const files = event.target.files; 
+    if (!files || files.length === 0) return;
+    let tempFilesToUpload = [];
 
-            for (let i = 0; i < files.length; i++) {
-                let file = files[i];
-                let fakeId = 'temp_file_' + Date.now() + i;
-                let tempUrl = URL.createObjectURL(file); 
-                let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
-                tempFilesToUpload.push({ file: file, item: newItem });
-                currentDriveItems.push(newItem); 
-            }
-            folderDataCache[currentFolderId] = currentDriveItems; 
-            renderItems(currentDriveItems);
+    for (let i = 0; i < files.length; i++) {
+        let file = files[i];
+        let fakeId = 'temp_file_' + Date.now() + i;
+        let tempUrl = URL.createObjectURL(file); 
+        // Thêm cờ isUploaded = false để quản lý vòng đời upload
+        let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl, isUploaded: false };
+        tempFilesToUpload.push({ file: file, item: newItem });
+        currentDriveItems.push(newItem); 
+    }
+    folderDataCache[currentFolderId] = currentDriveItems; 
+    renderItems(currentDriveItems);
 
-            for (let obj of tempFilesToUpload) {
-                let reader = new FileReader();
-                reader.onload = async function(e) {
-                    let base64Data = e.target.result.split(',')[1];
-                    let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
-                    if (res && res.success) {
-                        let idx = currentDriveItems.findIndex(i => i.id === obj.item.id);
-                        if(idx > -1) {
-                            currentDriveItems[idx].id = res.fileId || res.id;
-                            delete currentDriveItems[idx].tempUrl;
-                            folderDataCache[currentFolderId] = currentDriveItems; 
-                            renderItems(currentDriveItems); 
-                        }
-                    }
-                };
-                reader.readAsDataURL(obj.file);
+    for (let obj of tempFilesToUpload) {
+        let reader = new FileReader();
+        reader.onload = async function(e) {
+            let base64Data = e.target.result.split(',')[1];
+            let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
+            if (res && res.success) {
+                let idx = currentDriveItems.findIndex(i => i.id === obj.item.id);
+                if(idx > -1) {
+                    currentDriveItems[idx].id = res.fileId || res.id;
+                    // Đổi trạng thái thành đã Upload để tắt hiệu ứng loading xoay tròn
+                    currentDriveItems[idx].isUploaded = true;
+                    // QUAN TRỌNG: KHÔNG XÓA tempUrl. Trình duyệt sẽ tiếp tục dùng ảnh mượt mà từ máy 
+                    // thay vì chờ Google Drive tạo Thumbnail.
+                    folderDataCache[currentFolderId] = currentDriveItems; 
+                    renderItems(currentDriveItems); 
+                }
             }
-            event.target.value = ''; 
-        }
+        };
+        reader.readAsDataURL(obj.file);
+    }
+    event.target.value = ''; 
+}
 
         let curMediaIdForDownload = null;
         let curMediaNameForDownload = null;
@@ -1791,9 +1798,14 @@ document.head.appendChild(stickyStyle);
 
 
 // =====================================================================
-// 2. NÂNG CẤP HÀM RENDER ĐỂ HIỂN THỊ ẢNH COVER & MÔ TẢ KHI TÌM KIẾM
+// PATCH 2: HIỂN THỊ PROGRESSIVE RENDER (THƯ MỤC TRƯỚC, ẢNH SAU)
 // =====================================================================
+let currentRenderGen = 0; // Biến đánh dấu tiến trình render hiện tại để tránh xung đột
+
 window.renderItems = function(items, isSearchMode = false) {
+    currentRenderGen++;
+    const thisGen = currentRenderGen;
+
     folderListEl.innerHTML = '';
     fileListEl.innerHTML = '';
     
@@ -1803,6 +1815,7 @@ window.renderItems = function(items, isSearchMode = false) {
     }
 
     if (folderStack.length === 1 && !isSearchMode) {
+        // [Giữ nguyên logic render Mega-row cho trang chủ]
         const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
         if (megaRows.length === 0) {
             folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Chưa có dữ liệu trong mục ${currentCategory}</div>`;
@@ -1844,8 +1857,8 @@ window.renderItems = function(items, isSearchMode = false) {
         const folders = items.filter(i => i.type === 'folder');
         const files = items.filter(i => i.type !== 'folder');
 
+        // BƯỚC 1: Render Toàn bộ FOLDER NGAY LẬP TỨC
         if(folders.length > 0) {
-            // FIX: Ghi đè giao diện render folder thành dạng có ảnh và mô tả
             folderListEl.innerHTML = folders.map(item => {
                 const meta = getMeta(item.id);
                 const imgHtml = `
@@ -1872,40 +1885,69 @@ window.renderItems = function(items, isSearchMode = false) {
             }).join('');
         }
 
-        // Render file (Giữ nguyên gốc)
-        fileListEl.innerHTML = files.map(item => {
-            let isImage = item.mimeType.includes('image');
-            let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
-            let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
-            
-            let visualEl = isImage 
-                ? `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy">` 
-                : `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-play-circle text-gray-400 text-4xl"></i></div>`;
-            
-            let isTemp = item.tempUrl ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` : '';
-            return `
-            <div class="bg-white p-2.5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative hover:shadow-md transition">
-                ${isTemp}
-                <div class="absolute top-2 right-2 z-20">
-                    <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
-                    <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-500 py-1 text-sm item-action-menu overflow-hidden">
-                        <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
-                        <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
-                        <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
-                        <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
-                    </div>
-                </div>
-                
-                <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}', '${fullImgUrl}')">
-                    ${visualEl}
-                </div>
-                
-                <div class="px-1 flex flex-col justify-center flex-1">
-                    <span class="text-[13px] font-bold text-gray-800 line-clamp-2 leading-tight drive-img-name item-name-${item.id}" title="${item.name}">${item.name}</span>
-                    <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
-                </div>
-            </div>`;
-        }).join('');
+        // BƯỚC 2: RENDER ẢNH/FILE TỪNG CHÚT MỘT (Chunking) để không lag trình duyệt
+        if(files.length > 0) {
+            let fileIndex = 0;
+            const chunkSize = 12; // Số lượng ảnh load mỗi nhịp (có thể chỉnh lên 20)
+
+            function renderChunk() {
+                // Hủy render nếu người dùng đã chuyển thư mục khác
+                if (currentRenderGen !== thisGen) return; 
+
+                const chunk = files.slice(fileIndex, fileIndex + chunkSize);
+                if (chunk.length === 0) return;
+
+                const chunkHtml = chunk.map(item => {
+                    let isImage = item.mimeType.includes('image');
+                    let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
+                    let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
+                    
+                    // Native Lazy Load & Fade-in Effect
+                    let visualEl = isImage 
+                        ? `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item opacity-0 transition-opacity duration-500" onload="this.classList.remove('opacity-0')" loading="lazy">` 
+                        : `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-play-circle text-gray-400 text-4xl"></i></div>`;
+                    
+                    // Hiển thị Overlay Đang up dựa vào cờ isUploaded đã sửa ở hàm FileUpload
+                    let isTemp = (item.tempUrl && item.isUploaded === false) 
+                        ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` 
+                        : '';
+
+                    return `
+                    <div class="bg-white p-2.5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative hover:shadow-md transition">
+                        ${isTemp}
+                        <div class="absolute top-2 right-2 z-20">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-500 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                                <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            </div>
+                        </div>
+                        
+                        <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}', '${fullImgUrl}')">
+                            ${visualEl}
+                        </div>
+                        
+                        <div class="px-1 flex flex-col justify-center flex-1">
+                            <span class="text-[13px] font-bold text-gray-800 line-clamp-2 leading-tight drive-img-name item-name-${item.id}" title="${item.name}">${item.name}</span>
+                            <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                // Gắn đoạn HTML vừa tạo vào khung chứa
+                fileListEl.insertAdjacentHTML('beforeend', chunkHtml);
+                fileIndex += chunkSize;
+
+                // Cấp quyền cho trình duyệt thở một nhịp rồi mới render đoạn tiếp theo
+                if (fileIndex < files.length) {
+                    requestAnimationFrame(renderChunk);
+                }
+            }
+
+            renderChunk(); // Bắt đầu khởi động quá trình tải dần
+        }
     }
 }
 
