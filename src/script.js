@@ -1,6 +1,7 @@
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
         
+        // THƯ MỤC CHỨA WATERMARK TRÊN GOOGLE DRIVE
         const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -563,6 +564,51 @@
             }
         }
 
+        // TÍNH NĂNG MỚI: CHIA SẺ LINK VÀ MỞ BẰNG APP
+        window.shareItem = async function(id, type, name, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
+            
+            showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang tạo liên kết chia sẻ...`);
+            
+            // Yêu cầu Drive set quyền Public
+            let res = await bgApiCall('makePublic', { id: id, type: type });
+            if (res && res.success) {
+                // Tạo URL theo format: ?shareId=xxx&shareType=yyy&shareName=zzz
+                let mimeTypeParam = '';
+                if(type === 'file') {
+                    // Cần tìm mimeType từ currentDriveItems
+                    const fileObj = currentDriveItems.find(i => i.id === id);
+                    if(fileObj && fileObj.mimeType) {
+                        mimeTypeParam = `&mimeType=${encodeURIComponent(fileObj.mimeType)}`;
+                    }
+                }
+                
+                const shareUrl = `${window.location.origin}${window.location.pathname}?shareId=${id}&shareType=${type}&shareName=${encodeURIComponent(name)}${mimeTypeParam}`;
+                
+                // Mở bảng Share gốc của điện thoại nếu có, nếu không thì copy vào Clipboard
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: `Chia sẻ: ${name}`,
+                            text: `Mở xem chi tiết "${name}" trong ứng dụng:`,
+                            url: shareUrl
+                        });
+                    } catch (err) {
+                        console.log("Người dùng hủy share", err);
+                    }
+                } else {
+                    navigator.clipboard.writeText(shareUrl).then(() => {
+                        showToast(`<i class="fas fa-link mr-2"></i> Đã copy link vào khay nhớ tạm!`);
+                    }).catch(() => {
+                        showToast(`Lỗi không thể copy link!`, true);
+                    });
+                }
+            } else {
+                showToast(`Lỗi không thể chia sẻ tệp này!`, true);
+            }
+        };
+
         let currentEditId = null;
         let currentEditLevel = null;
         let currentEditType = null;
@@ -873,7 +919,8 @@
                     <div class="relative" onclick="event.stopPropagation()">
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                         <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                             <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
@@ -915,7 +962,8 @@
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                                 <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm mục</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm thư mục con</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
@@ -943,6 +991,7 @@
                         <div class="relative" onclick="event.stopPropagation()">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
                             <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 border-t flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                                 <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
@@ -968,6 +1017,7 @@
                         <div class="absolute top-2 right-2 z-20">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
                             <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
                                 <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
@@ -1122,10 +1172,6 @@
         function getTargetImages() { const selected = state.images.filter(img => img.selected); return selected.length > 0 ? selected : state.images; }
         
         function cleanUpLayerOrder() { state.layerOrder = state.layerOrder.filter(layer => { return state.images.some(img => { if (layer.type === 'text') return img.texts.some(t => t.id === layer.id); return img.wms.some(w => w.id === layer.id); }); }); }
-        
-        function loadStorageWMs() { try { const data = localStorage.getItem('vinhloc_wms_drive_v3'); if (data) state.savedWatermarks = JSON.parse(data); } catch (e) {} }
-        function saveStorageWMs() { try { localStorage.setItem('vinhloc_wms_drive_v3', JSON.stringify(state.savedWatermarks)); } catch (e) {} }
-        loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
             const driveImages = currentDriveItems
@@ -1136,7 +1182,7 @@
 
             if(driveImages.length === 0) {
                 closeFab();
-                showToast("Không tìm thấy ảnh nào!", true);
+                showToast("Vùng hiển thị hiện tại không tìm thấy ảnh nào!", true);
                 return;
             }
             state.images = []; state.layerOrder = []; state.activeElementId = null;
@@ -1564,7 +1610,7 @@
             isFetchingWM = true;
             
             try {
-                let res = await apiCall('list', { folderId: WM_FOLDER_ID }); // Dùng apiCall để có Loading
+                let res = await apiCall('list', { folderId: WM_FOLDER_ID }); 
                 if(res && res.success) {
                     const files = res.data.filter(i => i.type === 'file');
                     const newWms = files.map(f => ({
@@ -1704,8 +1750,37 @@
             });
         }
 
-        // --- KHỞI CHẠY APP KHI VỪA MỞ ---
+        // --- BỔ SUNG XỬ LÝ LIÊN KẾT CHIA SẺ KHI MỞ APP LẦN ĐẦU ---
         window.addEventListener('DOMContentLoaded', () => {
-            const initItem = folderStack[folderStack.length - 1];
-            loadFolder(initItem.id, initItem.name, false, false);
+            const params = new URLSearchParams(window.location.search);
+            const sId = params.get('shareId');
+            const sType = params.get('shareType');
+            const sName = params.get('shareName');
+            const sMime = params.get('mimeType');
+
+            if (sId) {
+                // Xóa tham số khỏi thanh địa chỉ để giữ URL sạch, không ảnh hưởng reload sau này
+                window.history.replaceState({}, document.title, window.location.pathname);
+
+                if (sType === 'folder') {
+                    folderStack = [
+                        { id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 },
+                        { id: sId, name: sName || "Thư mục chia sẻ", scrollTop: 0 }
+                    ];
+                    currentFolderId = sId;
+                    localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+                    loadFolder(sId, sName || "Thư mục chia sẻ", false, false);
+                    
+                } else if (sType === 'file') {
+                    // Tải thư mục gốc làm nền, sau đó pop up ảnh/video lên
+                    loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false);
+                    setTimeout(() => {
+                        openMedia(sId, sMime || '', sName || 'File chia sẻ');
+                    }, 500); // Đợi load sương sương DOM rồi bật modal
+                }
+            } else {
+                // Tải app bình thường nếu không có link chia sẻ
+                const initItem = folderStack[folderStack.length - 1];
+                loadFolder(initItem.id, initItem.name, false, false);
+            }
         });
