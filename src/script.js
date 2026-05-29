@@ -2856,3 +2856,69 @@ const activeDesignContainer = document.getElementById('watermark-overlay-contain
 if (activeDesignContainer) {
     activeDesignContainer.style.zIndex = '9999999';
 }
+// =====================================================================
+// PATCH: ĐÓNG GIAO DIỆN DESIGN BẰNG NÚT BACK TRÊN ĐIỆN THOẠI
+// =====================================================================
+
+// 1. Cờ kiểm soát trạng thái giao diện Design
+window.isDesignOverlayActive = false;
+
+// 2. Ghi đè hàm loadFolder để đánh chặn lệnh lùi thư mục khi đang mở Design
+if (!window.originalLoadFolderForDesign) {
+    window.originalLoadFolderForDesign = window.loadFolder;
+}
+
+window.loadFolder = async function(folderId, folderName, isNewNavigation = false, isPopState = false) {
+    if (window.isDesignOverlayActive && isPopState) {
+        // Nhận diện việc người dùng vừa bấm nút Back trên điện thoại
+        window.isDesignOverlayActive = false;
+        const overlayContainer = document.getElementById('watermark-overlay-container');
+        if (overlayContainer) overlayContainer.style.display = 'none';
+        
+        // Dừng hoàn toàn lệnh load thư mục, giữ nguyên vị trí và kết quả tìm kiếm
+        return; 
+    }
+    // Nếu không mở Design, cho phép lùi thư mục như bình thường
+    return window.originalLoadFolderForDesign(folderId, folderName, isNewNavigation, isPopState);
+};
+
+// 3. Gắn sự kiện khi bấm nút Mở Design
+const btnOpenDesignFix = document.getElementById('btn-open-design');
+if (btnOpenDesignFix) {
+    btnOpenDesignFix.addEventListener('click', () => {
+        // Đợi 50ms để lệnh mở UI gốc chạy xong
+        setTimeout(() => {
+            const overlayContainer = document.getElementById('watermark-overlay-container');
+            // Nếu giao diện đã hiển thị thành công
+            if (overlayContainer && overlayContainer.style.display === 'flex') {
+                if (!window.isDesignOverlayActive) {
+                    window.isDesignOverlayActive = true;
+                    
+                    // Tạo một thư mục "giả" để làm bia đỡ đạn cho lệnh lùi thư mục
+                    folderStack.push({ id: 'dummy_design_state', name: 'Design Mode', scrollTop: 0 });
+                    
+                    // Đẩy 1 bước vào lịch sử trình duyệt của điện thoại
+                    history.pushState({ panel: 'design' }, '', '');
+                }
+            }
+        }, 50);
+    });
+}
+
+// 4. Gắn sự kiện khi bấm nút Trở về (nút X trên thanh công cụ Design)
+const btnCloseDesignFix = document.getElementById('btn-close-design');
+if (btnCloseDesignFix) {
+    // Nhân bản nút để ghi đè sạch sẽ sự kiện cũ
+    const newCloseBtn = btnCloseDesignFix.cloneNode(true);
+    btnCloseDesignFix.parentNode.replaceChild(newCloseBtn, btnCloseDesignFix);
+    
+    newCloseBtn.addEventListener('click', () => {
+        const overlayContainer = document.getElementById('watermark-overlay-container');
+        if (window.isDesignOverlayActive) {
+            // Ra lệnh Back cho trình duyệt (Sẽ tự động kích hoạt hàm ở Bước 2)
+            history.back();
+        } else {
+            if (overlayContainer) overlayContainer.style.display = 'none';
+        }
+    });
+}
