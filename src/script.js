@@ -2582,3 +2582,134 @@ window.handleMultipleFileUpload = async function(event) {
     updateSyncIndicator();
     event.target.value = ''; 
 };
+// =====================================================================
+// PATCH 3: FIX LỖI MEDIA VIEWER, REALTIME MENU & MOBILE FREEZE
+// =====================================================================
+
+// 1. CHỮA CHÁY NÚT X (MEDIA VIEWER) BỊ CHE KHUẤT
+// Nâng z-index của Media Viewer lên cao nhất (999999) để đè lại Header
+document.addEventListener("DOMContentLoaded", () => {
+    const mediaViewer = document.getElementById('mediaViewer');
+    if (mediaViewer) {
+        mediaViewer.classList.remove('z-[60]');
+        mediaViewer.classList.add('z-[999999]');
+    }
+});
+
+// Chạy luôn lệnh này phòng trường hợp DOM đã load xong
+const activeMediaViewer = document.getElementById('mediaViewer');
+if (activeMediaViewer) {
+    activeMediaViewer.classList.remove('z-[60]');
+    activeMediaViewer.classList.add('z-[999999]');
+}
+
+// 2. CHỮA CHÁY MENU KHÔNG CẬP NHẬT LIVE SỐ LƯỢNG
+// Ghi đè lại hàm toggleFileSelection
+window.toggleFileSelection = function(id, e) {
+    e.stopPropagation();
+    if(window.multiSelectState.selectedIds.has(id)) {
+        window.multiSelectState.selectedIds.delete(id);
+    } else {
+        window.multiSelectState.selectedIds.add(id);
+    }
+    renderItems(currentDriveItems); 
+    
+    // NẾU MENU ĐANG MỞ -> BẮT BUỘC VẼ LẠI MENU ĐỂ CẬP NHẬT SỐ
+    const menu = document.getElementById('headerDropdown');
+    if (menu && !menu.classList.contains('hidden')) {
+        window.buildHeaderMenu();
+    }
+};
+
+// Ghi đè lại 2 hàm chọn hàng loạt để tự động update menu live
+window.selectAllItems = function() {
+    let allSelected = currentDriveItems.length > 0 && currentDriveItems.every(i => window.multiSelectState.selectedIds.has(i.id));
+    if(allSelected) window.multiSelectState.selectedIds.clear();
+    else currentDriveItems.forEach(i => window.multiSelectState.selectedIds.add(i.id));
+    window.buildHeaderMenu(); 
+    renderItems(currentDriveItems);
+};
+
+window.selectByType = function(type) {
+    let itemsOfType = currentDriveItems.filter(i => {
+        if(type === 'folder') return i.type === 'folder';
+        if(type === 'Khác') return i.type !== 'folder' && !i.name.includes('.');
+        return i.type !== 'folder' && i.name.toLowerCase().endsWith(type);
+    });
+    let allSelected = itemsOfType.length > 0 && itemsOfType.every(i => window.multiSelectState.selectedIds.has(i.id));
+    itemsOfType.forEach(i => {
+        if(allSelected) window.multiSelectState.selectedIds.delete(i.id);
+        else window.multiSelectState.selectedIds.add(i.id);
+    });
+    window.buildHeaderMenu(); 
+    renderItems(currentDriveItems);
+};
+
+// 3. CHỮA CHÁY MOBILE BỊ TREO UI KHÔNG HIỆN "ĐANG UP..."
+// Cách ly hoàn toàn việc đọc file bằng setTimeout 500ms
+window.handleMultipleFileUpload = function(event) {
+    closeFab();
+    const files = event.target.files; 
+    if (!files || files.length === 0) return;
+    
+    syncQueueCount++; 
+    updateSyncIndicator();
+
+    let uploadQueue = [];
+
+    // Bước 1: Gắn thẻ tạm và BẮT BUỘC RENDER LÊN MÀN HÌNH
+    for (let i = 0; i < files.length; i++) {
+        let file = files[i];
+        let fakeId = 'temp_file_' + Date.now() + i;
+        let tempUrl = URL.createObjectURL(file); 
+        let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
+        
+        // Lưu lại reference thẳng vào object newItem để thay đổi sau này
+        uploadQueue.push({ file: file, id: fakeId, itemRef: newItem });
+        currentDriveItems.unshift(newItem); 
+    }
+    
+    folderDataCache[currentFolderId] = currentDriveItems; 
+    renderItems(currentDriveItems);
+
+    // Bước 2: DÙNG SETTIMEOUT 500ms
+    // Ép trình duyệt đóng luồng sự kiện Input File lại, vẽ thẻ "Đang Up..." xong xuôi 
+    // Rồi mới mở luồng mới để xử lý Base64.
+    setTimeout(async () => {
+        for (let obj of uploadQueue) {
+            try {
+                let base64Data = await new Promise((resolve, reject) => {
+                    let reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsDataURL(obj.file);
+                });
+
+                let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
+                
+                if (res && res.success) {
+                    // Update thẳng vào biến reference
+                    obj.itemRef.id = res.fileId || res.id;
+                    URL.revokeObjectURL(obj.itemRef.tempUrl); 
+                    delete obj.itemRef.tempUrl;
+                }
+            } catch(err) {
+                console.error("Lỗi up file:", err);
+                showToast(`Lỗi tải lên: ${obj.file.name}`, true);
+                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
+            }
+            
+            // Xong file nào, xóa hiệu ứng mờ file đó ngay lập tức
+            folderDataCache[currentFolderId] = currentDriveItems; 
+            renderItems(currentDriveItems); 
+
+            // Nghỉ 200ms nhả RAM cho điện thoại thở
+            await new Promise(r => setTimeout(r, 200));
+        }
+        
+        syncQueueCount--;
+        updateSyncIndicator();
+    }, 500);
+
+    event.target.value = ''; 
+};
