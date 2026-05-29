@@ -1773,3 +1773,137 @@ const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 
                 loadFolder(initItem.id, initItem.name, false, false);
             }
         });
+// =====================================================================
+// TÍNH NĂNG 1: CỐ ĐỊNH THANH TIÊU ĐỀ MEGA-ROW KHI CUỘN (STICKY HEADER)
+// =====================================================================
+const stickyStyle = document.createElement('style');
+stickyStyle.innerHTML = `
+    .mega-header {
+        position: sticky !important;
+        top: 0;
+        z-index: 15;
+        background: white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border-bottom: 1px solid #e5e7eb;
+    }
+`;
+document.head.appendChild(stickyStyle);
+
+
+// =====================================================================
+// TÍNH NĂNG 2: TÌM KIẾM THÔNG MINH (Fuzzy Search & Global Cache Search)
+// =====================================================================
+
+// Hàm loại bỏ dấu tiếng Việt để có thể gõ không dấu vẫn tìm ra chữ có dấu
+function removeAccents(str) {
+    if (!str) return '';
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// Thay thế ô tìm kiếm hiện tại để xóa bỏ Event Listener cũ
+const oldInput = document.getElementById('searchInput');
+const smartInput = oldInput.cloneNode(true);
+oldInput.parentNode.replaceChild(smartInput, oldInput);
+
+// Sửa lại chức năng của nút X (Clear Search) để khớp với input mới
+document.getElementById('clearSearchBtn').onclick = function() {
+    smartInput.value = '';
+    this.classList.add('hidden');
+    sessionStorage.removeItem('lastSearchResults');
+    sessionStorage.removeItem('lastSearchKeyword');
+    renderItems(currentDriveItems);
+};
+
+// Gắn Event Listener mới thông minh hơn
+smartInput.addEventListener('input', (e) => {
+    const rawKeyword = e.target.value.trim();
+    const keyword = removeAccents(rawKeyword); // Chuyển thành chữ thường, không dấu
+    
+    // Hủy timeout cũ (nếu có)
+    if (window.smartSearchTimeout) clearTimeout(window.smartSearchTimeout);
+
+    if(!rawKeyword) {
+        document.getElementById('clearSearchBtn').classList.add('hidden');
+        renderItems(currentDriveItems);
+        return;
+    }
+
+    document.getElementById('clearSearchBtn').classList.remove('hidden');
+
+    window.smartSearchTimeout = setTimeout(async () => {
+        const folderListEl = document.getElementById('folderList');
+        const fileListEl = document.getElementById('fileList');
+        
+        folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm thông minh...</p></div>';
+        fileListEl.innerHTML = '';
+
+        let localResults = new Map();
+
+        // Cỗ máy tìm kiếm cốt lõi: chứa từ khóa ở bất kỳ đâu, không phân biệt hoa thường/dấu
+        const checkMatch = (item) => {
+            const itemName = removeAccents(item.name || '');
+            const itemMeta = appMeta[item.id];
+            const metaName = itemMeta ? removeAccents(itemMeta.name || '') : '';
+            return itemName.includes(keyword) || metaName.includes(keyword);
+        };
+
+        // 1. Quét tức thời trong danh sách đang hiển thị
+        if (currentDriveItems) {
+            currentDriveItems.forEach(item => {
+                if(checkMatch(item)) localResults.set(item.id, item);
+            });
+        }
+
+        // 2. Quét sâu trong bộ nhớ đệm (Tất cả Folder con đã từng mở)
+        Object.values(folderDataCache).forEach(arr => {
+            arr.forEach(item => {
+                if(checkMatch(item)) localResults.set(item.id, item);
+            });
+        });
+        Object.values(subFolderCache).forEach(arr => {
+            arr.forEach(item => {
+                if(checkMatch(item)) localResults.set(item.id, item);
+            });
+        });
+
+        // 3. Quét tàn dư trong Data Cấu hình (Tất cả thư mục "Ý tưởng" & "Triển khai" đã lưu info)
+        Object.keys(appMeta).forEach(id => {
+            if (removeAccents(appMeta[id].name || '').includes(keyword)) {
+                if (!localResults.has(id)) {
+                    localResults.set(id, { id: id, name: appMeta[id].name, type: 'folder' });
+                }
+            }
+        });
+
+        let resultsArray = Array.from(localResults.values());
+
+        // Ưu tiên hiển thị kết quả Local ngay lập tức để tạo cảm giác mượt mà
+        if (resultsArray.length > 0) {
+            renderItems(resultsArray, true);
+        }
+
+        // 4. Đồng bộ gọi Backend để quét những file/thư mục chưa từng được tải về cache
+        try {
+            const res = await apiCall('globalSearch', { keyword: rawKeyword });
+            if(res && res.success && res.data) {
+                res.data.forEach(item => {
+                    if(!localResults.has(item.id)) {
+                        localResults.set(item.id, item);
+                    }
+                });
+                resultsArray = Array.from(localResults.values()); // Gộp chung dữ liệu
+            }
+        } catch(err) {
+            console.log("Lỗi tìm kiếm trên mây, tiếp tục hiển thị kết quả offline.");
+        }
+
+        // Cập nhật lại UI bản cuối cùng
+        if(resultsArray.length > 0) {
+            sessionStorage.setItem('lastSearchResults', JSON.stringify(resultsArray));
+            sessionStorage.setItem('lastSearchKeyword', rawKeyword);
+            renderItems(resultsArray, true);
+        } else {
+            folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không tìm thấy kết quả nào chứa "' + rawKeyword + '".</div>';
+        }
+    }, 400); // Rút ngắn thời gian chờ debounce xuống 400ms để hiển thị kết quả nhanh hơn
+});

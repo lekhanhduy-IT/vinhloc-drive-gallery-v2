@@ -119,7 +119,6 @@
         
         #watermark-popup { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: 55vh; background: white; border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 300; display: none; flex-direction: column; padding: 20px; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); }
         
-        /* ĐÃ FIX CSS LƯỚI LOGO TRÁNH ĐÈ DOMINO */
         .wm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; overflow-y: auto; margin-top: 15px; padding: 5px; flex: 1; align-content: start; }
         .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; background-color: white; }
         .wm-item img { width: 100%; height: 100%; object-fit: contain; padding: 5px; pointer-events: none; }
@@ -208,18 +207,28 @@
 
         <div id="fabMenu" class="hidden flex-col gap-3 items-end mb-2 transition-all">
             <button onclick="uiPromptFolder()" class="bg-white text-blue-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Thư mục mới</span>
+                
                 <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center"><i class="fas fa-folder-plus"></i></div>
             </button>
             <label class="bg-white text-green-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Up Ảnh</span>
+                
                 <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center"><i class="fas fa-image"></i></div>
                 <input type="file" id="uploadImage" class="hidden" multiple accept="image/*" onchange="handleMultipleFileUpload(event)">
             </label>
+            <label class="bg-white text-orange-500 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
+                
+                <div class="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center"><i class="fas fa-camera"></i></div>
+                <input type="file" id="captureImage" class="hidden" accept="image/*" capture="environment" onchange="handleMultipleFileUpload(event)">
+            </label>
             <label class="bg-white text-purple-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Up Video</span>
-                <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center"><i class="fas fa-video"></i></div>
+                
+                <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center"><i class="fas fa-file-video"></i></div>
                 <input type="file" id="uploadVideo" class="hidden" multiple accept="video/*" onchange="handleMultipleFileUpload(event)">
+            </label>
+            <label class="bg-white text-pink-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
+                
+                <div class="w-10 h-10 bg-pink-50 rounded-full flex items-center justify-center"><i class="fas fa-video"></i></div>
+                <input type="file" id="captureVideo" class="hidden" accept="video/*" capture="environment" onchange="handleMultipleFileUpload(event)">
             </label>
         </div>
     </div>
@@ -483,10 +492,10 @@
             <h3 class="text-gray-800 text-xl font-bold mb-6">Tùy chọn xuất file</h3>
             
             <button id="btn-save-local" class="w-full flex justify-center items-center gap-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 px-4 rounded-xl mb-3 transition border border-gray-200">
-                <i class="fa-solid fa-mobile-screen-button text-lg"></i> Tải thẳng về máy
+                <i class="fa-solid fa-mobile-screen-button text-lg"></i> Tải về máy
             </button>
             <button id="btn-save-drive" class="w-full flex justify-center items-center gap-3 bg-blue-600 active:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl mb-5 transition shadow-lg shadow-blue-600/30">
-                <i class="fa-brands fa-google-drive text-lg"></i> Lưu thẳng lên Drive
+                <i class="fa-brands fa-google-drive text-lg"></i> Lưu lên Drive
             </button>
             <button onclick="document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');" class="text-gray-400 font-semibold py-2 transition hover:text-gray-600">
                 Hủy bỏ
@@ -495,10 +504,9 @@
     </div>
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
+                const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
         
-        // THƯ MỤC CHỨA WATERMARK TRÊN GOOGLE DRIVE
         const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -649,6 +657,9 @@
                         appMeta = res.meta;
                         saveLocalMeta(); 
                         smoothUpdateUI(appMeta);
+                        if (folderStack.length === 1) {
+                            renderItems(currentDriveItems);
+                        }
                     }
                 }
             } catch (e) {}
@@ -729,8 +740,7 @@
         }
 
         function getMeta(id) { 
-            if(!appMeta[id]) { appMeta[id] = { type: currentCategory, desc: '', cover: '' }; }
-            return appMeta[id];
+            return appMeta[id] || { type: 'Triển khai', desc: '', cover: '' };
         }
 
         let currentCategory = 'Triển khai';
@@ -1059,6 +1069,40 @@
             }
         }
 
+        window.shareItem = async function(id, type, name, e) {
+            e.stopPropagation();
+            document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
+            
+            // BỎ API makePublic vì thư mục gốc đã có quyền Anyone with the link
+            let mimeTypeParam = '';
+            if(type === 'file') {
+                const fileObj = currentDriveItems.find(i => i.id === id);
+                if(fileObj && fileObj.mimeType) {
+                    mimeTypeParam = `&mimeType=${encodeURIComponent(fileObj.mimeType)}`;
+                }
+            }
+            
+            const shareUrl = `${window.location.origin}${window.location.pathname}?shareId=${id}&shareType=${type}&shareName=${encodeURIComponent(name)}${mimeTypeParam}`;
+            
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: `Chia sẻ: ${name}`,
+                        text: `Mở xem chi tiết "${name}" trong ứng dụng:`,
+                        url: shareUrl
+                    });
+                } catch (err) {
+                    console.log("Người dùng hủy share", err);
+                }
+            } else {
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    showToast(`<i class="fas fa-link mr-2"></i> Đã copy link vào khay nhớ tạm!`);
+                }).catch(() => {
+                    showToast(`Lỗi không thể copy link!`, true);
+                });
+            }
+        };
+
         let currentEditId = null;
         let currentEditLevel = null;
         let currentEditType = null;
@@ -1369,7 +1413,8 @@
                     <div class="relative" onclick="event.stopPropagation()">
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                         <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thêm mục</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                             <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
@@ -1411,7 +1456,8 @@
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                                 <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm thư mục con</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thư mục</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
@@ -1439,6 +1485,7 @@
                         <div class="relative" onclick="event.stopPropagation()">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
                             <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 border-t flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                                 <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
@@ -1464,6 +1511,7 @@
                         <div class="absolute top-2 right-2 z-20">
                             <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
                             <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                                 <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
                                 <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
@@ -1607,8 +1655,7 @@
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
-
-        const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 30, rotation: 0, color: '#ffffff', stroke: 'transparent', fontFamily: 'Roboto', fontWeight: 'normal', fontStyle: 'normal', textShadow: 'none', opacity: 100 });
+const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 30, rotation: 0, color: '#ffffff', stroke: 'transparent', fontFamily: 'Roboto', fontWeight: 'normal', fontStyle: 'normal', textShadow: 'none', opacity: 100 });
         const createWm = (src, id = generateId()) => ({ id, src, x: 50, y: 50, scale: 30, rotation: 0, opacity: 100 });
         const grid = document.getElementById('image-grid');
         const mainContainerOverlay = document.getElementById('main-container-overlay');
@@ -1628,7 +1675,7 @@
 
             if(driveImages.length === 0) {
                 closeFab();
-                showToast("Vùng hiển thị hiện tại không tìm thấy ảnh nào!", true);
+                showToast("Không tìm thấy ảnh nào!", true);
                 return;
             }
             state.images = []; state.layerOrder = []; state.activeElementId = null;
@@ -2197,9 +2244,40 @@
             });
         }
 
+
+        // --- BỔ SUNG XỬ LÝ LIÊN KẾT CHIA SẺ KHI MỞ APP LẦN ĐẦU ---
         window.addEventListener('DOMContentLoaded', () => {
-            const initItem = folderStack[folderStack.length - 1];
-            loadFolder(initItem.id, initItem.name, false, false);
+            const params = new URLSearchParams(window.location.search);
+            const sId = params.get('shareId');
+            const sType = params.get('shareType');
+            const sName = params.get('shareName');
+            const sMime = params.get('mimeType');
+
+            if (sId) {
+                // Xóa tham số khỏi thanh địa chỉ để giữ URL sạch, không ảnh hưởng reload sau này
+                window.history.replaceState({}, document.title, window.location.pathname);
+
+                if (sType === 'folder') {
+                    folderStack = [
+                        { id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 },
+                        { id: sId, name: sName || "Thư mục chia sẻ", scrollTop: 0 }
+                    ];
+                    currentFolderId = sId;
+                    localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+                    loadFolder(sId, sName || "Thư mục chia sẻ", false, false);
+                    
+                } else if (sType === 'file') {
+                    // Tải thư mục gốc làm nền, sau đó pop up ảnh/video lên
+                    loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false);
+                    setTimeout(() => {
+                        openMedia(sId, sMime || '', sName || 'File chia sẻ');
+                    }, 500); // Đợi load sương sương DOM rồi bật modal
+                }
+            } else {
+                // Tải app bình thường nếu không có link chia sẻ
+                const initItem = folderStack[folderStack.length - 1];
+                loadFolder(initItem.id, initItem.name, false, false);
+            }
         });
 
     </script>
