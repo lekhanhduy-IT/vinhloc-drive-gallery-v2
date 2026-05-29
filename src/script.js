@@ -1149,7 +1149,115 @@
         function closeFab() { fabMenu.classList.add('hidden'); fabMenu.classList.remove('flex'); fabIcon.style.transform = 'rotate(0deg)'; fabIcon.classList.add('fa-plus'); fabIcon.classList.remove('fa-times'); }
         
         const state = { images: [], savedWatermarks: [], activeEditTarget: 'text', colorMode: 'color', activeElementId: null, layerOrder: [] };
+// --- BẮT ĐẦU ĐOẠN CODE BỊ THIẾU ---
+function renderImages() {
+    const grid = document.getElementById('image-grid');
+    grid.innerHTML = '';
+    if (state.images.length === 0) return;
 
+    state.images.forEach(img => {
+        const card = document.createElement('div');
+        card.className = `image-card ${img.selected ? 'selected' : ''}`;
+        card.onclick = (e) => {
+            if(!e.target.closest('.overlay-item')) {
+                img.selected = !img.selected;
+                renderImages();
+            }
+        };
+
+        // Tính toán bộ lọc
+        let calcBright = img.filterBrightness - img.filterDarkness;
+        let calcCont = img.filterContrast + img.filterSharpness / 2;
+        let filterStyle = `brightness(${calcBright}%) contrast(${calcCont}%) saturate(${img.filterSaturate}%)`;
+        
+        // Tính toán tỷ lệ và xoay
+        let scaleFit = 1 + Math.abs(img.filterRotate)/90 * 0.4;
+        let transformStyle = `rotate(${img.filterRotate}deg) scale(${scaleFit})`;
+        
+        let ratioStyle = '';
+        let objectPosition = `object-position: ${img.panX}% ${img.panY}%;`;
+        if (img.ratio === '1/1') ratioStyle = 'aspect-ratio: 1/1; object-fit: cover;';
+        else if (img.ratio === '4/5') ratioStyle = 'aspect-ratio: 4/5; object-fit: cover;';
+        else if (img.ratio === '1.91/1') ratioStyle = 'aspect-ratio: 1.91/1; object-fit: cover;';
+        else ratioStyle = 'aspect-ratio: auto; object-fit: contain;';
+
+        let overlaysHtml = '';
+        let allOverlays = [];
+        img.wms.forEach(wm => allOverlays.push({ ...wm, _type: 'wm' }));
+        img.texts.forEach(t => allOverlays.push({ ...t, _type: 'text' }));
+        
+        // Sắp xếp layer theo thứ tự Z-Index
+        allOverlays.sort((a, b) => {
+            const idxA = state.layerOrder.findIndex(l => l.id === a.id);
+            const idxB = state.layerOrder.findIndex(l => l.id === b.id);
+            return idxA - idxB;
+        });
+
+        allOverlays.forEach(item => {
+            const isActive = state.activeElementId === item.id ? 'active' : '';
+            if (item._type === 'wm') {
+                overlaysHtml += `
+                <div class="overlay-item ${isActive}" style="left: ${item.x}%; top: ${item.y}%; transform: translate(-50%, -50%) rotate(${item.rotation || 0}deg); opacity: ${item.opacity / 100}; width: ${item.scale}%;" onclick="window.selectLayer('${item.id}', 'wm'); event.stopPropagation();">
+                    <img src="${item.src}" class="overlay-img">
+                    <div class="ctrl-btn ctrl-delete" onclick="window.deleteLayer('${item.id}', 'wm', event)"><i class="fa-solid fa-times"></i></div>
+                </div>`;
+            } else {
+                const shadow = item.textShadow !== 'none' ? '2px 2px 4px rgba(0,0,0,0.8)' : 'none';
+                const stroke = item.stroke !== 'transparent' ? `-webkit-text-stroke: 2px ${item.stroke};` : '';
+                const fontSize = Math.max(10, item.scale) + 'px'; 
+                
+                overlaysHtml += `
+                <div class="overlay-item text-layer ${isActive}" style="left: ${item.x}%; top: ${item.y}%; transform: translate(-50%, -50%) rotate(${item.rotation || 0}deg); opacity: ${item.opacity / 100}; font-family: '${item.fontFamily}'; font-weight: ${item.fontWeight}; font-style: ${item.fontStyle}; color: ${item.color}; text-shadow: ${shadow}; ${stroke} font-size: ${fontSize};" onclick="window.selectLayer('${item.id}', 'text'); event.stopPropagation();">
+                    ${item.val}
+                    <div class="ctrl-btn ctrl-delete" onclick="window.deleteLayer('${item.id}', 'text', event)"><i class="fa-solid fa-times"></i></div>
+                </div>`;
+            }
+        });
+
+        card.innerHTML = `
+            <div style="position: relative; width: 100%; overflow: hidden; ${ratioStyle}">
+                <img src="${img.src}" class="base-img" style="filter: ${filterStyle}; transform: ${transformStyle}; width: 100%; height: 100%; ${ratioStyle ? 'object-fit: cover;' : 'object-fit: contain;'} ${objectPosition}">
+                ${overlaysHtml}
+            </div>
+            <i class="fa-solid fa-check check-icon"></i>
+        `;
+        grid.appendChild(card);
+    });
+
+    // Cập nhật trạng thái nút Chọn Tất Cả
+    const selectAllBtn = document.getElementById('select-all-btn');
+    if (selectAllBtn) {
+        const allSelected = state.images.length > 0 && state.images.every(img => img.selected);
+        if (allSelected) {
+            selectAllBtn.innerHTML = '<i class="fa-solid fa-check-double mr-2 text-gray-400"></i> Bỏ chọn tất cả';
+        } else {
+            selectAllBtn.innerHTML = '<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả';
+        }
+    }
+}
+
+// Bổ sung sự kiện cho menu Chọn tất cả & Xóa
+document.getElementById('select-all-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const allSelected = state.images.length > 0 && state.images.every(img => img.selected);
+    state.images.forEach(img => img.selected = !allSelected);
+    renderImages();
+    document.getElementById('dropdown-menu').classList.remove('show');
+});
+
+document.getElementById('delete-selected-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.images = state.images.filter(img => !img.selected);
+    cleanUpLayerOrder();
+    renderImages();
+    renderLayers();
+    document.getElementById('dropdown-menu').classList.remove('show');
+    if (state.images.length === 0) {
+        document.getElementById('watermark-overlay-container').style.display = 'none';
+        showToast('Đã xóa hết ảnh khỏi phiên làm việc!');
+    }
+});
+// --- KẾT THÚC ĐOẠN CODE BỊ THIẾU ---
         const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 30, rotation: 0, color: '#ffffff', stroke: 'transparent', fontFamily: 'Roboto', fontWeight: 'normal', fontStyle: 'normal', textShadow: 'none', opacity: 100 });
         const createWm = (src, id = generateId()) => ({ id, src, x: 50, y: 50, scale: 30, rotation: 0, opacity: 100 });
         const grid = document.getElementById('image-grid');
