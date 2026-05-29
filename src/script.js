@@ -2838,3 +2838,21 @@ newSaveBtn.onclick = async () => {
         bgApiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
     }
 };
+// =====================================================================
+// PATCH FIX: HIỂN THỊ LẠI HEADER CỦA GIAO DIỆN DESIGN
+// =====================================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    const designContainer = document.getElementById('watermark-overlay-container');
+    if (designContainer) {
+        // Nâng z-index của toàn bộ giao diện Design lên mức cao nhất (9999999)
+        // để không bị Main Header (z-index: 99999) đè lên che mất.
+        designContainer.style.zIndex = '9999999';
+    }
+});
+
+// Chạy luôn lệnh này phòng trường hợp DOM đã load xong
+const activeDesignContainer = document.getElementById('watermark-overlay-container');
+if (activeDesignContainer) {
+    activeDesignContainer.style.zIndex = '9999999';
+}
