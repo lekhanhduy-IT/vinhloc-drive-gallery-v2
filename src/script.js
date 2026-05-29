@@ -1774,7 +1774,7 @@ const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 
             }
         });
 // =====================================================================
-// TÍNH NĂNG 1: CỐ ĐỊNH THANH TIÊU ĐỀ MEGA-ROW KHI CUỘN (STICKY HEADER)
+// 1. CỐ ĐỊNH THANH TIÊU ĐỀ MEGA-ROW KHI CUỘN (STICKY HEADER)
 // =====================================================================
 const stickyStyle = document.createElement('style');
 stickyStyle.innerHTML = `
@@ -1791,21 +1791,136 @@ document.head.appendChild(stickyStyle);
 
 
 // =====================================================================
-// TÍNH NĂNG 2: TÌM KIẾM THÔNG MINH (Fuzzy Search & Global Cache Search)
+// 2. NÂNG CẤP HÀM RENDER ĐỂ HIỂN THỊ ẢNH COVER & MÔ TẢ KHI TÌM KIẾM
 // =====================================================================
+window.renderItems = function(items, isSearchMode = false) {
+    folderListEl.innerHTML = '';
+    fileListEl.innerHTML = '';
+    
+    if (items.length === 0) {
+        folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không có dữ liệu.</div>';
+        return;
+    }
 
-// Hàm loại bỏ dấu tiếng Việt để có thể gõ không dấu vẫn tìm ra chữ có dấu
+    if (folderStack.length === 1 && !isSearchMode) {
+        const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
+        if (megaRows.length === 0) {
+            folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Chưa có dữ liệu trong mục ${currentCategory}</div>`;
+            return;
+        }
+        
+        folderListEl.innerHTML = megaRows.map(item => {
+            const meta = getMeta(item.id);
+            return `
+            <div class="mega-row">
+                <div class="mega-header" onclick="window.toggleAccordion('${item.id}')">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <i id="icon-${item.id}" class="fas fa-chevron-right text-gray-400 text-sm transition-transform duration-200 w-4 text-center"></i>
+                        <div class="flex flex-col overflow-hidden">
+                            <span class="truncate uppercase text-blue-800 item-name-${item.id}">${item.name}</span>
+                            <span class="text-[11px] font-normal text-gray-500 truncate mt-1 item-desc-${item.id} ${meta.desc ? '' : 'hidden'}">${meta.desc || ''}</span>
+                        </div>
+                    </div>
+                    <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
+                        <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
+                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thư mục</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100"></div>
+            </div>`;
+        }).join('');
+        
+        megaRows.forEach(row => {
+            if(expandedMegas.includes(row.id)) window.toggleAccordion(row.id, true);
+        });
+    } 
+    else {
+        const folders = items.filter(i => i.type === 'folder');
+        const files = items.filter(i => i.type !== 'folder');
+
+        if(folders.length > 0) {
+            // FIX: Ghi đè giao diện render folder thành dạng có ảnh và mô tả
+            folderListEl.innerHTML = folders.map(item => {
+                const meta = getMeta(item.id);
+                const imgHtml = `
+                    <img src="${meta.cover || ''}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm item-cover-img-${item.id} ${meta.cover ? '' : 'hidden'}">
+                    <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-500 text-xl item-cover-icon-${item.id} ${meta.cover ? 'hidden' : ''}"><i class="fas fa-folder"></i></div>
+                `;
+                return `
+                <div class="subfolder-row group bg-white border-b border-gray-200" onclick="loadFolder('${item.id}', '${item.name}', true)">
+                    ${imgHtml}
+                    <div class="flex-1 overflow-hidden">
+                        <h4 class="text-sm font-bold text-gray-800 truncate item-name-${item.id}">${item.name}</h4>
+                        <p class="text-[11px] text-gray-500 truncate mt-0.5 item-desc-${item.id} ${meta.desc ? '' : 'hidden'}">${meta.desc || 'Chưa có mô tả'}</p>
+                    </div>
+                    <div class="relative" onclick="event.stopPropagation()">
+                        <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
+                        <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-50 py-1 text-sm item-action-menu">
+                            <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
+                            <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                            <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 border-t flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                            <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // Render file (Giữ nguyên gốc)
+        fileListEl.innerHTML = files.map(item => {
+            let isImage = item.mimeType.includes('image');
+            let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
+            let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
+            
+            let visualEl = isImage 
+                ? `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy">` 
+                : `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-play-circle text-gray-400 text-4xl"></i></div>`;
+            
+            let isTemp = item.tempUrl ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` : '';
+            return `
+            <div class="bg-white p-2.5 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative hover:shadow-md transition">
+                ${isTemp}
+                <div class="absolute top-2 right-2 z-20">
+                    <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
+                    <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1 text-sm item-action-menu overflow-hidden">
+                        <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
+                        <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                        <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                        <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                    </div>
+                </div>
+                
+                <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3" onclick="openMedia('${item.id}', '${item.mimeType}', '${item.name}', '${fullImgUrl}')">
+                    ${visualEl}
+                </div>
+                
+                <div class="px-1 flex flex-col justify-center flex-1">
+                    <span class="text-[13px] font-bold text-gray-800 line-clamp-2 leading-tight drive-img-name item-name-${item.id}" title="${item.name}">${item.name}</span>
+                    <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+}
+
+// =====================================================================
+// 3. TÌM KIẾM THÔNG MINH (Fuzzy Search & Global Cache Search)
+// =====================================================================
 function removeAccents(str) {
     if (!str) return '';
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-// Thay thế ô tìm kiếm hiện tại để xóa bỏ Event Listener cũ
 const oldInput = document.getElementById('searchInput');
 const smartInput = oldInput.cloneNode(true);
 oldInput.parentNode.replaceChild(smartInput, oldInput);
 
-// Sửa lại chức năng của nút X (Clear Search) để khớp với input mới
 document.getElementById('clearSearchBtn').onclick = function() {
     smartInput.value = '';
     this.classList.add('hidden');
@@ -1814,12 +1929,10 @@ document.getElementById('clearSearchBtn').onclick = function() {
     renderItems(currentDriveItems);
 };
 
-// Gắn Event Listener mới thông minh hơn
 smartInput.addEventListener('input', (e) => {
     const rawKeyword = e.target.value.trim();
-    const keyword = removeAccents(rawKeyword); // Chuyển thành chữ thường, không dấu
+    const keyword = removeAccents(rawKeyword); 
     
-    // Hủy timeout cũ (nếu có)
     if (window.smartSearchTimeout) clearTimeout(window.smartSearchTimeout);
 
     if(!rawKeyword) {
@@ -1839,7 +1952,6 @@ smartInput.addEventListener('input', (e) => {
 
         let localResults = new Map();
 
-        // Cỗ máy tìm kiếm cốt lõi: chứa từ khóa ở bất kỳ đâu, không phân biệt hoa thường/dấu
         const checkMatch = (item) => {
             const itemName = removeAccents(item.name || '');
             const itemMeta = appMeta[item.id];
@@ -1847,14 +1959,12 @@ smartInput.addEventListener('input', (e) => {
             return itemName.includes(keyword) || metaName.includes(keyword);
         };
 
-        // 1. Quét tức thời trong danh sách đang hiển thị
         if (currentDriveItems) {
             currentDriveItems.forEach(item => {
                 if(checkMatch(item)) localResults.set(item.id, item);
             });
         }
 
-        // 2. Quét sâu trong bộ nhớ đệm (Tất cả Folder con đã từng mở)
         Object.values(folderDataCache).forEach(arr => {
             arr.forEach(item => {
                 if(checkMatch(item)) localResults.set(item.id, item);
@@ -1866,7 +1976,6 @@ smartInput.addEventListener('input', (e) => {
             });
         });
 
-        // 3. Quét tàn dư trong Data Cấu hình (Tất cả thư mục "Ý tưởng" & "Triển khai" đã lưu info)
         Object.keys(appMeta).forEach(id => {
             if (removeAccents(appMeta[id].name || '').includes(keyword)) {
                 if (!localResults.has(id)) {
@@ -1877,12 +1986,10 @@ smartInput.addEventListener('input', (e) => {
 
         let resultsArray = Array.from(localResults.values());
 
-        // Ưu tiên hiển thị kết quả Local ngay lập tức để tạo cảm giác mượt mà
         if (resultsArray.length > 0) {
             renderItems(resultsArray, true);
         }
 
-        // 4. Đồng bộ gọi Backend để quét những file/thư mục chưa từng được tải về cache
         try {
             const res = await apiCall('globalSearch', { keyword: rawKeyword });
             if(res && res.success && res.data) {
@@ -1891,13 +1998,12 @@ smartInput.addEventListener('input', (e) => {
                         localResults.set(item.id, item);
                     }
                 });
-                resultsArray = Array.from(localResults.values()); // Gộp chung dữ liệu
+                resultsArray = Array.from(localResults.values()); 
             }
         } catch(err) {
             console.log("Lỗi tìm kiếm trên mây, tiếp tục hiển thị kết quả offline.");
         }
 
-        // Cập nhật lại UI bản cuối cùng
         if(resultsArray.length > 0) {
             sessionStorage.setItem('lastSearchResults', JSON.stringify(resultsArray));
             sessionStorage.setItem('lastSearchKeyword', rawKeyword);
@@ -1905,5 +2011,5 @@ smartInput.addEventListener('input', (e) => {
         } else {
             folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không tìm thấy kết quả nào chứa "' + rawKeyword + '".</div>';
         }
-    }, 400); // Rút ngắn thời gian chờ debounce xuống 400ms để hiển thị kết quả nhanh hơn
+    }, 400); 
 });
