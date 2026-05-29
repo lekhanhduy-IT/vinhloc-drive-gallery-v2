@@ -2132,18 +2132,18 @@ document.addEventListener('click', (e) => {
     }
 });
 // =====================================================================
-// PATCH CẬP NHẬT: XỬ LÝ UPLOAD TRÊN MOBILE & CHỌN/XÓA HÀNG LOẠT
+// BẢN CẬP NHẬT TỔNG HỢP: UPLOAD MOBILE, CHỌN/XÓA HÀNG LOẠT, SỬA LỖI UI
 // =====================================================================
 
-// 1. BIẾN TOÀN CỤC QUẢN LÝ CHỌN FILE
+// 1. BIẾN TOÀN CỤC & SỬA LỖI Z-INDEX GIAO DIỆN
 window.multiSelectState = {
     selectedIds: new Set()
 };
 
-// 2. CHÈN NÚT MENU (3 CHẤM) LÊN HEADER
 document.addEventListener("DOMContentLoaded", () => {
+    // Chèn Menu 3 chấm lên Header
     const loadingDiv = document.getElementById('loading');
-    if (loadingDiv) {
+    if (loadingDiv && !document.getElementById('headerDropdownContainer')) {
         const menuHtml = `
         <div class="relative shrink-0 ml-2" id="headerDropdownContainer">
             <button onclick="window.toggleHeaderMenu(event)" class="text-white p-1 text-xl active:bg-blue-700 rounded-full transition w-8 h-8 flex items-center justify-center">
@@ -2154,9 +2154,102 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>`;
         loadingDiv.insertAdjacentHTML('afterend', menuHtml);
     }
+
+    // Ép Header nổi lên mức 99999
+    const header = document.querySelector('header');
+    if (header) {
+        header.classList.remove('z-20');
+        header.classList.add('z-[99999]');
+    }
+
+    // Ép Media Viewer lên mức tối đa để không bị Header đè mất dấu X
+    const mediaViewer = document.getElementById('mediaViewer');
+    if (mediaViewer) {
+        mediaViewer.classList.remove('z-[60]');
+        mediaViewer.classList.add('z-[999999]');
+    }
 });
 
-// 3. LOGIC XỬ LÝ CLICK TÊN FILE/THƯ MỤC ĐỂ CHỌN
+// Chạy phụ trợ cho MediaViewer ngay lập tức
+const activeMediaViewer = document.getElementById('mediaViewer');
+if (activeMediaViewer) {
+    activeMediaViewer.classList.remove('z-[60]');
+    activeMediaViewer.classList.add('z-[999999]');
+}
+
+// Click ra ngoài để đóng menu
+document.addEventListener('click', (e) => {
+    const headerDropdown = document.getElementById('headerDropdown');
+    const headerContainer = document.getElementById('headerDropdownContainer');
+    if (headerDropdown && !headerDropdown.classList.contains('hidden')) {
+        if (headerContainer && !headerContainer.contains(e.target)) {
+            headerDropdown.classList.add('hidden');
+        }
+    }
+});
+
+// 2. LOGIC TÌM NẠP NGẦM (SỬA LỖI 1 GIÂY MẤT ẢNH ĐANG UP)
+window.silentFetchFolder = async function() {
+    if (!currentFolderId || syncQueueCount > 0) return;
+    
+    try {
+        let hasTempItems = currentDriveItems.some(i => String(i.id).startsWith('temp_'));
+        if (!hasTempItems) {
+            const res = await fetch(SCRIPT_URL, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'list', folderId: currentFolderId })
+            }).then(r => r.json());
+
+            // ĐỢI API XONG KIỂM TRA LẠI: Tránh ghi đè nếu user vừa bấm tải ảnh lên
+            hasTempItems = currentDriveItems.some(i => String(i.id).startsWith('temp_'));
+            if (hasTempItems || syncQueueCount > 0) return; 
+
+            if (res && res.success && res.data) {
+                const currentIds = currentDriveItems.map(i => i.id).sort().join(',');
+                const newIds = res.data.map(i => i.id).sort().join(',');
+                
+                if (currentIds !== newIds) {
+                    currentDriveItems = res.data;
+                    folderDataCache[currentFolderId] = currentDriveItems;
+                    const currentScroll = document.getElementById('contentArea').scrollTop;
+                    window.renderItems(currentDriveItems);
+                    document.getElementById('contentArea').scrollTop = currentScroll;
+                }
+            }
+        }
+
+        if (folderStack.length === 1 && expandedMegas.length > 0) {
+            for (let megaId of expandedMegas) {
+                let hasTempSub = (subFolderCache[megaId] || []).some(i => String(i.id).startsWith('temp_'));
+                if (hasTempSub) continue;
+
+                const subRes = await fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'list', folderId: megaId })
+                }).then(r => r.json());
+
+                hasTempSub = (subFolderCache[megaId] || []).some(i => String(i.id).startsWith('temp_'));
+                if (hasTempSub || syncQueueCount > 0) continue; 
+
+                if (subRes && subRes.success && subRes.data) {
+                    const newSubFolders = subRes.data.filter(i => i.type === 'folder');
+                    const currentSubIds = (subFolderCache[megaId] || []).map(i => i.id).sort().join(',');
+                    const newSubIds = newSubFolders.map(i => i.id).sort().join(',');
+
+                    if (currentSubIds !== newSubIds) {
+                        subFolderCache[megaId] = newSubFolders;
+                        renderSubFolders(megaId, newSubFolders);
+                    }
+                }
+            }
+        }
+    } catch (e) { }
+};
+
+
+// 3. LOGIC CHỌN FILE & RENDER MENU REALTIME
 window.toggleFileSelection = function(id, e) {
     e.stopPropagation();
     if(window.multiSelectState.selectedIds.has(id)) {
@@ -2164,10 +2257,15 @@ window.toggleFileSelection = function(id, e) {
     } else {
         window.multiSelectState.selectedIds.add(id);
     }
-    renderItems(currentDriveItems); 
+    window.renderItems(currentDriveItems); 
+    
+    // Ép menu vẽ lại lập tức nếu đang mở
+    const menu = document.getElementById('headerDropdown');
+    if (menu && !menu.classList.contains('hidden')) {
+        window.buildHeaderMenu();
+    }
 };
 
-// 4. HIỂN THỊ MENU CHỌN / XÓA
 window.toggleHeaderMenu = function(e) {
     e.stopPropagation();
     const menu = document.getElementById('headerDropdown');
@@ -2183,7 +2281,6 @@ window.buildHeaderMenu = function() {
     let types = new Set();
     let hasFolders = false;
     
-    // Lọc các loại file đang có trên màn hình
     currentDriveItems.forEach(item => {
         if(item.type === 'folder') hasFolders = true;
         else {
@@ -2240,7 +2337,7 @@ window.selectAllItems = function() {
     let allSelected = currentDriveItems.length > 0 && currentDriveItems.every(i => window.multiSelectState.selectedIds.has(i.id));
     if(allSelected) window.multiSelectState.selectedIds.clear();
     else currentDriveItems.forEach(i => window.multiSelectState.selectedIds.add(i.id));
-    window.buildHeaderMenu(); renderItems(currentDriveItems);
+    window.buildHeaderMenu(); window.renderItems(currentDriveItems);
 };
 
 window.selectByType = function(type) {
@@ -2254,10 +2351,9 @@ window.selectByType = function(type) {
         if(allSelected) window.multiSelectState.selectedIds.delete(i.id);
         else window.multiSelectState.selectedIds.add(i.id);
     });
-    window.buildHeaderMenu(); renderItems(currentDriveItems);
+    window.buildHeaderMenu(); window.renderItems(currentDriveItems);
 };
 
-// 5. XỬ LÝ XÓA HÀNG LOẠT (TUẦN TỰ ĐỂ TRÁNH LỖI MẠNG)
 window.deleteSelectedItems = function() {
     if(window.multiSelectState.selectedIds.size === 0) return showToast("Vui lòng chọn mục cần xóa!", true);
 
@@ -2278,7 +2374,7 @@ window.deleteSelectedItems = function() {
         currentDriveItems = currentDriveItems.filter(i => !idsToDelete.includes(i.id));
         folderDataCache[currentFolderId] = currentDriveItems;
         window.multiSelectState.selectedIds.clear();
-        renderItems(currentDriveItems);
+        window.renderItems(currentDriveItems);
 
         showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang xóa ${idsToDelete.length} mục...`);
         let successCount = 0;
@@ -2292,8 +2388,72 @@ window.deleteSelectedItems = function() {
     document.getElementById('customModal').classList.add('flex');
 };
 
-// 6. GHI ĐÈ HÀM RENDER ĐỂ HIỂN THỊ TRẠNG THÁI "ĐANG CHỌN"
+// 4. LOGIC UPLOAD TỐI ƯU MOBILE (CHỐNG TREO RAM, GIỮ UI "ĐANG UP")
+window.handleMultipleFileUpload = function(event) {
+    closeFab();
+    const files = event.target.files; 
+    if (!files || files.length === 0) return;
+    
+    syncQueueCount++; 
+    updateSyncIndicator();
+
+    let uploadQueue = [];
+
+    for (let i = 0; i < files.length; i++) {
+        let file = files[i];
+        let fakeId = 'temp_file_' + Date.now() + i;
+        let tempUrl = URL.createObjectURL(file); 
+        let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
+        
+        uploadQueue.push({ file: file, id: fakeId, itemRef: newItem });
+        currentDriveItems.unshift(newItem); 
+    }
+    
+    folderDataCache[currentFolderId] = currentDriveItems; 
+    window.renderItems(currentDriveItems);
+
+    // Cách ly bằng setTimeout 500ms để trình duyệt có đủ thời gian vẽ DOM trước khi nghẽn
+    setTimeout(async () => {
+        for (let obj of uploadQueue) {
+            try {
+                let base64Data = await new Promise((resolve, reject) => {
+                    let reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsDataURL(obj.file);
+                });
+
+                let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
+                
+                if (res && res.success) {
+                    obj.itemRef.id = res.fileId || res.id;
+                    URL.revokeObjectURL(obj.itemRef.tempUrl); 
+                    delete obj.itemRef.tempUrl;
+                }
+            } catch(err) {
+                console.error("Lỗi up file:", err);
+                showToast(`Lỗi tải lên: ${obj.file.name}`, true);
+                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
+            }
+            
+            folderDataCache[currentFolderId] = currentDriveItems; 
+            window.renderItems(currentDriveItems); 
+            
+            // Xả RAM sau mỗi file
+            await new Promise(r => setTimeout(r, 200));
+        }
+        
+        syncQueueCount--;
+        updateSyncIndicator();
+    }, 500);
+
+    event.target.value = ''; 
+};
+
+// 5. GHI ĐÈ GIAO DIỆN RENDER (HỖ TRỢ TICK CHỌN FILE & FOLDER)
 window.renderItems = function(items, isSearchMode = false) {
+    const folderListEl = document.getElementById('folderList');
+    const fileListEl = document.getElementById('fileList');
     folderListEl.innerHTML = ''; fileListEl.innerHTML = '';
     
     if (items.length === 0) {
@@ -2301,7 +2461,6 @@ window.renderItems = function(items, isSearchMode = false) {
     }
 
     if (folderStack.length === 1 && !isSearchMode) {
-        // Render thư mục gốc Mega-row (giữ nguyên logic gốc, không có chức năng chọn do thuộc cấp quản lý cao nhất)
         const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
         if (megaRows.length === 0) { folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Chưa có dữ liệu trong mục ${currentCategory}</div>`; return; }
         
@@ -2334,7 +2493,6 @@ window.renderItems = function(items, isSearchMode = false) {
         megaRows.forEach(row => { if(expandedMegas.includes(row.id)) window.toggleAccordion(row.id, true); });
     } 
     else {
-        // Cấp hiển thị tệp & thư mục con (CÓ TÍNH NĂNG CHỌN)
         const folders = items.filter(i => i.type === 'folder');
         const files = items.filter(i => i.type !== 'folder');
 
@@ -2411,305 +2569,4 @@ window.renderItems = function(items, isSearchMode = false) {
             </div>`;
         }).join('');
     }
-};
-
-// 7. GHI ĐÈ HÀM UPLOAD - TỐI ƯU CƠ CHẾ BỘ NHỚ DI ĐỘNG & NGĂN REFRESH
-window.handleMultipleFileUpload = async function(event) {
-    closeFab();
-    const files = event.target.files; 
-    if (!files || files.length === 0) return;
-    
-    // Tạm khóa đồng bộ nền để không làm mất UI "Đang Up..."
-    syncQueueCount++; 
-    updateSyncIndicator();
-
-    let uploadQueue = [];
-
-    // Bước 1: Khởi tạo tất cả thẻ tạm lên UI ngay lập tức
-    for (let i = 0; i < files.length; i++) {
-        let file = files[i];
-        let fakeId = 'temp_file_' + Date.now() + i;
-        let tempUrl = URL.createObjectURL(file); 
-        let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
-        uploadQueue.push({ file: file, id: fakeId });
-        currentDriveItems.unshift(newItem); 
-    }
-    folderDataCache[currentFolderId] = currentDriveItems; 
-    renderItems(currentDriveItems);
-
-    // Bước 2: Tải lên tuần tự (Tránh Out Of Memory trên Mobile Browser)
-    for (let obj of uploadQueue) {
-        try {
-            // Ngừng một chút để hệ điều hành điện thoại nhả RAM cho UI Thread
-            await new Promise(r => setTimeout(r, 100));
-            
-            // Đọc Base64 từng ảnh thay vì gộp một cục
-            let base64Data = await new Promise((resolve, reject) => {
-                let reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result.split(',')[1]);
-                reader.onerror = (e) => reject(e);
-                reader.readAsDataURL(obj.file);
-            });
-
-            let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
-            
-            if (res && res.success) {
-                let idx = currentDriveItems.findIndex(i => i.id === obj.id);
-                if(idx > -1) {
-                    currentDriveItems[idx].id = res.fileId || res.id;
-                    URL.revokeObjectURL(currentDriveItems[idx].tempUrl); // Giải phóng bộ nhớ Blob
-                    delete currentDriveItems[idx].tempUrl;
-                }
-            }
-        } catch(err) {
-            console.error("Lỗi up file:", err);
-            showToast(`Lỗi tải lên: ${obj.file.name}`, true);
-            currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); // Hủy bỏ file lỗi
-        }
-        
-        // Cập nhật lại UI liên tục sau mỗi file tải xong
-        folderDataCache[currentFolderId] = currentDriveItems; 
-        renderItems(currentDriveItems); 
-    }
-    
-    // Mở lại đồng bộ nền
-    syncQueueCount--;
-    updateSyncIndicator();
-    event.target.value = ''; 
-};
-// =====================================================================
-// PATCH 2: FIX HIỂN THỊ "ĐANG UP" TRÊN MOBILE & Z-INDEX MENU HEADER
-// =====================================================================
-
-// 1. Ép thẻ Header nổi lên cao nhất để Menu không bị file đè
-document.addEventListener("DOMContentLoaded", () => {
-    const header = document.querySelector('header');
-    if (header) {
-        header.classList.remove('z-20');
-        header.classList.add('z-[99999]'); // Đẩy lên mức tối đa
-    }
-});
-
-// 2. Thêm sự kiện ẩn Menu Header khi click ra ngoài
-document.addEventListener('click', (e) => {
-    const headerDropdown = document.getElementById('headerDropdown');
-    const headerContainer = document.getElementById('headerDropdownContainer');
-    if (headerDropdown && !headerDropdown.classList.contains('hidden')) {
-        // Nếu click không trúng vào khu vực menu header
-        if (!headerContainer.contains(e.target)) {
-            headerDropdown.classList.add('hidden');
-        }
-    }
-});
-
-// 3. Viết lại logic Upload: Ép Mobile Browser vẽ UI (Paint) trước khi bị treo
-window.handleMultipleFileUpload = async function(event) {
-    closeFab();
-    const files = event.target.files; 
-    if (!files || files.length === 0) return;
-    
-    syncQueueCount++; 
-    updateSyncIndicator();
-
-    let uploadQueue = [];
-
-    // Bước 1: Khởi tạo tất cả thẻ "Đang Up..." vào danh sách
-    for (let i = 0; i < files.length; i++) {
-        let file = files[i];
-        let fakeId = 'temp_file_' + Date.now() + i;
-        let tempUrl = URL.createObjectURL(file); 
-        let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
-        uploadQueue.push({ file: file, id: fakeId });
-        currentDriveItems.unshift(newItem); 
-    }
-    
-    // Cập nhật dữ liệu vào biến toàn cục và gọi hàm vẽ HTML
-    folderDataCache[currentFolderId] = currentDriveItems; 
-    renderItems(currentDriveItems);
-
-    // =================================================================
-    // BÍ QUYẾT CHO MOBILE: Cấp phép cho hệ điều hành vẽ giao diện
-    // Sử dụng double requestAnimationFrame kết hợp setTimeout
-    // để đảm bảo màn hình đã hiển thị thẻ "Đang Up" 100% trước khi bị block
-    // =================================================================
-    await new Promise(resolve => {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                setTimeout(resolve, 300); // Cho điện thoại nghỉ 300ms để kịp Paint UI
-            });
-        });
-    });
-
-    // Bước 2: Bắt đầu mã hóa và tải lên tuần tự
-    for (let obj of uploadQueue) {
-        try {
-            // Đọc Base64 (Thao tác này làm treo máy nhẹ trên mobile)
-            let base64Data = await new Promise((resolve, reject) => {
-                let reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result.split(',')[1]);
-                reader.onerror = (e) => reject(e);
-                reader.readAsDataURL(obj.file);
-            });
-
-            // Gửi API lên Google Apps Script
-            let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
-            
-            if (res && res.success) {
-                let idx = currentDriveItems.findIndex(i => i.id === obj.id);
-                if(idx > -1) {
-                    currentDriveItems[idx].id = res.fileId || res.id;
-                    URL.revokeObjectURL(currentDriveItems[idx].tempUrl); // Xóa bộ nhớ đệm
-                    delete currentDriveItems[idx].tempUrl;
-                }
-            }
-        } catch(err) {
-            console.error("Lỗi up file:", err);
-            showToast(`Lỗi tải lên: ${obj.file.name}`, true);
-            // Xóa file lỗi khỏi danh sách hiển thị
-            currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
-        }
-        
-        // Cập nhật lại UI sau KHI TẢI XONG TỪNG FILE MỘT
-        folderDataCache[currentFolderId] = currentDriveItems; 
-        renderItems(currentDriveItems); 
-
-        // Tiếp tục nghỉ ngơi 150ms để Mobile xả RAM và vẽ lại DOM
-        await new Promise(r => setTimeout(r, 150));
-    }
-    
-    // Mở lại đồng bộ nền
-    syncQueueCount--;
-    updateSyncIndicator();
-    event.target.value = ''; 
-};
-// =====================================================================
-// PATCH 3: FIX LỖI MEDIA VIEWER, REALTIME MENU & MOBILE FREEZE
-// =====================================================================
-
-// 1. CHỮA CHÁY NÚT X (MEDIA VIEWER) BỊ CHE KHUẤT
-// Nâng z-index của Media Viewer lên cao nhất (999999) để đè lại Header
-document.addEventListener("DOMContentLoaded", () => {
-    const mediaViewer = document.getElementById('mediaViewer');
-    if (mediaViewer) {
-        mediaViewer.classList.remove('z-[60]');
-        mediaViewer.classList.add('z-[999999]');
-    }
-});
-
-// Chạy luôn lệnh này phòng trường hợp DOM đã load xong
-const activeMediaViewer = document.getElementById('mediaViewer');
-if (activeMediaViewer) {
-    activeMediaViewer.classList.remove('z-[60]');
-    activeMediaViewer.classList.add('z-[999999]');
-}
-
-// 2. CHỮA CHÁY MENU KHÔNG CẬP NHẬT LIVE SỐ LƯỢNG
-// Ghi đè lại hàm toggleFileSelection
-window.toggleFileSelection = function(id, e) {
-    e.stopPropagation();
-    if(window.multiSelectState.selectedIds.has(id)) {
-        window.multiSelectState.selectedIds.delete(id);
-    } else {
-        window.multiSelectState.selectedIds.add(id);
-    }
-    renderItems(currentDriveItems); 
-    
-    // NẾU MENU ĐANG MỞ -> BẮT BUỘC VẼ LẠI MENU ĐỂ CẬP NHẬT SỐ
-    const menu = document.getElementById('headerDropdown');
-    if (menu && !menu.classList.contains('hidden')) {
-        window.buildHeaderMenu();
-    }
-};
-
-// Ghi đè lại 2 hàm chọn hàng loạt để tự động update menu live
-window.selectAllItems = function() {
-    let allSelected = currentDriveItems.length > 0 && currentDriveItems.every(i => window.multiSelectState.selectedIds.has(i.id));
-    if(allSelected) window.multiSelectState.selectedIds.clear();
-    else currentDriveItems.forEach(i => window.multiSelectState.selectedIds.add(i.id));
-    window.buildHeaderMenu(); 
-    renderItems(currentDriveItems);
-};
-
-window.selectByType = function(type) {
-    let itemsOfType = currentDriveItems.filter(i => {
-        if(type === 'folder') return i.type === 'folder';
-        if(type === 'Khác') return i.type !== 'folder' && !i.name.includes('.');
-        return i.type !== 'folder' && i.name.toLowerCase().endsWith(type);
-    });
-    let allSelected = itemsOfType.length > 0 && itemsOfType.every(i => window.multiSelectState.selectedIds.has(i.id));
-    itemsOfType.forEach(i => {
-        if(allSelected) window.multiSelectState.selectedIds.delete(i.id);
-        else window.multiSelectState.selectedIds.add(i.id);
-    });
-    window.buildHeaderMenu(); 
-    renderItems(currentDriveItems);
-};
-
-// 3. CHỮA CHÁY MOBILE BỊ TREO UI KHÔNG HIỆN "ĐANG UP..."
-// Cách ly hoàn toàn việc đọc file bằng setTimeout 500ms
-window.handleMultipleFileUpload = function(event) {
-    closeFab();
-    const files = event.target.files; 
-    if (!files || files.length === 0) return;
-    
-    syncQueueCount++; 
-    updateSyncIndicator();
-
-    let uploadQueue = [];
-
-    // Bước 1: Gắn thẻ tạm và BẮT BUỘC RENDER LÊN MÀN HÌNH
-    for (let i = 0; i < files.length; i++) {
-        let file = files[i];
-        let fakeId = 'temp_file_' + Date.now() + i;
-        let tempUrl = URL.createObjectURL(file); 
-        let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
-        
-        // Lưu lại reference thẳng vào object newItem để thay đổi sau này
-        uploadQueue.push({ file: file, id: fakeId, itemRef: newItem });
-        currentDriveItems.unshift(newItem); 
-    }
-    
-    folderDataCache[currentFolderId] = currentDriveItems; 
-    renderItems(currentDriveItems);
-
-    // Bước 2: DÙNG SETTIMEOUT 500ms
-    // Ép trình duyệt đóng luồng sự kiện Input File lại, vẽ thẻ "Đang Up..." xong xuôi 
-    // Rồi mới mở luồng mới để xử lý Base64.
-    setTimeout(async () => {
-        for (let obj of uploadQueue) {
-            try {
-                let base64Data = await new Promise((resolve, reject) => {
-                    let reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsDataURL(obj.file);
-                });
-
-                let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
-                
-                if (res && res.success) {
-                    // Update thẳng vào biến reference
-                    obj.itemRef.id = res.fileId || res.id;
-                    URL.revokeObjectURL(obj.itemRef.tempUrl); 
-                    delete obj.itemRef.tempUrl;
-                }
-            } catch(err) {
-                console.error("Lỗi up file:", err);
-                showToast(`Lỗi tải lên: ${obj.file.name}`, true);
-                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
-            }
-            
-            // Xong file nào, xóa hiệu ứng mờ file đó ngay lập tức
-            folderDataCache[currentFolderId] = currentDriveItems; 
-            renderItems(currentDriveItems); 
-
-            // Nghỉ 200ms nhả RAM cho điện thoại thở
-            await new Promise(r => setTimeout(r, 200));
-        }
-        
-        syncQueueCount--;
-        updateSyncIndicator();
-    }, 500);
-
-    event.target.value = ''; 
 };
