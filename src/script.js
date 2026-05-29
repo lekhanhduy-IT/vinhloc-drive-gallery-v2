@@ -2477,3 +2477,108 @@ window.handleMultipleFileUpload = async function(event) {
     updateSyncIndicator();
     event.target.value = ''; 
 };
+// =====================================================================
+// PATCH 2: FIX HIỂN THỊ "ĐANG UP" TRÊN MOBILE & Z-INDEX MENU HEADER
+// =====================================================================
+
+// 1. Ép thẻ Header nổi lên cao nhất để Menu không bị file đè
+document.addEventListener("DOMContentLoaded", () => {
+    const header = document.querySelector('header');
+    if (header) {
+        header.classList.remove('z-20');
+        header.classList.add('z-[99999]'); // Đẩy lên mức tối đa
+    }
+});
+
+// 2. Thêm sự kiện ẩn Menu Header khi click ra ngoài
+document.addEventListener('click', (e) => {
+    const headerDropdown = document.getElementById('headerDropdown');
+    const headerContainer = document.getElementById('headerDropdownContainer');
+    if (headerDropdown && !headerDropdown.classList.contains('hidden')) {
+        // Nếu click không trúng vào khu vực menu header
+        if (!headerContainer.contains(e.target)) {
+            headerDropdown.classList.add('hidden');
+        }
+    }
+});
+
+// 3. Viết lại logic Upload: Ép Mobile Browser vẽ UI (Paint) trước khi bị treo
+window.handleMultipleFileUpload = async function(event) {
+    closeFab();
+    const files = event.target.files; 
+    if (!files || files.length === 0) return;
+    
+    syncQueueCount++; 
+    updateSyncIndicator();
+
+    let uploadQueue = [];
+
+    // Bước 1: Khởi tạo tất cả thẻ "Đang Up..." vào danh sách
+    for (let i = 0; i < files.length; i++) {
+        let file = files[i];
+        let fakeId = 'temp_file_' + Date.now() + i;
+        let tempUrl = URL.createObjectURL(file); 
+        let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl };
+        uploadQueue.push({ file: file, id: fakeId });
+        currentDriveItems.unshift(newItem); 
+    }
+    
+    // Cập nhật dữ liệu vào biến toàn cục và gọi hàm vẽ HTML
+    folderDataCache[currentFolderId] = currentDriveItems; 
+    renderItems(currentDriveItems);
+
+    // =================================================================
+    // BÍ QUYẾT CHO MOBILE: Cấp phép cho hệ điều hành vẽ giao diện
+    // Sử dụng double requestAnimationFrame kết hợp setTimeout
+    // để đảm bảo màn hình đã hiển thị thẻ "Đang Up" 100% trước khi bị block
+    // =================================================================
+    await new Promise(resolve => {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                setTimeout(resolve, 300); // Cho điện thoại nghỉ 300ms để kịp Paint UI
+            });
+        });
+    });
+
+    // Bước 2: Bắt đầu mã hóa và tải lên tuần tự
+    for (let obj of uploadQueue) {
+        try {
+            // Đọc Base64 (Thao tác này làm treo máy nhẹ trên mobile)
+            let base64Data = await new Promise((resolve, reject) => {
+                let reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+                reader.onerror = (e) => reject(e);
+                reader.readAsDataURL(obj.file);
+            });
+
+            // Gửi API lên Google Apps Script
+            let res = await apiCall('upload', { filename: obj.file.name, mimeType: obj.file.type, data: base64Data });
+            
+            if (res && res.success) {
+                let idx = currentDriveItems.findIndex(i => i.id === obj.id);
+                if(idx > -1) {
+                    currentDriveItems[idx].id = res.fileId || res.id;
+                    URL.revokeObjectURL(currentDriveItems[idx].tempUrl); // Xóa bộ nhớ đệm
+                    delete currentDriveItems[idx].tempUrl;
+                }
+            }
+        } catch(err) {
+            console.error("Lỗi up file:", err);
+            showToast(`Lỗi tải lên: ${obj.file.name}`, true);
+            // Xóa file lỗi khỏi danh sách hiển thị
+            currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
+        }
+        
+        // Cập nhật lại UI sau KHI TẢI XONG TỪNG FILE MỘT
+        folderDataCache[currentFolderId] = currentDriveItems; 
+        renderItems(currentDriveItems); 
+
+        // Tiếp tục nghỉ ngơi 150ms để Mobile xả RAM và vẽ lại DOM
+        await new Promise(r => setTimeout(r, 150));
+    }
+    
+    // Mở lại đồng bộ nền
+    syncQueueCount--;
+    updateSyncIndicator();
+    event.target.value = ''; 
+};
