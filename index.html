@@ -207,26 +207,26 @@
 
         <div id="fabMenu" class="hidden flex-col gap-3 items-end mb-2 transition-all">
             <button onclick="uiPromptFolder()" class="bg-white text-blue-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Thư mục mới</span>
+                
                 <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center"><i class="fas fa-folder-plus"></i></div>
             </button>
             <label class="bg-white text-green-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Up Ảnh</span>
+                
                 <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center"><i class="fas fa-image"></i></div>
                 <input type="file" id="uploadImage" class="hidden" multiple accept="image/*" onchange="handleMultipleFileUpload(event)">
             </label>
             <label class="bg-white text-orange-500 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Chụp Ảnh</span>
+                
                 <div class="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center"><i class="fas fa-camera"></i></div>
                 <input type="file" id="captureImage" class="hidden" accept="image/*" capture="environment" onchange="handleMultipleFileUpload(event)">
             </label>
             <label class="bg-white text-purple-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Up Video</span>
+                
                 <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center"><i class="fas fa-file-video"></i></div>
                 <input type="file" id="uploadVideo" class="hidden" multiple accept="video/*" onchange="handleMultipleFileUpload(event)">
             </label>
             <label class="bg-white text-pink-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
-                <span class="text-sm pl-2">Quay Video</span>
+                
                 <div class="w-10 h-10 bg-pink-50 rounded-full flex items-center justify-center"><i class="fas fa-video"></i></div>
                 <input type="file" id="captureVideo" class="hidden" accept="video/*" capture="environment" onchange="handleMultipleFileUpload(event)">
             </label>
@@ -492,10 +492,10 @@
             <h3 class="text-gray-800 text-xl font-bold mb-6">Tùy chọn xuất file</h3>
             
             <button id="btn-save-local" class="w-full flex justify-center items-center gap-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 px-4 rounded-xl mb-3 transition border border-gray-200">
-                <i class="fa-solid fa-mobile-screen-button text-lg"></i> Tải thẳng về máy
+                <i class="fa-solid fa-mobile-screen-button text-lg"></i> Tải về máy
             </button>
             <button id="btn-save-drive" class="w-full flex justify-center items-center gap-3 bg-blue-600 active:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl mb-5 transition shadow-lg shadow-blue-600/30">
-                <i class="fa-brands fa-google-drive text-lg"></i> Lưu thẳng lên Drive
+                <i class="fa-brands fa-google-drive text-lg"></i> Lưu lên Drive
             </button>
             <button onclick="document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');" class="text-gray-400 font-semibold py-2 transition hover:text-gray-600">
                 Hủy bỏ
