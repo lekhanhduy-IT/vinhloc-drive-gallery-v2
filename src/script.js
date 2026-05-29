@@ -2570,3 +2570,51 @@ window.renderItems = function(items, isSearchMode = false) {
         }).join('');
     }
 };
+// =====================================================================
+// PATCH CẬP NHẬT: ĐỌC TRỰC TIẾP TỪ DESCRIPTION ĐỂ PHÂN LOẠI TỨC THÌ
+// =====================================================================
+if (!window.originalRenderItemsForCategory) {
+    window.originalRenderItemsForCategory = window.renderItems;
+}
+
+window.renderItems = function(items, isSearchMode = false) {
+    let metaChanged = false;
+    
+    // Quét tất cả folder trả về từ Google Drive
+    items.forEach(item => {
+        if (item.type === 'folder' && item.description !== undefined) {
+            if (!appMeta[item.id]) {
+                appMeta[item.id] = { type: 'Triển khai', desc: '', cover: '' };
+                metaChanged = true;
+            }
+            
+            // Nhận diện phân loại thông minh từ Description
+            let parsedType = null;
+            if (item.description.includes('[Ý tưởng]') || item.description === 'Ý tưởng') {
+                parsedType = 'Ý tưởng';
+            } else if (item.description.includes('[Triển khai]') || item.description === 'Triển khai') {
+                parsedType = 'Triển khai';
+            }
+
+            if (parsedType && appMeta[item.id].type !== parsedType) {
+                appMeta[item.id].type = parsedType;
+                metaChanged = true;
+            }
+
+            // Trích xuất lại mô tả thật (Cắt bỏ cái mác [Triển khai])
+            let rawDesc = item.description.replace(/\[(Ý tưởng|Triển khai)\]/g, '').trim();
+            if (rawDesc && appMeta[item.id].desc !== rawDesc) {
+                appMeta[item.id].desc = rawDesc;
+                metaChanged = true;
+            }
+        }
+    });
+    
+    // Lưu ngay lập tức vào bộ nhớ tạm nếu có cập nhật mới
+    if (metaChanged) {
+        try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
+    }
+    
+    // Vẽ UI ngay tức khắc dựa trên dữ liệu vừa đọc
+    window.originalRenderItemsForCategory(items, isSearchMode);
+};
