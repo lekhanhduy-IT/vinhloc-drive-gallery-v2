@@ -2571,14 +2571,11 @@ window.renderItems = function(items, isSearchMode = false) {
     }
 };
 // =====================================================================
-// PATCH MỚI NHẤT: ĐỌC DESCRIPTION TỪ DRIVE AN TOÀN (KHÔNG TREO LOADING)
+// PATCH TỔNG HỢP: ĐỒNG BỘ ĐA THIẾT BỊ TỨC THÌ (LOẠI, MÔ TẢ, COVER) & TẢI ẢNH BÌA LÊN DRIVE
 // =====================================================================
 
-// Ghi đè trực tiếp hàm Render gốc
+// 1. GHI ĐÈ HÀM RENDER - ĐỌC VÀ ĐỒNG BỘ METADATA TRỰC TIẾP TỪ DRIVE DESCRIPTION
 window.renderItems = function(items, isSearchMode = false) {
-    // ---------------------------------------------------------
-    // BƯỚC 1: XỬ LÝ ĐỒNG BỘ METADATA TỪ DESCRIPTION 
-    // ---------------------------------------------------------
     let metaChanged = false;
     
     items.forEach(item => {
@@ -2588,10 +2585,10 @@ window.renderItems = function(items, isSearchMode = false) {
                 metaChanged = true;
             }
             
-            // Lớp bảo vệ cực kỳ quan trọng: Ép kiểu null/undefined thành chuỗi rỗng ""
             let descStr = item.description || ""; 
             
             if (descStr) {
+                // Phân tích LOẠI
                 let parsedType = null;
                 if (descStr.includes('[Ý tưởng]') || descStr === 'Ý tưởng') {
                     parsedType = 'Ý tưởng';
@@ -2604,8 +2601,18 @@ window.renderItems = function(items, isSearchMode = false) {
                     metaChanged = true;
                 }
 
-                // Cắt bỏ phần mác [Loại] để lấy mô tả thuần túy
-                let rawDesc = descStr.replace(/\[(Ý tưởng|Triển khai)\]/g, '').trim();
+                // Phân tích COVER (Đồng bộ tức thì từ thiết bị khác)
+                let coverMatch = descStr.match(/\[Cover:(.*?)\]/);
+                if (coverMatch) {
+                    let extractedCover = coverMatch[1] === 'NONE' ? '' : coverMatch[1].trim();
+                    if (appMeta[item.id].cover !== extractedCover) {
+                        appMeta[item.id].cover = extractedCover;
+                        metaChanged = true;
+                    }
+                }
+
+                // Cắt bỏ mác [Loại] và [Cover] để lấy MÔ TẢ thuần túy
+                let rawDesc = descStr.replace(/\[(Ý tưởng|Triển khai)\]/g, '').replace(/\[Cover:.*?\]/g, '').trim();
                 if (appMeta[item.id].desc !== rawDesc) {
                     appMeta[item.id].desc = rawDesc;
                     metaChanged = true;
@@ -2614,14 +2621,12 @@ window.renderItems = function(items, isSearchMode = false) {
         }
     });
     
-    // Nếu có dữ liệu mới thì lưu vào LocalStorage ngay
+    // Nếu có dữ liệu mới từ thiết bị khác thì lưu vào LocalStorage ngay
     if (metaChanged) {
         try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
     }
 
-    // ---------------------------------------------------------
-    // BƯỚC 2: RENDER VẼ GIAO DIỆN LÊN MÀN HÌNH
-    // ---------------------------------------------------------
+    // VẼ GIAO DIỆN LÊN MÀN HÌNH
     const folderListEl = document.getElementById('folderList');
     const fileListEl = document.getElementById('fileList');
     folderListEl.innerHTML = ''; fileListEl.innerHTML = '';
@@ -2630,7 +2635,6 @@ window.renderItems = function(items, isSearchMode = false) {
         folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không có dữ liệu.</div>'; return;
     }
 
-    // NẾU Ở THƯ MỤC GỐC (HIỂN THỊ MEGA-ROW BÌNH THƯỜNG)
     if (folderStack.length === 1 && !isSearchMode) {
         const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
         if (megaRows.length === 0) { folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Chưa có dữ liệu trong mục ${currentCategory}</div>`; return; }
@@ -2664,14 +2668,13 @@ window.renderItems = function(items, isSearchMode = false) {
         megaRows.forEach(row => { if(expandedMegas.includes(row.id)) window.toggleAccordion(row.id, true); });
     } 
     else {
-        // NẾU ĐANG Ở BÊN TRONG THƯ MỤC HOẶC TÌM KIẾM
         const folders = items.filter(i => i.type === 'folder');
         const files = items.filter(i => i.type !== 'folder');
 
         if(folders.length > 0) {
             folderListEl.innerHTML = folders.map(item => {
                 const meta = getMeta(item.id);
-                let isSelected = window.multiSelectState.selectedIds.has(item.id);
+                let isSelected = window.multiSelectState && window.multiSelectState.selectedIds.has(item.id);
                 
                 const imgHtml = `
                     <img src="${meta.cover || ''}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm item-cover-img-${item.id} ${meta.cover ? '' : 'hidden'}">
@@ -2685,7 +2688,7 @@ window.renderItems = function(items, isSearchMode = false) {
                 <div class="subfolder-row group relative border-b transition ${bgClass}" onclick="loadFolder('${item.id}', '${item.name}', true)">
                     ${checkUi}
                     ${imgHtml}
-                    <div class="flex-1 overflow-hidden" onclick="window.toggleFileSelection('${item.id}', event)">
+                    <div class="flex-1 overflow-hidden" onclick="window.toggleFileSelection ? window.toggleFileSelection('${item.id}', event) : null">
                         <h4 class="text-sm font-bold ${isSelected ? 'text-blue-800' : 'text-gray-800'} truncate item-name-${item.id}">${item.name}</h4>
                         <p class="text-[11px] text-gray-500 truncate mt-0.5 item-desc-${item.id} ${meta.desc ? '' : 'hidden'}">${meta.desc || 'Chưa có mô tả'}</p>
                     </div>
@@ -2704,7 +2707,7 @@ window.renderItems = function(items, isSearchMode = false) {
 
         fileListEl.innerHTML = files.map(item => {
             let isImage = item.mimeType.includes('image');
-            let isSelected = window.multiSelectState.selectedIds.has(item.id);
+            let isSelected = window.multiSelectState && window.multiSelectState.selectedIds.has(item.id);
             let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
             let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
             
@@ -2734,11 +2737,104 @@ window.renderItems = function(items, isSearchMode = false) {
                     ${visualEl}
                 </div>
                 
-                <div class="px-1 flex flex-col justify-center flex-1 cursor-pointer" onclick="window.toggleFileSelection('${item.id}', event)">
+                <div class="px-1 flex flex-col justify-center flex-1 cursor-pointer" onclick="window.toggleFileSelection ? window.toggleFileSelection('${item.id}', event) : null">
                     <span class="text-[13px] font-bold ${isSelected ? 'text-blue-700' : 'text-gray-800'} line-clamp-2 leading-tight drive-img-name item-name-${item.id}" title="${item.name}">${item.name}</span>
                     <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
                 </div>
             </div>`;
         }).join('');
+    }
+};
+
+// 2. KHỞI TẠO BIẾN CHO ẢNH BÌA
+window.pendingCoverBase64 = null;
+window.pendingCoverMimeType = null;
+
+// 3. GHI ĐÈ HÀM MỞ BẢNG THÔNG TIN - RESET DỮ LIỆU TẠM
+if (!window.originalOpenInfoForCover) {
+    window.originalOpenInfoForCover = window.openInfo;
+}
+window.openInfo = function(id, name, itemType, level, e) {
+    window.pendingCoverBase64 = null;
+    window.pendingCoverMimeType = null;
+    window.originalOpenInfoForCover(id, name, itemType, level, e);
+};
+
+// 4. GHI ĐÈ CHỌN ẢNH BÌA - GIỮ ẢNH GỐC ĐỂ TẢI LÊN DRIVE
+window.handleCoverUpload = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('infoCoverPreview').src = e.target.result;
+        document.getElementById('infoCoverPreview').classList.remove('hidden');
+        document.getElementById('infoCoverPlaceholder').classList.add('hidden');
+        
+        window.pendingCoverBase64 = e.target.result.split(',')[1];
+        window.pendingCoverMimeType = file.type || 'image/jpeg';
+    };
+    reader.readAsDataURL(file);
+};
+
+// 5. THAY THẾ NÚT LƯU - TẢI ẢNH LÊN DRIVE VÀ GHI METADATA
+const oldSaveBtn = document.getElementById('infoSaveBtn');
+const newSaveBtn = oldSaveBtn.cloneNode(true);
+oldSaveBtn.parentNode.replaceChild(newSaveBtn, oldSaveBtn);
+
+newSaveBtn.onclick = async () => {
+    if(!currentEditId) return closeInfoModal();
+    
+    const newName = document.getElementById('infoName').value.trim();
+    const newType = document.getElementById('infoType').value;
+    const newDesc = document.getElementById('infoDesc').value.trim();
+    
+    let newCover = appMeta[currentEditId]?.cover || '';
+
+    // TẢI ẢNH MỚI LÊN THƯ MỤC DRIVE ĐỂ LẤY THUMBNAIL CHẤT LƯỢNG CAO
+    if (window.pendingCoverBase64) {
+        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang tải ảnh bìa lên thư mục...');
+        
+        let res = await apiCall('upload', { 
+            folderId: currentEditId, 
+            filename: '_cover.jpg', 
+            mimeType: window.pendingCoverMimeType, 
+            data: window.pendingCoverBase64 
+        });
+        
+        if (res && res.success) {
+            let fileId = res.fileId || res.id;
+            newCover = `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+            window.pendingCoverBase64 = null;
+            window.pendingCoverMimeType = null;
+        } else {
+            showToast('Lỗi tải ảnh bìa!', true);
+            return;
+        }
+    }
+
+    // LƯU CẬP NHẬT GIAO DIỆN HIỆN TẠI
+    appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
+    try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
+
+    let nameChanged = false;
+    const allSubItems = Object.values(subFolderCache).reduce((acc, arr) => acc.concat(arr), []);
+    const oldItem = currentDriveItems.find(i => i.id === currentEditId) || allSubItems.find(i => i.id === currentEditId);
+    
+    if (newName && oldItem && newName !== oldItem.name) {
+        nameChanged = true;
+        folderDataCache[currentFolderId] = currentDriveItems; 
+    }
+
+    smoothUpdateUI(appMeta); 
+    closeInfoModal();
+    showToast(`<i class="fas fa-check mr-2"></i> Đã lưu thư mục thành công!`);
+
+    // GỬI LÊN SERVER ĐỂ GHI VÀO DRIVE DESCRIPTION (BAO GỒM CẢ LINK COVER) & GOOGLE SHEET
+    bgApiCall('updateSingleMeta', {
+        meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover }
+    });
+
+    if (nameChanged) {
+        bgApiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
     }
 };
