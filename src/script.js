@@ -2131,3 +2131,171 @@ document.addEventListener('click', (e) => {
         if(selectOptions) selectOptions.classList.remove('open');
     }
 });
+// =====================================================================
+// 6. VÁ LỖI: GIỮ NGUYÊN VỊ TRÍ CUỘN & CẬP NHẬT MƯỢT MÀ (SEAMLESS SYNC)
+// =====================================================================
+
+// Hàm cập nhật giao diện thông minh không làm đẩy/nhảy khung hình
+window.seamlessRenderItems = function(newData) {
+    const contentArea = document.getElementById('contentArea');
+    
+    // 1. Tìm phần tử đang hiển thị trên cùng làm "mỏ neo"
+    let anchorId = null;
+    let anchorOffset = 0;
+    const allNames = contentArea.querySelectorAll('[class*="item-name-"]');
+    for (let nameEl of allNames) {
+        const rect = nameEl.getBoundingClientRect();
+        // Lấy phần tử đầu tiên đang nằm trong khung nhìn hiển thị
+        if (rect.top >= 0 && rect.top < window.innerHeight) {
+            const match = nameEl.className.match(/item-name-([^ ]+)/);
+            if (match) {
+                anchorId = match[1];
+                anchorOffset = rect.top;
+                break;
+            }
+        }
+    }
+    
+    // 2. Render lại dữ liệu mới
+    renderItems(newData);
+    
+    // 3. Tính toán và bù trừ độ lệch scroll để khóa chặt khung hình
+    if (anchorId) {
+        // Dùng requestAnimationFrame để chắc chắn DOM đã được vẽ xong
+        requestAnimationFrame(() => {
+            const newNameEl = contentArea.querySelector(`.item-name-${anchorId}`);
+            if (newNameEl) {
+                const newRect = newNameEl.getBoundingClientRect();
+                const diff = newRect.top - anchorOffset;
+                contentArea.scrollTop += diff;
+            }
+        });
+    }
+};
+
+// Ghi đè hàm đồng bộ ngầm để dùng seamlessRenderItems thay vì renderItems thường
+silentFetchFolder = async function() {
+    if (!currentFolderId || syncQueueCount > 0) return;
+    
+    try {
+        const hasTempItems = currentDriveItems.some(i => String(i.id).startsWith('temp_'));
+        if (!hasTempItems) {
+            const res = await fetch(SCRIPT_URL, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'list', folderId: currentFolderId })
+            }).then(r => r.json());
+
+            if (res && res.success && res.data) {
+                const currentIds = currentDriveItems.map(i => i.id).sort().join(',');
+                const newIds = res.data.map(i => i.id).sort().join(',');
+                
+                if (currentIds !== newIds) {
+                    currentDriveItems = res.data;
+                    folderDataCache[currentFolderId] = currentDriveItems;
+                    // GỌI RENDER MƯỢT BÙ TRỪ CUỘN
+                    window.seamlessRenderItems(currentDriveItems);
+                }
+            }
+        }
+
+        // Đồng bộ ngầm cho các mega-row đang mở
+        if (folderStack.length === 1 && expandedMegas.length > 0) {
+            for (let megaId of expandedMegas) {
+                const hasTempSub = (subFolderCache[megaId] || []).some(i => String(i.id).startsWith('temp_'));
+                if (hasTempSub) continue;
+
+                const subRes = await fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'list', folderId: megaId })
+                }).then(r => r.json());
+
+                if (subRes && subRes.success && subRes.data) {
+                    const newSubFolders = subRes.data.filter(i => i.type === 'folder');
+                    const currentSubIds = (subFolderCache[megaId] || []).map(i => i.id).sort().join(',');
+                    const newSubIds = newSubFolders.map(i => i.id).sort().join(',');
+
+                    if (currentSubIds !== newSubIds) {
+                        subFolderCache[megaId] = newSubFolders;
+                        renderSubFolders(megaId, newSubFolders);
+                    }
+                }
+            }
+        }
+    } catch (e) { }
+};
+
+// Ghi đè hàm loadFolder để tối ưu trải nghiệm nút Back (Trở về)
+loadFolder = async function(folderId, folderName, isNewNavigation = false, isPopState = false) {
+    const contentArea = document.getElementById('contentArea');
+
+    if (isNewNavigation && !isPopState) {
+        if (folderStack.length > 0) {
+            folderStack[folderStack.length - 1].scrollTop = contentArea.scrollTop;
+        }
+    }
+
+    currentFolderId = folderId;
+    
+    if (isNewNavigation && !isPopState) { 
+        const existingIdx = folderStack.findIndex(f => f.id === folderId);
+        if(existingIdx !== -1) {
+            folderStack = folderStack.slice(0, existingIdx + 1);
+        } else {
+            folderStack.push({ id: folderId, name: folderName, scrollTop: 0 }); 
+        }
+        localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
+        history.pushState({ id: folderId }, '', ''); 
+    }
+    updateBreadcrumbs(); 
+    searchInput.value = ''; 
+    clearSearchBtn.classList.add('hidden');
+
+    const restoreScroll = () => {
+        const targetStackItem = folderStack[folderStack.length - 1];
+        if (targetStackItem && targetStackItem.scrollTop) {
+            // Canh chuẩn DOM render xong ảnh rồi mới đẩy scroll
+            requestAnimationFrame(() => {
+                contentArea.scrollTop = targetStackItem.scrollTop;
+            });
+        } else {
+            contentArea.scrollTop = 0;
+        }
+    };
+    
+    if (folderDataCache[folderId]) {
+        currentDriveItems = folderDataCache[folderId];
+        renderItems(currentDriveItems);
+        restoreScroll();
+
+        // CHÌA KHÓA: Nếu là hành động Back (isPopState = true), KHÔNG gọi fetch list ngay.
+        // Giao diện sẽ dùng mượt mà Cache cũ, sau đó silentFetchFolder ngầm sẽ tự kiểm tra và thêm file mới (nếu có).
+        if (!isPopState) {
+            apiCall('list', { folderId: folderId }).then(res => {
+                if (res && res.success) {
+                    if (JSON.stringify(folderDataCache[folderId]) !== JSON.stringify(res.data)) {
+                        folderDataCache[folderId] = res.data;
+                        if (currentFolderId === folderId) {
+                            currentDriveItems = res.data;
+                            window.seamlessRenderItems(currentDriveItems);
+                        }
+                    }
+                }
+            });
+        }
+    } else {
+        folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
+        fileListEl.innerHTML = '';
+
+        const res = await apiCall('list', { folderId: folderId });
+        if (res && res.success) { 
+            currentDriveItems = res.data;
+            folderDataCache[folderId] = res.data; 
+            renderItems(currentDriveItems); 
+            restoreScroll();
+        } else {
+            folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full italic">Lỗi kết nối hoặc thư mục trống.</div>';
+        }
+    }
+};
