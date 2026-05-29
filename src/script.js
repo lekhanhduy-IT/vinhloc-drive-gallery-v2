@@ -1947,7 +1947,7 @@ smartInput.addEventListener('input', (e) => {
         const folderListEl = document.getElementById('folderList');
         const fileListEl = document.getElementById('fileList');
         
-        folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm thông minh...</p></div>';
+        folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm kiếm...</p></div>';
         fileListEl.innerHTML = '';
 
         let localResults = new Map();
