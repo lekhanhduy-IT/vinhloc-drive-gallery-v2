@@ -1,7 +1,6 @@
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
         
-        // THƯ MỤC CHỨA WATERMARK TRÊN GOOGLE DRIVE
         const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -564,48 +563,37 @@
             }
         }
 
-        // TÍNH NĂNG MỚI: CHIA SẺ LINK VÀ MỞ BẰNG APP
         window.shareItem = async function(id, type, name, e) {
             e.stopPropagation();
             document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
             
-            showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang tạo liên kết chia sẻ...`);
-            
-            // Yêu cầu Drive set quyền Public
-            let res = await bgApiCall('makePublic', { id: id, type: type });
-            if (res && res.success) {
-                // Tạo URL theo format: ?shareId=xxx&shareType=yyy&shareName=zzz
-                let mimeTypeParam = '';
-                if(type === 'file') {
-                    // Cần tìm mimeType từ currentDriveItems
-                    const fileObj = currentDriveItems.find(i => i.id === id);
-                    if(fileObj && fileObj.mimeType) {
-                        mimeTypeParam = `&mimeType=${encodeURIComponent(fileObj.mimeType)}`;
-                    }
+            // BỎ API makePublic vì thư mục gốc đã có quyền Anyone with the link
+            let mimeTypeParam = '';
+            if(type === 'file') {
+                const fileObj = currentDriveItems.find(i => i.id === id);
+                if(fileObj && fileObj.mimeType) {
+                    mimeTypeParam = `&mimeType=${encodeURIComponent(fileObj.mimeType)}`;
                 }
-                
-                const shareUrl = `${window.location.origin}${window.location.pathname}?shareId=${id}&shareType=${type}&shareName=${encodeURIComponent(name)}${mimeTypeParam}`;
-                
-                // Mở bảng Share gốc của điện thoại nếu có, nếu không thì copy vào Clipboard
-                if (navigator.share) {
-                    try {
-                        await navigator.share({
-                            title: `Chia sẻ: ${name}`,
-                            text: `Mở xem chi tiết "${name}" trong ứng dụng:`,
-                            url: shareUrl
-                        });
-                    } catch (err) {
-                        console.log("Người dùng hủy share", err);
-                    }
-                } else {
-                    navigator.clipboard.writeText(shareUrl).then(() => {
-                        showToast(`<i class="fas fa-link mr-2"></i> Đã copy link vào khay nhớ tạm!`);
-                    }).catch(() => {
-                        showToast(`Lỗi không thể copy link!`, true);
+            }
+            
+            const shareUrl = `${window.location.origin}${window.location.pathname}?shareId=${id}&shareType=${type}&shareName=${encodeURIComponent(name)}${mimeTypeParam}`;
+            
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: `Chia sẻ: ${name}`,
+                        text: `Mở xem chi tiết "${name}" trong ứng dụng:`,
+                        url: shareUrl
                     });
+                } catch (err) {
+                    console.log("Người dùng hủy share", err);
                 }
             } else {
-                showToast(`Lỗi không thể chia sẻ tệp này!`, true);
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    showToast(`<i class="fas fa-link mr-2"></i> Đã copy link vào khay nhớ tạm!`);
+                }).catch(() => {
+                    showToast(`Lỗi không thể copy link!`, true);
+                });
             }
         };
 
@@ -1481,122 +1469,10 @@
             setTimeout(() => { this.innerHTML = originalHTML; this.classList.replace('bg-green-600', 'btn-blue'); }, 1500);
         });
 
-        function renderImages() {
-            grid.innerHTML = '';
-            state.images.forEach(imgData => {
-                const card = document.createElement('div'); card.className = `image-card ${imgData.selected ? 'selected' : ''}`; card.dataset.id = imgData.id; card.style.aspectRatio = imgData.ratio !== 'auto' ? imgData.ratio : 'auto';
-                card.innerHTML = `<i class="fa-solid fa-circle-check check-icon"></i><i class="fa-solid fa-thumbtack pin-icon" onclick="event.stopPropagation(); const idx=state.images.findIndex(i=>i.id==='${imgData.id}'); if(idx>0){ const [it]=state.images.splice(idx,1); state.images.unshift(it); renderImages(); }"></i>`;
-                
-                const img = document.createElement('img'); img.className = 'base-img'; img.src = imgData.src;
-                
-                let calcBright = imgData.filterBrightness - imgData.filterDarkness;
-                let calcCont = imgData.filterContrast + imgData.filterSharpness / 2;
-                img.style.filter = `brightness(${calcBright}%) contrast(${calcCont}%) saturate(${imgData.filterSaturate}%)`;
-                
-                let scaleFit = 1 + Math.abs(imgData.filterRotate)/90 * 0.4;
-                img.style.transform = `rotate(${imgData.filterRotate}deg) scale(${scaleFit})`;
-                
-                if(imgData.ratio !== 'auto') {
-                    img.style.height = '100%'; img.style.objectFit = 'cover'; img.style.objectPosition = `${imgData.panX}% ${imgData.panY}%`;
-                    let isP = false, sX, sY, iX, iY;
-                    img.addEventListener('touchstart', e => { isP=false; sX=e.touches[0].clientX; sY=e.touches[0].clientY; iX=imgData.panX; iY=imgData.panY; }, {passive:true});
-                    img.addEventListener('touchmove', e => { const dx=e.touches[0].clientX-sX; const dy=e.touches[0].clientY-sY; if(Math.abs(dx)>5||Math.abs(dy)>5) isP=true; const pR=img.parentElement.getBoundingClientRect(); imgData.panX=Math.max(0,Math.min(100,iX-(dx/pR.width)*100)); imgData.panY=Math.max(0,Math.min(100,iY-(dy/pR.height)*100)); img.style.objectPosition=`${imgData.panX}% ${imgData.panY}%`; }, {passive:true});
-                    img.addEventListener('touchend', e => { if(isP) e.stopPropagation(); });
-                }
-                card.appendChild(img);
-                
-                state.layerOrder.forEach(layer => {
-                    if(layer.type === 'wm') {
-                        const wI = imgData.wms.find(w=>w.id===layer.id); if(!wI) return;
-                        const wDiv = document.createElement('div'); wDiv.className = `overlay-item ${state.activeElementId===wI.id?'active':''}`;
-                        wDiv.style.left=`${wI.x}%`; wDiv.style.top=`${wI.y}%`; wDiv.style.width=`${wI.scale}%`; wDiv.style.opacity=wI.opacity/100; wDiv.style.transform=`translate(-50%,-50%) rotate(${wI.rotation||0}deg)`;
-                        wDiv.innerHTML = `<img class="overlay-img" src="${wI.src}"><div class="ctrl-btn ctrl-delete"><i class="fa-solid fa-times"></i></div><div class="ctrl-btn ctrl-scale-rotate"><i class="fa-solid fa-arrows-up-down-left-right"></i></div>`;
-                        setupTouchDrag(wDiv, imgData, wI, 'wm'); card.appendChild(wDiv);
-                    } else {
-                        const tI = imgData.texts.find(t=>t.id===layer.id); if(!tI) return;
-                        const tDiv = document.createElement('div'); tDiv.className = `overlay-item text-layer ${state.activeElementId===tI.id?'active':''}`;
-                        tDiv.style.left=`${tI.x}%`; tDiv.style.top=`${tI.y}%`; tDiv.style.fontSize=`${tI.scale/5}cqw`; tDiv.style.color=tI.color; tDiv.style.opacity=tI.opacity/100; tDiv.style.transform=`translate(-50%,-50%) rotate(${tI.rotation||0}deg)`;
-                        tDiv.style.fontFamily=tI.fontFamily; tDiv.style.fontWeight=tI.fontWeight; tDiv.style.fontStyle=tI.fontStyle; tDiv.style.textShadow=tI.textShadow; tDiv.style.webkitTextStroke=tI.stroke!=='transparent'?`4px ${tI.stroke}`:'0px transparent';
-                        tDiv.innerHTML = `<span>${tI.val}</span><div class="ctrl-btn ctrl-delete"><i class="fa-solid fa-times"></i></div><div class="ctrl-btn ctrl-scale-rotate"><i class="fa-solid fa-arrows-up-down-left-right"></i></div>`;
-                        setupTouchDrag(tDiv, imgData, tI, 'text'); card.appendChild(tDiv);
-                    }
-                });
-
-                card.addEventListener('click', e => { if(e.target.closest('.overlay-item')||e.target.closest('.pin-icon')) return; imgData.selected=!imgData.selected; state.activeElementId=null; renderImages(); renderLayers(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
-                grid.appendChild(card);
-            });
-        }
-
-        function setupTouchDrag(el, iD, itD, ty) {
-            let isD=false, isS=false, sX, sY, iX, iY, iSc, iR, cX, cY, sA;
-            el.addEventListener('touchstart', e => {
-                state.activeElementId=itD.id; state.activeEditTarget=ty; document.querySelector(`input[name="adjust-target"][value="${ty}"]`).checked=true;
-                if(e.target.closest('.ctrl-delete')){ window.deleteLayer(itD.id, ty, e); return; }
-                const t=e.touches[0];
-                if(e.target.closest('.ctrl-scale-rotate')){
-                    isS=true; const r=el.getBoundingClientRect(); cX=r.left+r.width/2; cY=r.top+r.height/2; iSc=itD.scale; iR=itD.rotation||0; sX=t.clientX; sY=t.clientY; sA=Math.atan2(sY-cY,sX-cX);
-                } else { isD=true; sX=t.clientX; sY=t.clientY; iX=itD.x; iY=itD.y; }
-                document.querySelectorAll('.overlay-item').forEach(e=>e.classList.remove('active')); el.classList.add('active'); syncSliders(); renderLayers();
-            }, {passive:true});
-            el.addEventListener('touchmove', e => {
-                if(!isD && !isS) return; e.preventDefault(); const t=e.touches[0];
-                if(isD){ const pR=el.parentElement.getBoundingClientRect(); itD.x=iX+((t.clientX-sX)/pR.width)*100; itD.y=iY+((t.clientY-sY)/pR.height)*100; el.style.left=`${itD.x}%`; el.style.top=`${itD.y}%`; document.getElementById('slider-x').value=itD.x; document.getElementById('slider-y').value=itD.y; }
-                else if(isS){ const dist=Math.sqrt(Math.pow(t.clientX-cX,2)+Math.pow(t.clientY-cY,2)); itD.scale=iSc*(dist/(Math.sqrt(Math.pow(sX-cX,2)+Math.pow(sY-cY,2))||1)); itD.rotation=iR+((Math.atan2(t.clientY-cY,t.clientX-cX)-sA)*(180/Math.PI)); el.style.transform=`translate(-50%,-50%) rotate(${itD.rotation}deg)`; if(ty==='text') el.style.fontSize=`${itD.scale/5}cqw`; else el.style.width=`${itD.scale}%`; document.getElementById('slider-scale').value=itD.scale; }
-            });
-            el.addEventListener('touchend', () => { isD=false; isS=false; const tg=getTargetImages(); if(tg.length>1||(!iD.selected && tg.length===state.images.length)){ tg.forEach(i=>{ const match=(ty==='text'?i.texts:i.wms).find(x=>x.id===state.activeElementId); if(match&&match!==itD){ match.x=itD.x; match.y=itD.y; match.scale=itD.scale; match.rotation=itD.rotation; } }); renderImages(); } });
-        }
-
-        let aSel=false;
-        document.getElementById('select-all-btn').addEventListener('click', e => { aSel=!aSel; state.images.forEach(i=>i.selected=aSel); e.target.innerHTML=aSel?'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Bỏ chọn':'<i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả'; renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
-        document.getElementById('delete-selected-btn').addEventListener('click', () => { state.images=state.images.filter(i=>!i.selected); renderImages(); if(document.getElementById('panel-rename').classList.contains('active')) window.renderRenameList(); });
-
-        document.querySelectorAll('.nav-item').forEach(item => { 
-            item.addEventListener('click', () => { 
-                const tP = document.getElementById(item.dataset.panel); 
-                if(item.classList.contains('active')){ 
-                    item.classList.remove('active'); tP.classList.remove('active'); 
-                } else { 
-                    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); 
-                    document.querySelectorAll('.control-panel').forEach(p=>p.classList.remove('active')); 
-                    item.classList.add('active'); tP.classList.add('active'); 
-                    if(item.dataset.panel==='panel-rename') {
-                        if(document.getElementById('rename-individual').style.display === 'flex') {
-                            window.renderRenameList();
-                        }
-                    }
-                } 
-            }); 
-        });
-
-        // NÚT LƯU CHỮ LÊN THƯ VIỆN DRIVE
-        document.getElementById('btn-save-text-wm').addEventListener('click', async () => {
-            const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showToast('Không có chữ.', true);
-            let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
-            
-            const c=document.createElement('canvas'); const cx=c.getContext('2d'); c.width=800; c.height=200;
-            cx.font=`${t.fontStyle} ${t.fontWeight} 60px '${t.fontFamily}'`; cx.fillStyle=t.color; cx.textAlign='center'; cx.textBaseline='middle';
-            if(t.textShadow!=='none'){ cx.shadowColor="rgba(0,0,0,0.8)"; cx.shadowBlur=4; cx.shadowOffsetX=2; cx.shadowOffsetY=2; }
-            if(t.stroke!=='transparent'){ cx.strokeStyle=t.stroke; cx.lineWidth=6; cx.lineJoin="round"; cx.strokeText(t.val,400,100); }
-            cx.shadowColor="transparent"; cx.fillText(t.val,400,100);
-            
-            const base64Data = c.toDataURL('image/png').split(',')[1];
-            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu chữ lên Drive...');
-            
-            let res = await bgApiCall('upload', { folderId: WM_FOLDER_ID, filename: 'TEXT_WM_' + Date.now() + '.png', mimeType: 'image/png', data: base64Data });
-            if(res && res.success) {
-                showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark trên Drive');
-                const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
-                state.savedWatermarks.unshift({id: res.id, src: srcUrl}); 
-                if(wmP.style.display === 'flex') renderWMLibrary();
-            } else {
-                showToast('Lỗi lưu Watermark', true);
-            }
-        });
-
-        const wmP = document.getElementById('watermark-popup');
+        // --- MỞ THƯ VIỆN LẤY TRỰC TIẾP TỪ DRIVE KHÔNG QUA LOCALSTORAGE ---
         let isFetchingWM = false;
+        const wmP = document.getElementById('watermark-popup');
         
-        // MỞ THƯ VIỆN LẤY TRỰC TIẾP TỪ DRIVE KHÔNG QUA LOCALSTORAGE
         document.getElementById('btn-open-wm-library').addEventListener('click', async () => { 
             wmP.style.display='flex'; 
             
@@ -1610,7 +1486,7 @@
             isFetchingWM = true;
             
             try {
-                let res = await apiCall('list', { folderId: WM_FOLDER_ID }); 
+                let res = await apiCall('list', { folderId: WM_FOLDER_ID }); // Dùng apiCall để có Loading
                 if(res && res.success) {
                     const files = res.data.filter(i => i.type === 'file');
                     const newWms = files.map(f => ({
@@ -1634,7 +1510,7 @@
         
         document.getElementById('btn-close-wm-popup').addEventListener('click', () => wmP.style.display='none');
 
-        // HIỂN THỊ WATERMARK TỪ RAM (STATE) VÀ FIX LỖI NÚT XÓA BẰNG ID
+        // HIỂN THỊ WATERMARK TỪ RAM VÀ XÓA QUA DRIVE API
         function renderWMLibrary() {
             const grid = document.getElementById('wm-library-grid'); 
             grid.innerHTML = '';
@@ -1652,7 +1528,6 @@
                         if(res && res.success) showToast('<i class="fas fa-trash mr-2"></i> Đã xóa Logo');
                     });
                     
-                    // Xóa bằng ID để không bị sai lệch index
                     state.savedWatermarks = state.savedWatermarks.filter(w => w.id !== wm.id); 
                     renderWMLibrary(); 
                 });
@@ -1697,7 +1572,7 @@
                                 showToast('<i class="fas fa-check mr-2"></i> Đã tải Logo lên Thư viện');
                                 const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
                                 
-                                state.savedWatermarks.unshift({id: res.id, src: srcUrl}); // Đưa lên đầu mảng
+                                state.savedWatermarks.unshift({id: res.id, src: srcUrl});
                                 if(wmP.style.display === 'flex') renderWMLibrary();
                                 
                                 const sI = generateId();
@@ -1722,6 +1597,31 @@
                 };
             }
         })();
+
+        // LƯU CHỮ THÀNH WATERMARK VÀ LÊN DRIVE
+        document.getElementById('btn-save-text-wm').addEventListener('click', async () => {
+            const tg=getTargetImages(); if(tg.length===0||tg[0].texts.length===0) return showToast('Không có chữ.', true);
+            let t=tg[0].texts.find(x=>x.id===state.activeElementId)||tg[0].texts[tg[0].texts.length-1];
+            
+            const c=document.createElement('canvas'); const cx=c.getContext('2d'); c.width=800; c.height=200;
+            cx.font=`${t.fontStyle} ${t.fontWeight} 60px '${t.fontFamily}'`; cx.fillStyle=t.color; cx.textAlign='center'; cx.textBaseline='middle';
+            if(t.textShadow!=='none'){ cx.shadowColor="rgba(0,0,0,0.8)"; cx.shadowBlur=4; cx.shadowOffsetX=2; cx.shadowOffsetY=2; }
+            if(t.stroke!=='transparent'){ cx.strokeStyle=t.stroke; cx.lineWidth=6; cx.lineJoin="round"; cx.strokeText(t.val,400,100); }
+            cx.shadowColor="transparent"; cx.fillText(t.val,400,100);
+            
+            const base64Data = c.toDataURL('image/png').split(',')[1];
+            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu chữ lên Drive...');
+            
+            let res = await bgApiCall('upload', { folderId: WM_FOLDER_ID, filename: 'TEXT_WM_' + Date.now() + '.png', mimeType: 'image/png', data: base64Data });
+            if(res && res.success) {
+                showToast('<i class="fas fa-check mr-2"></i> Đã lưu thành Watermark trên Drive');
+                const srcUrl = `https://drive.google.com/thumbnail?id=${res.id}&sz=w800`;
+                state.savedWatermarks.unshift({id: res.id, src: srcUrl}); 
+                if(wmP.style.display === 'flex') renderWMLibrary();
+            } else {
+                showToast('Lỗi lưu Watermark', true);
+            }
+        });
 
         function loadImage(src) {
             return new Promise(async (resolve, reject) => {
