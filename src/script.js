@@ -11,8 +11,17 @@
         let subFolderCache = {}; 
         let folderDataCache = {}; 
         // ===== TREE CACHE =====
-let driveTreeCache = {};
-let treeLoaded = false;
+let driveTreeCache =
+JSON.parse(
+    localStorage.getItem(
+        'driveTreeCache'
+    ) || '{}'
+);
+
+let treeLoaded =
+Object.keys(
+    driveTreeCache
+).length > 0;
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         
         let metaCleaned = false;
@@ -334,7 +343,32 @@ let treeLoaded = false;
             }
 
             currentFolderId = folderId;
-            
+            if(folderDataCache[folderId]){
+
+    currentDriveItems =
+        folderDataCache[folderId];
+
+    renderItems(currentDriveItems);
+
+    setTimeout(() => {
+        const targetStackItem =
+            folderStack[
+                folderStack.length - 1
+            ];
+
+        if(
+            targetStackItem &&
+            targetStackItem.scrollTop
+        ){
+            document.getElementById(
+                'contentArea'
+            ).scrollTop =
+                targetStackItem.scrollTop;
+        }
+    },10);
+
+    return;
+}
             if (isNewNavigation && !isPopState) { 
                 const existingIdx = folderStack.findIndex(f => f.id === folderId);
                 if(existingIdx !== -1) {
@@ -1777,15 +1811,29 @@ async function preloadAllTree() {
             })
         }).then(r=>r.json());
 
-        if(res.success){
+if(res.success){
 
-            driveTreeCache = res.tree || {};
+    driveTreeCache =
+        res.tree || {};
 
-            Object.keys(driveTreeCache).forEach(fid=>{
-                folderDataCache[fid] = driveTreeCache[fid];
-            });
+    Object.keys(
+        driveTreeCache
+    ).forEach(fid=>{
+        folderDataCache[fid] =
+            driveTreeCache[fid];
+    });
 
-            treeLoaded = true;
+    try{
+        localStorage.setItem(
+            'driveTreeCache',
+            JSON.stringify(
+                driveTreeCache
+            )
+        );
+    }catch(e){}
+
+    treeLoaded = true;
+
 
             console.log(
                 '[TREE CACHE]',
@@ -1800,7 +1848,7 @@ async function preloadAllTree() {
 }
         // --- BỔ SUNG XỬ LÝ LIÊN KẾT CHIA SẺ KHI MỞ APP LẦN ĐẦU ---
         window.addEventListener('DOMContentLoaded', async () => {
-            await preloadAllTree();
+             preloadAllTree();
             
             const params = new URLSearchParams(window.location.search);
             const sId = params.get('shareId');
