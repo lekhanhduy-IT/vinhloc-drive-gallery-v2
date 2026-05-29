@@ -1,7 +1,6 @@
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
         const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
         
-        // THƯ MỤC CHỨA WATERMARK TRÊN GOOGLE DRIVE
         const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
         let savedStack = localStorage.getItem('appFolderStack');
@@ -152,7 +151,6 @@
                         appMeta = res.meta;
                         saveLocalMeta(); 
                         smoothUpdateUI(appMeta);
-                        // Cập nhật ngay danh sách ngoài cùng khi Data Sheet đổ về tránh "Lỗi trống danh sách"
                         if (folderStack.length === 1) {
                             renderItems(currentDriveItems);
                         }
@@ -235,7 +233,6 @@
             }
         }
 
-        // Fix lỗi appMeta default sai trước khi data Sheet kéo về
         function getMeta(id) { 
             return appMeta[id] || { type: 'Triển khai', desc: '', cover: '' };
         }
@@ -877,7 +874,7 @@
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                         <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông কাহিনী</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                             <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                         </div>
@@ -1125,6 +1122,10 @@
         function getTargetImages() { const selected = state.images.filter(img => img.selected); return selected.length > 0 ? selected : state.images; }
         
         function cleanUpLayerOrder() { state.layerOrder = state.layerOrder.filter(layer => { return state.images.some(img => { if (layer.type === 'text') return img.texts.some(t => t.id === layer.id); return img.wms.some(w => w.id === layer.id); }); }); }
+        
+        function loadStorageWMs() { try { const data = localStorage.getItem('vinhloc_wms_drive_v3'); if (data) state.savedWatermarks = JSON.parse(data); } catch (e) {} }
+        function saveStorageWMs() { try { localStorage.setItem('vinhloc_wms_drive_v3', JSON.stringify(state.savedWatermarks)); } catch (e) {} }
+        loadStorageWMs(); 
 
         document.getElementById('btn-open-design').addEventListener('click', () => {
             const driveImages = currentDriveItems
