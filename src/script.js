@@ -1136,7 +1136,7 @@
 
             if(driveImages.length === 0) {
                 closeFab();
-                showToast("Vùng hiển thị hiện tại không tìm thấy ảnh nào!", true);
+                showToast("Không tìm thấy ảnh nào!", true);
                 return;
             }
             state.images = []; state.layerOrder = []; state.activeElementId = null;
