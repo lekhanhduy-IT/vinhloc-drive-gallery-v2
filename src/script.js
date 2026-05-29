@@ -152,6 +152,10 @@
                         appMeta = res.meta;
                         saveLocalMeta(); 
                         smoothUpdateUI(appMeta);
+                        // Cập nhật ngay danh sách ngoài cùng khi Data Sheet đổ về tránh "Lỗi trống danh sách"
+                        if (folderStack.length === 1) {
+                            renderItems(currentDriveItems);
+                        }
                     }
                 }
             } catch (e) {}
@@ -231,9 +235,9 @@
             }
         }
 
+        // Fix lỗi appMeta default sai trước khi data Sheet kéo về
         function getMeta(id) { 
-            if(!appMeta[id]) { appMeta[id] = { type: currentCategory, desc: '', cover: '' }; }
-            return appMeta[id];
+            return appMeta[id] || { type: 'Triển khai', desc: '', cover: '' };
         }
 
         let currentCategory = 'Triển khai';
@@ -376,7 +380,7 @@
                     }
                 });
             } else {
-                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải...</div>';
+                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
                 fileListEl.innerHTML = '';
 
                 const res = await apiCall('list', { folderId: folderId });
@@ -421,7 +425,7 @@
             }
 
             searchTimeout = setTimeout(async () => {
-                folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang tìm...</p></div>';
+                folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang quét đệ quy sâu thư mục gốc...</p></div>';
                 fileListEl.innerHTML = '';
                 
                 const res = await apiCall('globalSearch', { keyword: keyword });
@@ -872,7 +876,7 @@
                     <div class="relative" onclick="event.stopPropagation()">
                         <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                         <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
-                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục</div>
+                            <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 text-green-500 w-4"></i>Thư mục con</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'sub', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
                             <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                             <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
@@ -914,7 +918,7 @@
                                 <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
                                 <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 py-1.5 text-sm item-action-menu overflow-hidden">
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${item.name}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
-                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm mục</div>
+                                    <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thêm thư mục con</div>
                                     <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${item.name}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
                                     <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
                                 </div>
@@ -1336,7 +1340,6 @@
 
         document.querySelectorAll('input[name="adjust-target"]').forEach(r => r.addEventListener('change', e => { state.activeEditTarget=e.target.value; state.activeElementId=null; syncSliders(); renderLayers(); }));
         
-        // KÍCH HOẠT SỰ KIỆN CLICK CHO CÁC TAB BỘ LỌC CHỈNH ẢNH
         document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach((btn, idx) => { 
             btn.addEventListener('click', () => { 
                 document.querySelectorAll('#filter-sub-tabs .sub-tab-btn').forEach(b => b.classList.remove('active')); 
@@ -1530,7 +1533,7 @@
             cx.shadowColor="transparent"; cx.fillText(t.val,400,100);
             
             const base64Data = c.toDataURL('image/png').split(',')[1];
-            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu mẫuchữ ...');
+            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu chữ lên Drive...');
             
             let res = await bgApiCall('upload', { folderId: WM_FOLDER_ID, filename: 'TEXT_WM_' + Date.now() + '.png', mimeType: 'image/png', data: base64Data });
             if(res && res.success) {
@@ -1551,7 +1554,7 @@
             wmP.style.display='flex'; 
             
             if (state.savedWatermarks.length === 0) {
-                document.getElementById('wm-library-grid').innerHTML = '<div style="grid-column: span 3; text-align: center; padding: 30px;"><div class="loader mx-auto border-blue-500 mb-2"></div><span class="text-sm text-gray-500">Đang tải mẫu...</span></div>';
+                document.getElementById('wm-library-grid').innerHTML = '<div style="grid-column: span 3; text-align: center; padding: 30px;"><div class="loader mx-auto border-blue-500 mb-2"></div><span class="text-sm text-gray-500">Đang tải Thư viện Logo từ Drive...</span></div>';
             } else {
                 renderWMLibrary();
             }
@@ -1576,7 +1579,7 @@
                     }
                 }
             } catch(e) {
-                console.log("Lỗi đồng bộ thư viện.", e);
+                console.log("Lỗi đồng bộ thư viện WM ngầm.", e);
             } finally {
                 isFetchingWM = false;
             }
@@ -1636,7 +1639,7 @@
                     input.addEventListener('change', function(ev) {
                         const f = ev.target.files[0];
                         if(!f) return;
-                        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang lưu mẫu...');
+                        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang tải Logo lên Drive...');
                         const r = new FileReader();
                         r.onload = async function(evt){
                             const b64 = evt.target.result;
@@ -1700,8 +1703,8 @@
             });
         }
 
+        // --- KHỞI CHẠY APP KHI VỪA MỞ ---
         window.addEventListener('DOMContentLoaded', () => {
             const initItem = folderStack[folderStack.length - 1];
             loadFolder(initItem.id, initItem.name, false, false);
         });
-

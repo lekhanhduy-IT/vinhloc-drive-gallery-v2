@@ -118,8 +118,6 @@
         #main-text-input { width: 100%; max-width: 400px; padding: 16px; font-size: 22px; border: 2px solid var(--primary-blue); border-radius: 12px; text-align: center; outline: none; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.1); }
         
         #watermark-popup { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: 55vh; background: white; border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 300; display: none; flex-direction: column; padding: 20px; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); }
-        
-        /* ĐÃ FIX CSS LƯỚI LOGO TRÁNH ĐÈ DOMINO */
         .wm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; overflow-y: auto; margin-top: 15px; padding: 5px; flex: 1; align-content: start; }
         .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; background-color: white; }
         .wm-item img { width: 100%; height: 100%; object-fit: contain; padding: 5px; pointer-events: none; }
@@ -187,7 +185,7 @@
     <div class="sticky top-0 z-10 bg-white p-3 border-b border-gray-200 shadow-sm">
         <div class="relative">
             <i class="fas fa-search absolute left-4 top-3 text-gray-400"></i>
-            <input type="text" id="searchInput" placeholder="Tìm kiếm..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition text-sm font-medium">
+            <input type="text" id="searchInput" placeholder="Tìm kiếm sâu trong toàn bộ thư mục..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition text-sm font-medium">
             <i class="fas fa-times absolute right-4 top-3 text-gray-400 cursor-pointer hidden" id="clearSearchBtn" onclick="clearSearch()"></i>
         </div>
     </div>
@@ -438,7 +436,7 @@
             
             <div class="panel-content relative">
                 <div id="rename-batch" style="display:flex; flex-direction:column; gap:15px; justify-content:center; align-items:center; width:100%; height:100%; padding-bottom:10px;">
-                    <span style="font-size: 14px; font-weight: bold; color: var(--primary-blue);"></span>
+                    <span style="font-size: 14px; font-weight: bold; color: var(--primary-blue);">Đổi tên hàng loạt cho các ảnh đã chọn</span>
                     <input type="text" id="batch-name-input" placeholder="Ví dụ: Anh_KhaiTruong..." style="padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; width: 90%; outline: none; font-family: inherit;">
                     <button class="btn btn-blue transition-colors duration-300" id="btn-apply-batch-name" style="padding: 12px; width: 90%; justify-content: center;"><i class="fa-solid fa-check-double"></i> Áp dụng nhanh</button>
                 </div>
