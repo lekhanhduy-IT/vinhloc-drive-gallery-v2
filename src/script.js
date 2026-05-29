@@ -2078,3 +2078,56 @@ window.openInfo = function(id, name, itemType, level, e) {
     document.getElementById('infoModal').classList.remove('hidden');
     document.getElementById('infoModal').classList.add('flex');
 };
+// =====================================================================
+// SỬA LỖI MENU (DẤU 3 CHẤM) BỊ MEGA-ROW BÊN DƯỚI CHE KHUẤT
+// =====================================================================
+window.toggleItemMenu = function(id, e) {
+    e.stopPropagation();
+    
+    // 1. Đóng tất cả các menu khác đang mở
+    document.querySelectorAll('.item-action-menu').forEach(menu => {
+        if (menu.id !== `menu-${id}`) menu.classList.add('hidden');
+    });
+    
+    // 2. Reset toàn bộ z-index của các header/row về mặc định
+    document.querySelectorAll('.mega-header').forEach(header => header.style.zIndex = '15');
+    document.querySelectorAll('.mega-row, .subfolder-row').forEach(row => row.style.zIndex = '');
+
+    // 3. Bật/tắt menu được click
+    const menuObj = document.getElementById(`menu-${id}`);
+    menuObj.classList.toggle('hidden');
+
+    // 4. Nếu menu ĐANG MỞ -> Bơm z-index của phần tử cha chứa nó lên mức cao nhất
+    if (!menuObj.classList.contains('hidden')) {
+        const parentHeader = menuObj.closest('.mega-header');
+        if (parentHeader) parentHeader.style.zIndex = '9999';
+        
+        const parentRow = menuObj.closest('.mega-row') || menuObj.closest('.subfolder-row');
+        if (parentRow) {
+            parentRow.style.position = 'relative';
+            parentRow.style.zIndex = '9998';
+        }
+        menuObj.style.zIndex = '10000';
+    }
+};
+
+// 5. Reset lại toàn bộ z-index khi click ra ngoài màn hình để đóng menu
+document.addEventListener('click', (e) => {
+    // Trả z-index của các dòng về trạng thái gốc
+    document.querySelectorAll('.mega-header').forEach(header => header.style.zIndex = '15');
+    document.querySelectorAll('.mega-row, .subfolder-row').forEach(row => {
+        row.style.zIndex = '';
+        row.style.position = '';
+    });
+    
+    // Giữ nguyên logic đóng menu gốc
+    document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
+    
+    if(!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => menu.classList.remove('show'));
+    }
+    if(!e.target.closest('.custom-select-wrapper')) {
+        const selectOptions = document.getElementById('customSelectOptions');
+        if(selectOptions) selectOptions.classList.remove('open');
+    }
+});
