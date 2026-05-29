@@ -10,9 +10,7 @@
         let currentDriveItems = [];
         let subFolderCache = {}; 
         let folderDataCache = {}; 
-        // ===== TREE CACHE =====
-let driveTreeCache = {};
-let treeLoaded = false;
+        
         let appMeta = JSON.parse(localStorage.getItem('vinhloc_meta')) || {};
         
         let metaCleaned = false;
@@ -218,7 +216,7 @@ let treeLoaded = false;
                 silentFetchMeta();
                 silentFetchFolder();
             }
-        }, 30000);
+        }, 5000);
 
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState === "visible" && syncQueueCount === 0) {
@@ -360,19 +358,25 @@ let treeLoaded = false;
                 }
             };
             
-            if(treeLoaded && driveTreeCache[folderId]){
+            if (folderDataCache[folderId]) {
+                currentDriveItems = folderDataCache[folderId];
+                renderItems(currentDriveItems);
+                restoreScroll();
 
-    currentDriveItems = driveTreeCache[folderId];
-
-    folderDataCache[folderId] =
-        driveTreeCache[folderId];
-
-    renderItems(currentDriveItems);
-
-    restoreScroll();
-
-    return;
-} else {
+                apiCall('list', { folderId: folderId }).then(res => {
+                    if (res && res.success) {
+                        if (JSON.stringify(folderDataCache[folderId]) !== JSON.stringify(res.data)) {
+                            folderDataCache[folderId] = res.data;
+                            if (currentFolderId === folderId) {
+                                currentDriveItems = res.data;
+                                const currentScroll = document.getElementById('contentArea').scrollTop;
+                                renderItems(currentDriveItems);
+                                document.getElementById('contentArea').scrollTop = currentScroll;
+                            }
+                        }
+                    }
+                });
+            } else {
                 folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
                 fileListEl.innerHTML = '';
 
@@ -861,37 +865,7 @@ let treeLoaded = false;
                 
                 if(!subFolderCache[id]) {
                     body.innerHTML = '<div class="text-center text-blue-400 py-3 text-sm"><div class="loader mx-auto border-blue-400 mb-1" style="width:16px;height:16px;"></div>Tải...</div>';
-                    if(treeLoaded){
-
-    subFolderCache[id] =
-        (driveTreeCache[id] || [])
-        .filter(i=>i.type==='folder');
-
-    renderSubFolders(
-        id,
-        subFolderCache[id]
-    );
-
-}else{
-
-    const res = await apiCall(
-        'list',
-        { folderId:id }
-    );
-
-    if(res && res.success){
-
-        subFolderCache[id] =
-            res.data.filter(
-                i=>i.type==='folder'
-            );
-
-        renderSubFolders(
-            id,
-            subFolderCache[id]
-        );
-    }
-}
+                    const res = await apiCall('list', { folderId: id });
                     if(res && res.success) {
                         subFolderCache[id] = res.data.filter(i => i.type === 'folder'); 
                         renderSubFolders(id, subFolderCache[id]);
@@ -1764,44 +1738,9 @@ const createText = (val, id = generateId()) => ({ id, val, x: 50, y: 50, scale: 
             });
         }
 
-async function preloadAllTree() {
-    try {
 
-        const res = await fetch(SCRIPT_URL,{
-            method:'POST',
-            headers:{
-                'Content-Type':'text/plain;charset=utf-8'
-            },
-            body:JSON.stringify({
-                action:'loadAllTree'
-            })
-        }).then(r=>r.json());
-
-        if(res.success){
-
-            driveTreeCache = res.tree || {};
-
-            Object.keys(driveTreeCache).forEach(fid=>{
-                folderDataCache[fid] = driveTreeCache[fid];
-            });
-
-            treeLoaded = true;
-
-            console.log(
-                '[TREE CACHE]',
-                Object.keys(driveTreeCache).length,
-                'folders'
-            );
-        }
-
-    }catch(err){
-        console.error(err);
-    }
-}
         // --- BỔ SUNG XỬ LÝ LIÊN KẾT CHIA SẺ KHI MỞ APP LẦN ĐẦU ---
-        window.addEventListener('DOMContentLoaded', async () => {
-            await preloadAllTree();
-            
+        window.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
             const sId = params.get('shareId');
             const sType = params.get('shareType');
