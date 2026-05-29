@@ -2013,3 +2013,68 @@ smartInput.addEventListener('input', (e) => {
         }
     }, 400); 
 });
+// =====================================================================
+// 4. MỞ RỘNG TÍNH NĂNG CHỈNH SỬA THÔNG TIN CHO TẤT CẢ FOLDER
+// =====================================================================
+window.openInfo = function(id, name, itemType, level, e) {
+    if(e) e.stopPropagation();
+    
+    // Ẩn menu thả xuống nếu nó đang được mở
+    const menuObj = document.getElementById(`menu-${id}`);
+    if(menuObj) menuObj.classList.add('hidden');
+    
+    // Lưu trạng thái phần tử đang được chỉnh sửa
+    currentEditId = id;
+    currentEditLevel = level;
+    currentEditType = itemType;
+    
+    // Lấy metadata hiện có từ LocalStorage / Cấu hình
+    const meta = getMeta(id);
+    
+    // Đổ dữ liệu vào các ô input
+    document.getElementById('infoName').value = name;
+    
+    let currentType = meta.type || currentCategory;
+    document.getElementById('infoType').value = currentType;
+    document.querySelector('#customSelectValue span').textContent = currentType;
+
+    document.getElementById('infoDesc').value = meta.desc || '';
+    
+    document.getElementById('infoCoverInput').value = '';
+    const previewImg = document.getElementById('infoCoverPreview');
+    const placeholder = document.getElementById('infoCoverPlaceholder');
+    
+    // Xử lý hiển thị Ảnh Cover nếu có
+    if (meta.cover) {
+        previewImg.src = meta.cover;
+        previewImg.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+    } else {
+        previewImg.src = '';
+        previewImg.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+    }
+
+    // --- LOGIC HIỂN THỊ CÁC TRƯỜNG TÙY THEO CẤP ĐỘ ---
+    
+    // 1. Ẩn tất cả các trường nâng cao lúc bắt đầu
+    document.getElementById('info-field-type').classList.add('hidden');
+    document.getElementById('info-field-desc').classList.add('hidden');
+    document.getElementById('info-field-cover').classList.add('hidden');
+
+    // 2. Kích hoạt trường tương ứng
+    if (itemType === 'folder') {
+        // Bất kể là folder cấp 1, cấp 2 hay sâu hơn, đều mở Mô tả và Cover
+        document.getElementById('info-field-desc').classList.remove('hidden');
+        document.getElementById('info-field-cover').classList.remove('hidden');
+        
+        // CHỈ CÓ folder mega-row mới được mở tùy chọn Loại (Ý tưởng/Triển khai)
+        if (level === 'mega') {
+            document.getElementById('info-field-type').classList.remove('hidden');
+        }
+    }
+
+    // Hiển thị Modal lên màn hình
+    document.getElementById('infoModal').classList.remove('hidden');
+    document.getElementById('infoModal').classList.add('flex');
+};
