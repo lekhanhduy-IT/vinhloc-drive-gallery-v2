@@ -2692,3 +2692,170 @@ setTimeout(() => {
     console.log("✅ Con Nhện tải dữ liệu ngầm đã được thả!");
 
 }, 7000); // Khởi động sau 7s khi các hệ thống khác đã yên vị
+// ==============================================================
+// PATCH 17: TÌM KIẾM SÂU ĐA LỚP REAL-TIME & CUỘN TẢI DẦN (LAZY LOAD)
+// ==============================================================
+setTimeout(() => {
+    const searchInputEl = document.getElementById('searchInput');
+    if (!searchInputEl) return;
+
+    // Clone Input để hủy bỏ mọi sự kiện tìm kiếm cũ cồng kềnh
+    const newSearchInput = searchInputEl.cloneNode(true);
+    searchInputEl.parentNode.replaceChild(newSearchInput, searchInputEl);
+
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const contentArea = document.getElementById('contentArea');
+
+    // State quản lý Cuộn tải dần (Lazy Load)
+    window.currentSearchResults = [];
+    window.searchDisplayLimit = 30;
+    window.isSearching = false;
+
+    function removeAccents(str) { 
+        if (!str) return ''; 
+        return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); 
+    }
+
+    // Nút X xóa tìm kiếm
+    clearSearchBtn.onclick = function() { 
+        newSearchInput.value = ''; 
+        this.classList.add('hidden'); 
+        window.isSearching = false;
+        window.currentSearchResults = [];
+        window.renderItems(currentDriveItems); // Trở về danh sách gốc
+    };
+
+    // HÀM QUÉT RADAR: Lục tung toàn bộ Cache mà con Nhện đã tải
+    function performDeepOfflineSearch(rawKeyword) {
+        const kw = removeAccents(rawKeyword.trim());
+        let localResults = new Map(); // Dùng Map để lọc trùng lặp ID
+
+        const checkMatch = (item) => {
+            if (!item || !item.name) return false;
+            const itemName = removeAccents(item.name); 
+            const itemMeta = appMeta[item.id] || {}; 
+            const metaName = removeAccents(itemMeta.name || ''); 
+            // So khớp cả Tên file thật và Tên do người dùng đặt lại
+            return itemName.includes(kw) || metaName.includes(kw); 
+        };
+
+        // Quét sạch kho Cache cấu trúc thư mục (folderDataCache & subFolderCache)
+        const allCaches = [folderDataCache, subFolderCache];
+        allCaches.forEach(cacheObj => {
+            Object.values(cacheObj).forEach(arr => {
+                arr.forEach(item => {
+                    if (checkMatch(item)) localResults.set(item.id, item);
+                });
+            });
+        });
+
+        // Quét thêm cả kho Meta (phòng khi thư mục chưa load nhưng Meta ảnh bìa đã load)
+        Object.keys(appMeta).forEach(id => { 
+            if (removeAccents(appMeta[id].name || '').includes(kw)) { 
+                if (!localResults.has(id)) {
+                    localResults.set(id, { id: id, name: appMeta[id].name, type: 'folder' }); 
+                }
+            } 
+        });
+
+        // Ưu tiên xếp Folder lên đầu, File xuống dưới
+        let finalArray = Array.from(localResults.values());
+        finalArray.sort((a, b) => {
+            if (a.type === b.type) return a.name.localeCompare(b.name);
+            return a.type === 'folder' ? -1 : 1;
+        });
+
+        return finalArray;
+    }
+
+    let searchTimeout = null;
+
+    newSearchInput.addEventListener('input', (e) => {
+        const rawKeyword = e.target.value; 
+        
+        if (searchTimeout) clearTimeout(searchTimeout);
+        
+        // Nếu người dùng xóa trắng ô tìm kiếm
+        if(!rawKeyword.trim()) { 
+            clearSearchBtn.classList.add('hidden'); 
+            window.isSearching = false;
+            window.renderItems(currentDriveItems); 
+            return; 
+        }
+        
+        clearSearchBtn.classList.remove('hidden');
+        window.isSearching = true;
+
+        // Trễ 250ms để gõ phím trên điện thoại không bị lag
+        searchTimeout = setTimeout(async () => {
+            const folderListEl = document.getElementById('folderList'); 
+            const fileListEl = document.getElementById('fileList');
+            
+            // Hiển thị loading nhẹ
+            folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang truy quét...</p></div>'; 
+            fileListEl.innerHTML = '';
+
+            // 1. TÌM KIẾM SIÊU TỐC TRONG RAM & Ổ CỨNG (0 giây)
+            let resultsArray = performDeepOfflineSearch(rawKeyword);
+            
+            // Lưu lại kết quả để phục vụ tính năng lướt (Lazy Load)
+            window.currentSearchResults = resultsArray;
+            window.searchDisplayLimit = 30; // Trả về 30 item đầu tiên
+
+            if (resultsArray.length > 0) {
+                // isSearchMode = true (Tham số thứ 2) sẽ tự động phá vỡ vách ngăn Triển khai/Ý tưởng
+                window.renderItems(resultsArray.slice(0, window.searchDisplayLimit), true);
+            } else {
+                folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Đang tìm sâu trên Drive mây...</div>';
+            }
+
+            // 2. GỌI API MÂY TÌM KẾM BỔ SUNG (Vét cạn những gì Nhện chưa tải kịp)
+            try {
+                const res = await apiCall('globalSearch', { keyword: rawKeyword.trim() });
+                if (res && res.success && res.data) {
+                    let hasNew = false;
+                    res.data.forEach(item => { 
+                        // Bổ sung các kết quả mới từ Mây vào danh sách nội bộ
+                        if (!window.currentSearchResults.find(i => i.id === item.id)) {
+                            window.currentSearchResults.push(item);
+                            hasNew = true;
+                        }
+                    });
+                    
+                    // Nếu Mây có trả về thêm đồ mới, Cập nhật lại giao diện ngay!
+                    if (hasNew || resultsArray.length === 0) {
+                        if (window.currentSearchResults.length > 0) {
+                            window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
+                        } else {
+                            folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Không tìm thấy kết quả nào chứa "${rawKeyword}".</div>`;
+                        }
+                    }
+                }
+            } catch(err) {} // Lỗi mạng thì cứ xài kết quả offline như bình thường
+
+        }, 250); 
+    });
+
+    // SỰ KIỆN LƯỚT CHUỘT / VUỐT ĐIỆN THOẠI ĐỂ TẢI DẦN (INFINITE SCROLL)
+    contentArea.addEventListener('scroll', function() {
+        // Chỉ kích hoạt khi đang ở chế độ Tìm kiếm
+        if (window.isSearching && window.currentSearchResults.length > 0) {
+            
+            // Kiểm tra xem đã lướt tới gần đáy chưa (cách đáy 150px)
+            if (this.scrollTop + this.clientHeight >= this.scrollHeight - 150) {
+                
+                // Nếu số lượng hiển thị hiện tại vẫn còn nhỏ hơn tổng số tìm được
+                if (window.searchDisplayLimit < window.currentSearchResults.length) {
+                    
+                    // Mở khóa thêm 30 kết quả nữa
+                    window.searchDisplayLimit += 30; 
+                    
+                    // Vẽ lại cực êm (RenderItems đè HTML cục bộ rất nhẹ)
+                    window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
+                }
+            }
+        }
+    });
+
+    console.log("✅ Đã nâng cấp Tìm kiếm Sâu Đa lớp & Cuộn tải dần (Lazy Load)!");
+}, 7500); // Đợi các patch nền móng hoàn tất trước
