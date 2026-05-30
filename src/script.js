@@ -1741,3 +1741,159 @@ setTimeout(() => {
         };
     }
 }, 1000); // Khởi tạo sau 1s để đảm bảo đè lên các bản cũ
+// ==============================================================
+// PATCH 6: TRỊ DỨT ĐIỂM LỖI ẢNH ĐIỆN THOẠI & LỖI BIẾN MẤT UI
+// ==============================================================
+
+// 1. SỬA LỖI TRÀN RAM ĐIỆN THOẠI & KHÓA NÚT LƯU TRONG LÚC NÉN
+window.handleCoverUpload = async function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Khóa nút Lưu để người dùng không bấm được lúc đang nén
+    const saveBtn = document.getElementById('infoSaveBtn');
+    const oldSaveText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Đang xử lý ảnh...';
+    saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+    try {
+        // Dùng createObjectURL để không làm đơ trình duyệt mobile
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
+
+        // Bắt buộc phải ĐỢI ảnh tải lên bộ nhớ tạm xong mới làm tiếp
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = objectUrl;
+        });
+
+        const canvas = document.createElement('canvas');
+        let width = img.width; let height = img.height;
+        const MAX_SIZE = 600; // Giảm xuống 600px để mọi điện thoại đều mượt
+
+        if (width > height) {
+            if (width > MAX_SIZE) { height = Math.round(height * (MAX_SIZE / width)); width = MAX_SIZE; }
+        } else {
+            if (height > MAX_SIZE) { width = Math.round(width * (MAX_SIZE / height)); height = MAX_SIZE; }
+        }
+
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+        // Hiển thị ảnh nén lên giao diện
+        document.getElementById('infoCoverPreview').src = compressedDataUrl;
+        document.getElementById('infoCoverPreview').classList.remove('hidden');
+        document.getElementById('infoCoverPlaceholder').classList.add('hidden');
+
+        // Lưu vào biến toàn cục để chuẩn bị up lên Drive
+        window.pendingCoverBase64 = compressedDataUrl.split(',')[1];
+        window.pendingCoverMimeType = 'image/jpeg';
+
+        URL.revokeObjectURL(objectUrl); // Giải phóng RAM điện thoại
+    } catch (err) {
+        showToast("Lỗi xử lý ảnh, hãy thử ảnh khác!", true);
+        console.error(err);
+    } finally {
+        // Xử lý xong -> Mở khóa nút Lưu
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = oldSaveText;
+        saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+};
+
+// 2. CHẶN SHEETS LẤY DỮ LIỆU CŨ ĐÈ LÊN GIAO DIỆN (GHOST OVERWRITE)
+window.lastEditTime = 0; // Biến ghi nhớ thời điểm vừa sửa file
+
+setTimeout(() => {
+    const oldSaveBtn = document.getElementById('infoSaveBtn');
+    if(oldSaveBtn) {
+        const newSaveBtn = oldSaveBtn.cloneNode(true);
+        oldSaveBtn.parentNode.replaceChild(newSaveBtn, oldSaveBtn);
+        newSaveBtn.onclick = async () => { 
+            if(!currentEditId) return closeInfoModal();
+            
+            // Đánh dấu thời điểm người dùng vừa bấm lưu!
+            window.lastEditTime = Date.now(); 
+            
+            const newName = document.getElementById('infoName').value.trim(); 
+            const newType = document.getElementById('infoType').value; 
+            const newDesc = document.getElementById('infoDesc').value.trim();
+            
+            let newCover = appMeta[currentEditId]?.cover || ''; 
+            let pendingB64 = window.pendingCoverBase64; 
+            let pendingMime = window.pendingCoverMimeType; 
+            let tempCoverUrl = document.getElementById('infoCoverPreview').src;
+            
+            // Dù đang có mạng hay không, LƯU NGAY vào ổ cứng và HIỆN UI TỨC THÌ
+            if (pendingB64) newCover = tempCoverUrl; 
+            appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
+            localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
+            
+            let nameChanged = false; 
+            const allItems = [...currentDriveItems, ...Object.values(subFolderCache).flat()];
+            const oldItem = allItems.find(i => i.id === currentEditId);
+            if (newName && oldItem && newName !== oldItem.name) { nameChanged = true; }
+            
+            smoothUpdateUI(appMeta); 
+            closeInfoModal();
+            
+            // Bật cờ cấm mọi hành động tải ngầm phá đám
+            syncQueueCount++; updateSyncIndicator();
+            
+            try {
+                if (pendingB64) {
+                    window.pendingCoverBase64 = null; window.pendingCoverMimeType = null;
+                    showToast(`<i class="fas fa-cloud-upload-alt mr-2 text-blue-400"></i> Đang up ảnh bìa...`);
+                    
+                    const res = await fetch(SCRIPT_URL, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ action: 'upload', folderId: currentEditId, filename: '_cover.jpg', mimeType: pendingMime, data: pendingB64 }) 
+                    }).then(r => r.json());
+                    
+                    if (res && res.success) {
+                        let permanentCover = `https://drive.google.com/thumbnail?id=${res.fileId || res.id}&sz=w800`;
+                        appMeta[currentEditId].cover = permanentCover; 
+                        localforage.setItem('vinhloc_meta', appMeta).catch(e=>{}); 
+                        smoothUpdateUI(appMeta); // Gắn link Drive thật vào
+                        
+                        addActionToQueue('updateSingleMeta', { meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: permanentCover } });
+                        showToast(`<i class="fas fa-check mr-2 text-green-400"></i> Đã lưu thư mục`);
+                    } else {
+                        showToast('Lỗi tải ảnh bìa lên Drive!', true);
+                    }
+                } else {
+                    showToast(`<i class="fas fa-check mr-2 text-green-400"></i> Đã lưu thư mục`);
+                    addActionToQueue('updateSingleMeta', { meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover } });
+                }
+
+                if (nameChanged) addActionToQueue('rename', { id: currentEditId, newName: newName, type: currentEditType });
+                
+            } catch (err) {
+                console.error(err);
+            } finally {
+                syncQueueCount--; updateSyncIndicator();
+            }
+        };
+    }
+}, 1500); // 1.5s để đảm bảo ghi đè các hàm cũ
+
+// 3. BỌC HÀM ĐỒNG BỘ: NHẮM MẮT LÀM NGƠ KHI VỪA SỬA XONG
+if (typeof silentFetchMeta === 'function' && !silentFetchMeta.isWrappedForGracePeriod) {
+    const originalSilentFetchMeta = silentFetchMeta;
+    silentFetchMeta = async function() {
+        // Nếu vừa mới lưu, BỎ QUA không lấy dữ liệu từ Google Sheets trong 15 giây
+        // (Chờ Sheets cập nhật xong xuôi rồi mới được lấy lại)
+        if (Date.now() - window.lastEditTime < 15000) {
+            return;
+        }
+        return originalSilentFetchMeta();
+    };
+    silentFetchMeta.isWrappedForGracePeriod = true;
+}
