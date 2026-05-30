@@ -2591,3 +2591,104 @@ setTimeout(() => {
         window.renderItems(currentDriveItems);
     }
 }, 1000);
+// ==============================================================
+// PATCH 16: "CON NHỆN" CRAWLER - TẢI TRƯỚC TOÀN BỘ DỮ LIỆU NGẦM
+// ==============================================================
+setTimeout(() => {
+    let isCrawling = false;
+    
+    window.backgroundPrefetch = async function() {
+        // 1. Tạm dừng con Nhện nếu ứng dụng đang bận (Up file, Edit, hoặc MasterSync đang chạy)
+        if (syncQueueCount > 0 || isCrawling || (window.lastEditTime && Date.now() - window.lastEditTime < 15000)) return;
+        
+        isCrawling = true;
+        try {
+            // 2. Mở "Sổ ghi chép" từ ổ cứng để biết tiến độ
+            let queue = await localforage.getItem('vinhloc_crawl_queue') || [];
+            let crawled = await localforage.getItem('vinhloc_crawled_set') || {};
+            
+            // 3. Nếu Sổ ghi chép trống (Đã tải xong toàn bộ công ty) -> Chờ 30 phút mới đi quét lại 1 vòng mới
+            if (queue.length === 0) {
+                const lastReset = await localforage.getItem('vinhloc_crawl_last_reset') || 0;
+                if (Date.now() - lastReset > 1800000) { // 1800000ms = 30 phút
+                    queue = [ROOT_FOLDER_ID];
+                    crawled = {};
+                    await localforage.setItem('vinhloc_crawl_last_reset', Date.now());
+                } else {
+                    isCrawling = false;
+                    return; // Về ngủ tiếp, chưa tới giờ làm việc
+                }
+            }
+            
+            // 4. Lấy Thư mục đầu tiên trong hàng đợi ra để tải
+            let targetId = queue.shift();
+            
+            // Nếu thư mục này đã tải rồi thì bỏ qua
+            if (crawled[targetId]) {
+                await localforage.setItem('vinhloc_crawl_queue', queue);
+                isCrawling = false;
+                return;
+            }
+            
+            console.log("🕷️ Nhện đang tải ngầm thư mục:", targetId);
+            
+            // 5. Âm thầm kéo dữ liệu từ Google Drive
+            const res = await fetch(SCRIPT_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: 'list', folderId: targetId }) 
+            }).then(r => r.json());
+            
+            if (res && res.success && res.data) {
+                let newData = res.data;
+                
+                // Đồng bộ Tên từ Sheets vào thẳng dữ liệu Drive
+                newData.forEach(item => {
+                    item.description = ""; 
+                    if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name; 
+                });
+                
+                // 6. Phân loại dữ liệu và cất vào Ổ cứng
+                let isMegaRow = false;
+                if (folderDataCache[ROOT_FOLDER_ID]) {
+                    isMegaRow = folderDataCache[ROOT_FOLDER_ID].some(i => i.id === targetId);
+                }
+                
+                if (targetId === ROOT_FOLDER_ID) {
+                    // Nếu là gốc, chỉ nạp nếu chưa có (để không cãi nhau với MasterSync)
+                    if (!folderDataCache[ROOT_FOLDER_ID]) folderDataCache[ROOT_FOLDER_ID] = newData;
+                } else if (isMegaRow) {
+                    subFolderCache[targetId] = newData; // Lưu vào ngăn chứa Mega-row
+                } else {
+                    folderDataCache[targetId] = newData; // Lưu vào ngăn Thư mục thường
+                }
+                
+                // 7. Phát hiện các Thư mục con bên trong, ghi chú vào Sổ để lát tải tiếp
+                const childFolders = newData.filter(i => i.type === 'folder');
+                childFolders.forEach(child => {
+                    if (!crawled[child.id] && !queue.includes(child.id)) {
+                        queue.push(child.id); // Xếp hàng tải dần
+                    }
+                });
+                
+                // 8. Đóng mộc "Đã tải xong"
+                crawled[targetId] = true;
+                
+                // 9. LƯU MỌI THỨ VÀO Ổ CỨNG VĨNH VIỄN
+                await localforage.setItem('vinhloc_folder_cache', folderDataCache);
+                await localforage.setItem('vinhloc_subfolder_cache', subFolderCache);
+                await localforage.setItem('vinhloc_crawl_queue', queue);
+                await localforage.setItem('vinhloc_crawled_set', crawled);
+            }
+        } catch (e) {
+            console.warn("🕷️ Nhện rớt mạng, sẽ thử lại sau...");
+        } finally {
+            isCrawling = false;
+        }
+    };
+    
+    // KÍCH HOẠT NHỆN: Cứ 8 giây nó sẽ bò đi tải 1 thư mục!
+    // (8 giây là tốc độ hoàn hảo: Đủ nhanh để nạp đầy DB, đủ chậm để Google không khóa API)
+    window.spiderInterval = setInterval(window.backgroundPrefetch, 8000);
+    console.log("✅ Con Nhện tải dữ liệu ngầm đã được thả!");
+
+}, 7000); // Khởi động sau 7s khi các hệ thống khác đã yên vị
