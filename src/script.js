@@ -2167,74 +2167,201 @@ setTimeout(() => {
 
 }, 4000);
 // ==============================================================
-// PATCH 10: FIX LỖI TẠO MEGA-ROW BỊ MẶC ĐỊNH LÀ "TRIỂN KHAI"
+// PATCH 12: ĐA UPLOAD (NHIỀU FILE) & ĐÓNG BĂNG UI ĐANG UP CHUẨN 100%
 // ==============================================================
-replaceTempId = function(tempId, realId) {
-    let itemName = '';
-    
-    // 1. Cập nhật ID thật trong mảng hiển thị hiện tại
-    let itemIdx = currentDriveItems.findIndex(i => i.id === tempId);
-    if (itemIdx > -1) {
-        currentDriveItems[itemIdx].id = realId;
-        itemName = currentDriveItems[itemIdx].name;
-        delete currentDriveItems[itemIdx].isPending;
-    }
-
-    // 2. Cập nhật ID thật trong Cache Thư mục
-    for (let fId in folderDataCache) {
-        let idx = folderDataCache[fId].findIndex(i => i.id === tempId);
-        if (idx > -1) {
-            folderDataCache[fId][idx].id = realId;
-            itemName = itemName || folderDataCache[fId][idx].name;
-            delete folderDataCache[fId][idx].isPending;
-        }
-    }
-
-    // 3. Cập nhật ID thật trong Cache Thư mục con
-    for (let mId in subFolderCache) {
-        let idx = subFolderCache[mId].findIndex(i => i.id === tempId);
-        if (idx > -1) {
-            subFolderCache[mId][idx].id = realId;
-            itemName = itemName || subFolderCache[mId][idx].name;
-            delete subFolderCache[mId][idx].isPending;
-        }
-    }
-
-    // 4. CHÌA KHÓA Ở ĐÂY: Chuyển Meta sang ID thật VÀ GỬI LÊN SHEETS LẬP TỨC
-    if (appMeta[tempId]) {
-        appMeta[realId] = appMeta[tempId];
-        appMeta[realId].name = itemName || appMeta[realId].name || '';
-        delete appMeta[tempId];
-        localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
+setTimeout(() => {
+    // ---------------------------------------------------------
+    // 1. MỞ KHÓA CHỌN NHIỀU FILE CÙNG LÚC (MULTIPLE: TRUE)
+    // ---------------------------------------------------------
+    async function pickLocalFilesMultiple({ accept = 'image/*', callback }) {
+        try {
+            if(window.showOpenFilePicker) {
+                const pickerTypes = [];
+                if(accept.includes('image')) pickerTypes.push({ description: 'Images', accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif'] } });
+                if(accept.includes('video')) pickerTypes.push({ description: 'Videos', accept: { 'video/*': ['.mp4', '.mov', '.webm', '.mkv'] } });
+                
+                // MỞ KHÓA CHO PHÉP CHỌN NHIỀU
+                const handles = await window.showOpenFilePicker({ multiple: true, excludeAcceptAllOption: true, types: pickerTypes });
+                const files = []; for(const handle of handles) files.push(await handle.getFile());
+                callback({ target: { files } }); return;
+            }
+        } catch(err) {}
         
-        // Gửi ngay lệnh chốt Loại (Triển khai/Ý tưởng) lên Google Sheets
-        addActionToQueue('updateSingleMeta', { 
-            meta: { 
-                id: realId, 
-                name: appMeta[realId].name, 
-                type: appMeta[realId].type || currentCategory, 
-                desc: appMeta[realId].desc || '', 
-                cover: appMeta[realId].cover || '' 
-            } 
-        });
-    } else if (folderStack.length === 1) {
-        // Đề phòng trường hợp lỗi chưa có Meta, tự động ép thành Category hiện tại
-        appMeta[realId] = { type: currentCategory, desc: '', cover: '', name: itemName };
-        localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
-        
-        addActionToQueue('updateSingleMeta', { 
-            meta: { 
-                id: realId, 
-                name: itemName, 
-                type: currentCategory, 
-                desc: '', 
-                cover: '' 
-            } 
-        });
+        const input = document.createElement('input'); 
+        input.type = 'file'; 
+        input.accept = accept; 
+        input.multiple = true; // MỞ KHÓA CHO ĐIỆN THOẠI
+        input.style.display = 'none';
+        document.body.appendChild(input); 
+        input.addEventListener('change', callback); 
+        input.click(); 
+        setTimeout(()=>{ input.remove(); }, 10000);
     }
 
-    // 5. Vẽ lại giao diện để tắt vòng xoay Loading
-    if (currentDriveItems.some(i => i.id === realId)) {
-        if (typeof window.renderItems === 'function') window.renderItems(currentDriveItems);
-    }
-};
+    // Gắn lại sự kiện cho nút Up Ảnh & Video
+    const uploadImageLabel = document.querySelector('label:has(#uploadImage)');
+    if(uploadImageLabel) uploadImageLabel.onclick = async function(e){ e.preventDefault(); e.stopPropagation(); await pickLocalFilesMultiple({ accept:'image/*', callback: window.handleMultipleFileUpload }); };
+
+    const uploadVideoLabel = document.querySelector('label:has(#uploadVideo)');
+    if(uploadVideoLabel) uploadVideoLabel.onclick = async function(e){ e.preventDefault(); e.stopPropagation(); await pickLocalFilesMultiple({ accept:'video/*', callback: window.handleMultipleFileUpload }); };
+
+    // ---------------------------------------------------------
+    // 2. XỬ LÝ UP NHIỀU FILE & GẮN CHẶT LÊN GIAO DIỆN
+    // ---------------------------------------------------------
+    window.handleMultipleFileUpload = async function(event) {
+        if (typeof closeFab === 'function') closeFab(); 
+        const files = event.target.files; 
+        if (!files || files.length === 0) return;
+        
+        syncQueueCount++; updateSyncIndicator(); 
+        let uploadQueue = [];
+        
+        // BƯỚC 1: XẾP TOÀN BỘ FILE LÊN MÀN HÌNH CÙNG LÚC (Giao diện Lạc quan)
+        for (let i = 0; i < files.length; i++) {
+            let file = files[i]; 
+            let fakeId = 'temp_file_' + Date.now() + '_' + i; 
+            let tempUrl = URL.createObjectURL(file); 
+            
+            // CỜ QUAN TRỌNG: isPending = true để Cỗ máy đồng bộ không được xóa
+            let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl, isPending: true };
+            uploadQueue.push({ file: file, id: fakeId, itemRef: newItem }); 
+            
+            currentDriveItems.unshift(newItem); 
+        }
+        
+        // Cập nhật giao diện nội bộ và in ra màn hình NGAY LẬP TỨC
+        folderDataCache[currentFolderId] = currentDriveItems; 
+        window.renderItems(currentDriveItems);
+        
+        // BƯỚC 2: UP TỪNG FILE NGẦM VÀ GỠ BỎ MÀN MỜ KHI XONG
+        for (let obj of uploadQueue) {
+            try {
+                let base64Data = await new Promise((resolve, reject) => { 
+                    let reader = new FileReader(); 
+                    reader.onload = (e) => resolve(e.target.result.split(',')[1]); 
+                    reader.onerror = (e) => reject(e); 
+                    reader.readAsDataURL(obj.file); 
+                });
+                
+                let res = await fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ action: 'upload', folderId: currentFolderId, filename: obj.file.name, mimeType: obj.file.type, data: base64Data }) 
+                }).then(r => r.json());
+                
+                if (res && res.success) { 
+                    let realId = res.fileId || res.id;
+                    
+                    // Xóa màn mờ "Đang up..." và cấp ID thật cho file
+                    let uploadedItem = currentDriveItems.find(i => i.id === obj.id);
+                    if (uploadedItem) {
+                        uploadedItem.id = realId;
+                        delete uploadedItem.isPending; // Xóa cờ bảo vệ
+                        delete uploadedItem.tempUrl;   // Tắt hiệu ứng mờ
+                    }
+                    
+                    if (folderDataCache[currentFolderId]) {
+                        let cacheItem = folderDataCache[currentFolderId].find(i => i.id === obj.id);
+                        if (cacheItem) {
+                            cacheItem.id = realId;
+                            delete cacheItem.isPending;
+                            delete cacheItem.tempUrl;
+                        }
+                    }
+                    
+                    window.renderItems(currentDriveItems); // F5 cục bộ khối hình đó
+                    URL.revokeObjectURL(obj.itemRef.tempUrl); 
+                } else {
+                    throw new Error("Lỗi Server!");
+                }
+            } catch(err) { 
+                showToast(`Lỗi tải lên: ${obj.file.name}`, true); 
+                // Nếu up rớt, tự động dọn dẹp khối hình lỗi khỏi màn hình
+                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
+                folderDataCache[currentFolderId] = currentDriveItems;
+                window.renderItems(currentDriveItems);
+            }
+        }
+        
+        syncQueueCount--; updateSyncIndicator();
+        event.target.value = ''; 
+    };
+
+    // ---------------------------------------------------------
+    // 3. ÉP CỖ MÁY ĐỒNG BỘ PHẢI TÔN TRỌNG CÁC FILE ĐANG UP
+    // ---------------------------------------------------------
+    if (window.masterSyncInterval) clearInterval(window.masterSyncInterval);
+
+    window.masterSync = async function() {
+        if (syncQueueCount > 0 || (window.lastEditTime && Date.now() - window.lastEditTime < 15000)) return;
+        if (document.querySelector('.item-action-menu:not(.hidden)') || !document.getElementById('customModal').classList.contains('hidden') || !document.getElementById('infoModal').classList.contains('hidden')) return;
+
+        try {
+            const metaRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getMeta' }) }).then(r => r.json());
+            if (metaRes && metaRes.success && metaRes.meta) {
+                if (JSON.stringify(appMeta) !== JSON.stringify(metaRes.meta)) {
+                    appMeta = metaRes.meta; 
+                    localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
+                    smoothUpdateUI(appMeta); 
+                }
+            }
+
+            const hasStructureChanged = (oldArr, newArr) => {
+                // Che mắt hàm đếm: Không tính các file đang có chữ Đang up...
+                const oldIds = oldArr.filter(i => !i.isPending).map(i => i.id).sort().join(',');
+                const newIds = newArr.filter(i => !i.isPending).map(i => i.id).sort().join(',');
+                return oldIds !== newIds; 
+            };
+
+            if (currentFolderId && currentFolderId !== 'dummy_design_state') {
+                const listRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'list', folderId: currentFolderId }) }).then(r => r.json());
+                if (listRes && listRes.success && listRes.data) {
+                    let newData = listRes.data;
+                    newData.forEach(item => { if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name; });
+                    
+                    const oldData = folderDataCache[currentFolderId] || [];
+                    
+                    // NẾU PHÁT HIỆN CÓ AI ĐÓ THÊM XÓA FILE:
+                    if (hasStructureChanged(oldData, newData)) {
+                        // 1. Nhặt tất cả các file Đang up trên máy bạn ra
+                        const pendingItems = oldData.filter(i => i.isPending);
+                        
+                        // 2. Chèn trả lại chúng vào danh sách mới tải về
+                        newData = [...pendingItems, ...newData];
+                        
+                        // 3. Lưu & In ra màn hình (Giao diện lưới sẽ giữ nguyên 100% các hình đang up)
+                        folderDataCache[currentFolderId] = newData;
+                        localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(()=>{});
+                        currentDriveItems = newData;
+                        window.renderItems(currentDriveItems); 
+                    }
+                }
+            }
+
+            // Tương tự cho màn hình trang chủ
+            if (folderStack.length === 1 && typeof expandedMegas !== 'undefined' && expandedMegas.length > 0) {
+                for (let megaId of expandedMegas) {
+                    const subRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'list', folderId: megaId }) }).then(r => r.json());
+                    if (subRes && subRes.success && subRes.data) {
+                        let newSubData = subRes.data.filter(i => i.type === 'folder');
+                        newSubData.forEach(item => { if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name; });
+                        
+                        const oldSubData = subFolderCache[megaId] || [];
+                        if (hasStructureChanged(oldSubData, newSubData)) {
+                            const pendingSub = oldSubData.filter(i => i.isPending);
+                            newSubData = [...pendingSub, ...newSubData];
+                            
+                            subFolderCache[megaId] = newSubData;
+                            localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(()=>{});
+                            if (typeof renderSubFolders === 'function') renderSubFolders(megaId, newSubData);
+                            else if (window.renderSubFolders) window.renderSubFolders(megaId, newSubData);
+                        }
+                    }
+                }
+            }
+        } catch(e) {}
+    };
+
+    window.masterSyncInterval = setInterval(window.masterSync, 6000);
+    console.log("✅ Đã bật Đa Upload và Đóng Băng Giao Diện 100%");
+
+}, 6000);
