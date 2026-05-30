@@ -3103,3 +3103,76 @@ if (btnCloseDesignFix) {
         });
     }
 })();
+// =====================================================================
+// PATCH: THÊM NÚT TĂNG/GIẢM CỘT LƯỚI ẢNH TRONG GIAO DIỆN DESIGN
+// =====================================================================
+(function() {
+    document.addEventListener("DOMContentLoaded", () => {
+        // Lấy khu vực bên trái của thanh Header trong giao diện Design
+        const designHeaderLeft = document.querySelector('#watermark-overlay-container header .header-icons:first-child');
+        
+        if (designHeaderLeft && !document.getElementById('design-grid-controls')) {
+            // Tạo một container bọc 2 nút tròn
+            const controlsContainer = document.createElement('div');
+            controlsContainer.id = 'design-grid-controls';
+            // Dùng Tailwind để tạo khoảng cách và căn giữa
+            controlsContainer.className = 'flex items-center gap-2 ml-4'; 
+            
+            // Nút GIẢM CỘT (Zoom In - Tối thiểu 1 cột)
+            const btnDecrease = document.createElement('button');
+            btnDecrease.className = 'w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition shadow-sm border border-gray-200 active:bg-gray-300';
+            btnDecrease.innerHTML = '<i class="fas fa-minus text-xs"></i>';
+            btnDecrease.title = 'Giảm số cột (Phóng to)';
+
+            // Nút TĂNG CỘT (Zoom Out - Tối đa 2 cột)
+            const btnIncrease = document.createElement('button');
+            btnIncrease.className = 'w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition shadow-sm border border-gray-200 active:bg-gray-300';
+            btnIncrease.innerHTML = '<i class="fas fa-plus text-xs"></i>';
+            btnIncrease.title = 'Tăng số cột (Thu nhỏ)';
+
+            // Gắn vào container
+            controlsContainer.appendChild(btnDecrease);
+            controlsContainer.appendChild(btnIncrease);
+            
+            // Chèn vào kế bên nút "Trở lại" (Back)
+            designHeaderLeft.appendChild(controlsContainer);
+
+            let designGridCols = 2; // Mặc định hiển thị ban đầu là 2 cột
+            const imageGrid = document.getElementById('image-grid');
+
+            // Hàm cập nhật giao diện lưới
+            const updateDesignGrid = () => {
+                if(imageGrid) {
+                    // Áp dụng CSS column-count
+                    imageGrid.style.columnCount = designGridCols;
+                    
+                    // Làm mờ nút nếu đạt giới hạn để báo hiệu cho người dùng
+                    btnDecrease.style.opacity = designGridCols === 1 ? '0.4' : '1';
+                    btnDecrease.style.pointerEvents = designGridCols === 1 ? 'none' : 'auto';
+                    
+                    btnIncrease.style.opacity = designGridCols === 2 ? '0.4' : '1';
+                    btnIncrease.style.pointerEvents = designGridCols === 2 ? 'none' : 'auto';
+                }
+            };
+
+            // Sự kiện bấm nút Giảm
+            btnDecrease.addEventListener('click', () => {
+                if (designGridCols > 1) {
+                    designGridCols--;
+                    updateDesignGrid();
+                }
+            });
+
+            // Sự kiện bấm nút Tăng
+            btnIncrease.addEventListener('click', () => {
+                if (designGridCols < 2) {
+                    designGridCols++;
+                    updateDesignGrid();
+                }
+            });
+            
+            // Khởi tạo trạng thái màu nút ban đầu (vì mặc định đang là 2 cột nên nút Tăng sẽ mờ)
+            updateDesignGrid();
+        }
+    });
+})();
