@@ -2398,4 +2398,196 @@ setTimeout(() => {
     }
     
     console.log("✅ Đã khôi phục hoàn hảo Menu xuất file trong Design!");
-}, 2500); // Trễ 2.5s để đảm bảo mọi DOM đã load xong
+}, 2500); // Trễ 2.5s để đảm bảo mọi DOM đã load xong\
+// ==============================================================
+// PATCH 15: SỬA LỖI GOM CHUNG MEGA-ROW VÀ LỖI ẨN FOLDER CON
+// ==============================================================
+
+// 1. GHI ĐÈ HÀM KHỞI TẠO (TRỊ BỆNH GOM CHUNG MEGA-ROW LẦN ĐẦU MỞ APP)
+async function initDatabase() {
+    try {
+        let storedMeta = await localforage.getItem('vinhloc_meta');
+        appMeta = storedMeta || {};
+
+        // [QUAN TRỌNG] NẾU APPMETA TRỐNG (MỞ LẦN ĐẦU), ÉP ĐỢI TẢI TỪ SHEETS XONG MỚI CHẠY TIẾP
+        if (Object.keys(appMeta).length === 0) {
+            console.log("Khởi động lần đầu: Đang tải dữ liệu phân loại từ Server...");
+            const folderListEl = document.getElementById('folderList');
+            if (folderListEl) {
+                folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang thiết lập dữ liệu lần đầu...</div>';
+            }
+            try {
+                // Tạm dừng mọi thứ để lấy Meta về
+                const metaRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getMeta' }) }).then(r => r.json());
+                if (metaRes && metaRes.success && metaRes.meta) {
+                    appMeta = metaRes.meta;
+                    await localforage.setItem('vinhloc_meta', appMeta);
+                }
+            } catch(e) { 
+                console.warn("Lỗi mạng lần đầu tiên"); 
+            }
+        }
+
+        // Khôi phục bộ đệm cấu trúc thư mục
+        const storedFolderCache = await localforage.getItem('vinhloc_folder_cache');
+        folderDataCache = storedFolderCache || {};
+        
+        const storedSubCache = await localforage.getItem('vinhloc_subfolder_cache');
+        subFolderCache = storedSubCache || {};
+
+        let metaCleaned = false;
+        for (let id in appMeta) {
+            if (appMeta[id].cover && appMeta[id].cover.length > 30000) {
+                appMeta[id].cover = ''; metaCleaned = true;
+            }
+        }
+        if (metaCleaned) await localforage.setItem('vinhloc_meta', appMeta);
+
+        // Render ngay lập tức trang Triển khai (Lúc này đã có phân loại chuẩn 100%)
+        const params = new URLSearchParams(window.location.search);
+        if (!params.get('shareId')) {
+            loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false);
+        }
+    } catch (err) {
+        console.error("Lỗi tải DB:", err);
+    }
+}
+
+// 2. GHI ĐÈ HÀM VẼ GIAO DIỆN CHÍNH (TRỊ BỆNH ẨN FOLDER CON KHI CLICK VÀO TRONG)
+setTimeout(() => {
+    window.renderItems = function(items, isSearchMode = false) {
+        // Đồng bộ chuẩn tên từ Sheets và dọn rác
+        items.forEach(item => {
+            item.description = ""; 
+            if (appMeta[item.id] && appMeta[item.id].name) {
+                item.name = appMeta[item.id].name; 
+            }
+        });
+
+        const folderListEl = document.getElementById('folderList'); 
+        const fileListEl = document.getElementById('fileList');
+        folderListEl.innerHTML = ''; fileListEl.innerHTML = '';
+        
+        if (items.length === 0) { 
+            folderListEl.innerHTML = '<div class="text-center text-gray-400 mt-8 w-full italic">Không có dữ liệu.</div>'; 
+            return; 
+        }
+
+        // A. NẾU ĐANG Ở TRANG CHỦ (MEGA ROWS)
+        if (folderStack.length === 1 && !isSearchMode) {
+            const megaRows = items.filter(i => i.type === 'folder' && getMeta(i.id).type === currentCategory);
+            if (megaRows.length === 0) { 
+                folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Chưa có dữ liệu trong mục ${currentCategory}</div>`; 
+                return; 
+            }
+            
+            folderListEl.innerHTML = megaRows.map(item => {
+                const meta = getMeta(item.id);
+                // Thoát các dấu nháy đơn để chống vỡ mã HTML
+                const safeName = item.name.replace(/'/g, "\\'"); 
+                return `
+                <div class="mega-row">
+                    <div class="mega-header" onclick="window.toggleAccordion('${item.id}')">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <i id="icon-${item.id}" class="fas fa-chevron-right text-gray-400 text-sm transition-transform duration-200 w-4 text-center"></i>
+                            <div class="flex flex-col overflow-hidden">
+                                <span class="truncate uppercase text-blue-800 item-name-${item.id}">${item.name}</span>
+                                <span class="text-[11px] font-normal text-gray-500 truncate mt-1 item-desc-${item.id} ${meta.desc ? '' : 'hidden'}">${meta.desc || ''}</span>
+                            </div>
+                        </div>
+                        <div class="relative flex-shrink-0" onclick="event.stopPropagation()">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-blue-600 bg-gray-50 rounded-full transition"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 z-500 py-1.5 text-sm item-action-menu overflow-hidden">
+                                <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.openInfo('${item.id}', '${safeName}', '${item.type}', 'mega', event)"><i class="fas fa-info-circle mr-3 text-blue-500 w-4"></i>Thông tin</div>
+                                <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-green-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.uiPromptFolder('${item.id}', event)"><i class="fas fa-folder-plus mr-3 w-4"></i>Thư mục</div>
+                                <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
+                                <div class="px-5 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                                <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold transition border-t border-gray-50 flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="acc-${item.id}" class="hidden bg-white border-t border-gray-100"></div>
+                </div>`;
+            }).join('');
+            
+            megaRows.forEach(row => { if(typeof expandedMegas !== 'undefined' && expandedMegas.includes(row.id)) window.toggleAccordion(row.id, true); });
+        } 
+        
+        // B. NẾU ĐANG BÊN TRONG FOLDER HOẶC ĐANG TÌM KIẾM
+        else {
+            const folders = items.filter(i => i.type === 'folder'); 
+            const files = items.filter(i => i.type !== 'folder');
+            
+            // XỬ LÝ VẼ FOLDER CON VÀ ÉP HIỂN THỊ CHỐNG ẨN
+            if(folders.length > 0) {
+                folderListEl.innerHTML = folders.map(item => {
+                    const meta = getMeta(item.id); 
+                    let isSelected = window.multiSelectState && window.multiSelectState.selectedIds.has(item.id);
+                    const imgHtml = `<img src="${meta.cover || ''}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 shadow-sm item-cover-img-${item.id} ${meta.cover ? '' : 'hidden'}"><div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-500 text-xl item-cover-icon-${item.id} ${meta.cover ? 'hidden' : ''}"><i class="fas fa-folder"></i></div>`;
+                    let checkUi = isSelected ? `<div class="absolute top-1/2 -translate-y-1/2 right-12 bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center shadow"><i class="fas fa-check text-[10px]"></i></div>` : '';
+                    let bgClass = isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50';
+                    
+                    const safeName = item.name.replace(/'/g, "\\'"); 
+
+                    return `
+                    <div class="subfolder-row group relative border-b transition ${bgClass}" style="display: flex !important;" onclick="loadFolder('${item.id}', '${safeName}', true)">
+                        ${checkUi} ${imgHtml}
+                        <div class="flex-1 overflow-hidden" onclick="window.toggleFileSelection ? window.toggleFileSelection('${item.id}', event) : null">
+                            <h4 class="text-sm font-bold ${isSelected ? 'text-blue-800' : 'text-gray-800'} truncate item-name-${item.id}">${item.name}</h4>
+                            <p class="text-[11px] text-gray-500 truncate mt-0.5 item-desc-${item.id} ${meta.desc ? '' : 'hidden'}">${meta.desc || 'Chưa có mô tả'}</p>
+                        </div>
+                        <div class="relative" onclick="event.stopPropagation()">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="px-3 py-2 text-gray-400"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border z-[500] py-1 text-sm item-action-menu">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 flex items-center" onclick="window.openInfo('${item.id}', '${safeName}', '${item.type}', 'sub', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer font-semibold text-gray-700 border-t flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                                <div class="px-4 py-3 hover:bg-red-50 text-red-600 cursor-pointer font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+            
+            // XỬ LÝ VẼ FILE
+            if (files.length > 0) {
+                fileListEl.innerHTML = files.map(item => {
+                    let isImage = item.mimeType.includes('image'); let isSelected = window.multiSelectState && window.multiSelectState.selectedIds.has(item.id);
+                    let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`; let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
+                    let visualEl = isImage ? `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy">` : `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-play-circle text-gray-400 text-4xl"></i></div>`;
+                    let isTemp = item.tempUrl ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` : '';
+                    let checkUi = isSelected ? `<div class="absolute top-2 left-2 z-20 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"><i class="fas fa-check text-xs"></i></div>` : '';
+                    let borderClass = isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'border-gray-100 bg-white';
+                    const safeName = item.name.replace(/'/g, "\\'"); 
+
+                    return `
+                    <div class="p-2.5 rounded-2xl shadow-sm border flex flex-col relative transition ${borderClass}">
+                        ${checkUi} ${isTemp}
+                        <div class="absolute top-2 right-2 z-20">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-[500] py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${safeName}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                                <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            </div>
+                        </div>
+                        <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3" onclick="openMedia('${item.id}', '${item.mimeType}', '${safeName}', '${fullImgUrl}')">${visualEl}</div>
+                        <div class="px-1 flex flex-col justify-center flex-1 cursor-pointer" onclick="window.toggleFileSelection ? window.toggleFileSelection('${item.id}', event) : null">
+                            <span class="text-[13px] font-bold ${isSelected ? 'text-blue-700' : 'text-gray-800'} line-clamp-2 leading-tight drive-img-name item-name-${item.id}" title="${item.name}">${item.name}</span>
+                            <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+        }
+        
+        // Quét lại một lượt để đảm bảo không sai màu
+        smoothUpdateUI(appMeta);
+    };
+
+    // F5 nhẹ giao diện hiện tại để áp dụng ngay code sửa lỗi
+    if (currentDriveItems && currentDriveItems.length > 0) {
+        window.renderItems(currentDriveItems);
+    }
+}, 1000);
