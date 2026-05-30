@@ -3238,3 +3238,159 @@ setTimeout(() => {
     console.log("✅ PATCH 19: Đã gắn định vị cho Cỗ máy, sửa dứt điểm lỗi giật chớp!");
 
 }, 9000);
+// ==============================================================
+// PATCH 20: FIX TÌM KIẾM BỊ DÍNH THƯ MỤC ĐÃ XÓA (GHOST ITEMS)
+// ==============================================================
+setTimeout(() => {
+    // 1. TẠO HÀM DỌN RÁC TOÀN CỤC (GLOBAL PURGE)
+    window.purgeDeletedItem = function(id) {
+        // Xóa khỏi UI hiện tại
+        currentDriveItems = currentDriveItems.filter(i => i.id !== id);
+        
+        // Xóa khỏi toàn bộ Cache Drive mà Con Nhện đã lưu
+        for (let fId in folderDataCache) {
+            folderDataCache[fId] = folderDataCache[fId].filter(i => i.id !== id);
+        }
+        localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(()=>{});
+
+        for (let mId in subFolderCache) {
+            subFolderCache[mId] = subFolderCache[mId].filter(i => i.id !== id);
+        }
+        localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(()=>{});
+
+        // Xóa sổ luôn trong kho Meta để trừ hậu họa "zombie"
+        if (appMeta[id]) {
+            delete appMeta[id];
+            localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
+        }
+    };
+
+    // 2. GHI ĐÈ HÀM XÓA ĐƠN (Gắn thêm Cỗ máy thanh trừng)
+    const originalHandleDelete = window.handleDelete;
+    window.handleDelete = function(id, type, e) {
+        originalHandleDelete(id, type, e); // Gọi modal xóa cũ
+        
+        const btn = document.getElementById('modalConfirmBtn');
+        const originalOnClick = btn.onclick; // Lấy lệnh xóa cũ
+        btn.onclick = () => {
+            if (originalOnClick) originalOnClick(); 
+            window.purgeDeletedItem(id); // Quét sạch tàn dư
+            
+            // Cập nhật lại list tìm kiếm ngay lập tức nếu đang đứng ở giao diện Tìm kiếm
+            if (window.isSearching) {
+                window.currentSearchResults = window.currentSearchResults.filter(i => i.id !== id);
+                window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
+            }
+        };
+    };
+
+    // 3. GHI ĐÈ HÀM XÓA HÀNG LOẠT
+    const originalDeleteSelected = window.deleteSelectedItems;
+    window.deleteSelectedItems = function() {
+        originalDeleteSelected();
+        
+        const btn = document.getElementById('modalConfirmBtn');
+        const originalOnClick = btn.onclick;
+        btn.onclick = async () => {
+            let idsToDelete = Array.from(window.multiSelectState.selectedIds);
+            if (originalOnClick) await originalOnClick(); 
+            
+            idsToDelete.forEach(id => window.purgeDeletedItem(id));
+            if (window.isSearching) {
+                window.currentSearchResults = window.currentSearchResults.filter(i => !idsToDelete.includes(i.id));
+                window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
+            }
+        };
+    };
+
+    // 4. SỬA LẠI LÕI TÌM KIẾM: NGHIÊM CẤM TÌM TRONG KHO META
+    function removeAccents(str) { 
+        if (!str) return ''; 
+        return String(str).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); 
+    }
+
+    window.performDeepOfflineSearch = function(rawKeyword) {
+        const kw = removeAccents(rawKeyword.trim());
+        let localResults = new Map(); 
+
+        const checkMatch = (item) => {
+            if (!item || !item.name) return false;
+            const itemName = removeAccents(String(item.name)); 
+            const itemMeta = appMeta[item.id] || {}; 
+            const metaName = removeAccents(String(itemMeta.name || '')); 
+            return itemName.includes(kw) || metaName.includes(kw); 
+        };
+
+        // CHỈ QUÉT TRONG CACHE DO NHỆN LẤY VỀ TỪ DRIVE (Bỏ qua hoàn toàn kho Meta)
+        const allCaches = [folderDataCache, subFolderCache];
+        allCaches.forEach(cacheObj => {
+            Object.values(cacheObj).forEach(arr => {
+                if(Array.isArray(arr)) {
+                    arr.forEach(item => {
+                        if (checkMatch(item)) localResults.set(item.id, item);
+                    });
+                }
+            });
+        });
+
+        let finalArray = Array.from(localResults.values());
+        finalArray.sort((a, b) => {
+            if (a.type === b.type) return String(a.name).localeCompare(String(b.name));
+            return a.type === 'folder' ? -1 : 1;
+        });
+
+        return finalArray;
+    };
+
+    // Gắn lại sự kiện tìm kiếm
+    const searchInputEl = document.getElementById('searchInput');
+    if (searchInputEl) {
+        const newSearchInput = searchInputEl.cloneNode(true);
+        searchInputEl.parentNode.replaceChild(newSearchInput, searchInputEl);
+        
+        let searchTimeout = null;
+        newSearchInput.addEventListener('input', (e) => {
+            const rawKeyword = e.target.value; 
+            if (searchTimeout) clearTimeout(searchTimeout);
+            
+            if(!rawKeyword.trim()) { 
+                document.getElementById('clearSearchBtn').classList.add('hidden'); 
+                window.isSearching = false;
+                window.renderItems(currentDriveItems); 
+                return; 
+            }
+            
+            document.getElementById('clearSearchBtn').classList.remove('hidden');
+            window.isSearching = true;
+
+            searchTimeout = setTimeout(() => {
+                const folderListEl = document.getElementById('folderList'); 
+                const fileListEl = document.getElementById('fileList');
+                
+                folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang truy quét...</p></div>'; 
+                fileListEl.innerHTML = '';
+
+                // Dùng lõi tìm kiếm mới đã vá lỗi ZOMBIE
+                let resultsArray = window.performDeepOfflineSearch(rawKeyword);
+                window.currentSearchResults = resultsArray;
+                window.searchDisplayLimit = 30; 
+
+                if (resultsArray.length > 0) {
+                    window.renderItems(resultsArray.slice(0, window.searchDisplayLimit), true);
+                } else {
+                    folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Không tìm thấy kết quả nào chứa "${rawKeyword}".</div>`;
+                }
+            }, 300); 
+        });
+
+        document.getElementById('clearSearchBtn').onclick = function() { 
+            newSearchInput.value = ''; 
+            this.classList.add('hidden'); 
+            window.isSearching = false;
+            window.currentSearchResults = [];
+            window.renderItems(currentDriveItems); 
+        };
+    }
+
+    console.log("✅ PATCH 20: Đã tiêu diệt bóng ma thư mục đã xóa trong tìm kiếm!");
+}, 9500);
