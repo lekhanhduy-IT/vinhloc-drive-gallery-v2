@@ -22,13 +22,13 @@ localforage.config({
 let appMeta = {};
 
 // Thay thế toàn bộ hàm initDatabase() cũ bằng đoạn này:
+// TẢI DỮ LIỆU TỪ Ổ CỨNG VÀO RAM LÚC MỞ APP
 async function initDatabase() {
     try {
-        // 1. Tải Meta (Ảnh bìa, mô tả, loại)
         const storedMeta = await localforage.getItem('vinhloc_meta');
         appMeta = storedMeta || {};
 
-        // 2. TẢI CẤU TRÚC THƯ MỤC TỪ Ổ CỨNG VÀO RAM (Fix lỗi mất cache khi thoát App)
+        // Kéo danh sách file và folder đã lưu vĩnh viễn ra
         const storedFolderCache = await localforage.getItem('vinhloc_folder_cache');
         folderDataCache = storedFolderCache || {};
         
@@ -38,37 +38,25 @@ async function initDatabase() {
         let metaCleaned = false;
         for (let id in appMeta) {
             if (appMeta[id].cover && appMeta[id].cover.length > 30000) {
-                appMeta[id].cover = ''; 
-                metaCleaned = true;
+                appMeta[id].cover = ''; metaCleaned = true;
             }
         }
         if (metaCleaned) await localforage.setItem('vinhloc_meta', appMeta);
 
-        console.log("Đã tải xong toàn bộ dữ liệu Offline DB. Bắt đầu render...");
+        console.log("Đã tải xong DB Offline. Không cần gọi Drive lại nữa!");
         
-        // 3. Render ngay lập tức trang chủ bằng dữ liệu từ ổ cứng
+        // Render ngay lập tức trang Triển khai
         const params = new URLSearchParams(window.location.search);
         if (!params.get('shareId')) {
             loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false);
         }
-
     } catch (err) {
-        console.error("Lỗi tải cơ sở dữ liệu:", err);
+        console.error("Lỗi tải DB:", err);
     }
 }
-
-// 4. Kích hoạt Auto-Save ngầm cấu trúc thư mục
-let lastCacheString = "";
-setInterval(() => {
-    // Nếu danh sách thư mục/file có sự thay đổi (tạo mới, xóa, up ảnh) thì mới lưu
-    let currentCacheString = JSON.stringify(folderDataCache) + JSON.stringify(subFolderCache);
-    if (currentCacheString !== lastCacheString) {
-        localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(e=>{});
-        localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(e=>{});
-        lastCacheString = currentCacheString;
-    }
-}, 3000); // 3 giây quét 1 lần, không gây lag UI
 initDatabase();
+// KHÔNG DÙNG setInterval 3 GIÂY Ở ĐÂY NỮA
+
 
 // ==========================================
 // 2. HỆ THỐNG BACKGROUND QUEUE ĐỒNG BỘ NGẦM
@@ -1498,3 +1486,51 @@ document.addEventListener("DOMContentLoaded", () => {
 // Chạy luôn lệnh này phòng trường hợp trang web đã load xong DOM
 const activeDesignContainer = document.getElementById('watermark-overlay-container');
 if (activeDesignContainer) activeDesignContainer.style.zIndex = '9999999';
+// ==============================================================
+// PATCH: INSTANT CACHE PERSISTENCE (LƯU TỨC THÌ 100% CHỐNG MẤT DỮ LIỆU)
+// ==============================================================
+setTimeout(() => {
+    // 1. Chặn hành động vẽ lại danh sách chính: Cứ vẽ xong là lưu ổ cứng
+    if (window.renderItems && !window.renderItems_isWrapped) {
+        const originalRenderItems = window.renderItems;
+        window.renderItems = function(items, isSearchMode = false) {
+            originalRenderItems(items, isSearchMode);
+            // Lưu thẳng vào ổ cứng ngay tắp lự (bỏ qua nếu đang search)
+            if (!isSearchMode) {
+                localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(e=>{});
+            }
+        };
+        window.renderItems_isWrapped = true;
+    }
+
+    // 2. Chặn hành động vẽ thư mục con (Mega folders): Vẽ xong là lưu ngay
+    if (typeof window.renderSubFolders !== 'undefined' || typeof renderSubFolders !== 'undefined') {
+        const targetFn = window.renderSubFolders || renderSubFolders;
+        if (!targetFn.isWrapped) {
+            const originalRenderSubFolders = targetFn;
+            const newRenderSubFolders = function(megaId, subFolders) {
+                originalRenderSubFolders(megaId, subFolders);
+                localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(e=>{});
+            };
+            newRenderSubFolders.isWrapped = true;
+            if (window.renderSubFolders) window.renderSubFolders = newRenderSubFolders;
+            else renderSubFolders = newRenderSubFolders; 
+        }
+    }
+
+    // 3. Chặn hành động khi đổi tên file / đổi ảnh bìa
+    if (typeof window.smoothUpdateUI !== 'undefined' || typeof smoothUpdateUI !== 'undefined') {
+        const targetFn = window.smoothUpdateUI || smoothUpdateUI;
+        if (!targetFn.isWrapped) {
+            const originalSmoothUpdateUI = targetFn;
+            const newSmoothUpdateUI = function(newMeta) {
+                originalSmoothUpdateUI(newMeta);
+                localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(e=>{});
+                localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(e=>{});
+            };
+            newSmoothUpdateUI.isWrapped = true;
+            if (window.smoothUpdateUI) window.smoothUpdateUI = newSmoothUpdateUI;
+            else smoothUpdateUI = newSmoothUpdateUI;
+        }
+    }
+}, 500);
