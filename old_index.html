@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <title>QL Ảnh</title>
+    
+    <link rel="manifest" href="manifest.json?v=2">
+    <link rel="icon" type="image/png" href="vlimage.png">
+    <link rel="apple-touch-icon" href="vlimage.png">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="QL Ảnh">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+ 
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;700&family=Roboto:wght@400;700&family=Saira:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        body { -webkit-tap-highlight-color: transparent; background-color: #f4f7f6; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+
+        :root {
+            --primary-blue: #2563eb; --primary-red: #dc2626; --bg-white: #ffffff;
+            --gray-light: #f3f4f6; --gray-dark: #1f2937;
+            --header-h: 56px; --bottom-h: 60px; --panel-h: 180px; 
+        }
+
+        /* SIDEBAR */
+        #sidebar { position: fixed; top: 0; left: -280px; width: 260px; height: 100vh; background: white; z-index: 9999; transition: 0.3s ease-in-out; box-shadow: 4px 0 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        #sidebar.open { left: 0; }
+        #sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; display: none; backdrop-filter: blur(2px); }
+        .sidebar-item { padding: 15px 20px; font-weight: 700; color: #4b5563; border-left: 4px solid transparent; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 12px; }
+        .sidebar-item.active { background: #eff6ff; color: var(--primary-blue); border-left-color: var(--primary-blue); }
+
+        /* LIST & GRID CSS */
+        .mega-row { background: white; border-bottom: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+        .mega-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #1f2937; font-size: 15px; cursor: pointer; }
+        .subfolder-row { padding: 12px 16px 12px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6; background: #f9fafb; cursor: pointer; }
+        .subfolder-row:active { background: #f3f4f6; }
+        
+        .masonry-grid { column-count: 2; column-gap: 10px; }
+        .image-card { break-inside: avoid; margin-bottom: 10px; position: relative; background: #e5e7eb; width: 100%; overflow: hidden; border-radius: 0px; }
+        .image-card img.base-img { width: 100%; display: block; pointer-events: auto; }
+        .image-card.selected::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 3px solid var(--primary-red); background: rgba(220, 38, 38, 0.2); pointer-events: none; border-radius: 12px; }
+        .check-icon { display: none; position: absolute; top: 8px; right: 8px; color: var(--primary-red); background: white; border-radius: 50%; font-size: 20px; z-index: 10; pointer-events: none; }
+        .image-card.selected .check-icon { display: block; }
+        .pin-icon { position: absolute; top: 8px; left: 8px; color: var(--primary-blue); background: white; border-radius: 50%; font-size: 14px; padding: 6px; z-index: 10; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+
+        /* DESIGN UI */
+        #watermark-overlay-container { position: fixed; inset: 0; background-color: var(--gray-light); z-index: 9999; display: none; flex-direction: column; font-family: 'Roboto', sans-serif; color: var(--gray-dark); }
+        #watermark-overlay-container header { height: var(--header-h); background: var(--bg-white); display: flex; justify-content: space-between; align-items: center; padding: 0 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 100; flex-shrink: 0; }
+        .header-icons { display: flex; gap: 20px; align-items: center; color: var(--primary-blue); font-size: 22px; }
+        .header-icons i { cursor: pointer; padding: 5px; }
+        
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-menu { display: none; position: absolute; right: 0; top: 35px; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.15); border-radius: 8px; flex-direction: column; min-width: 170px; z-index: 9000; overflow: hidden; border: 1px solid #e5e7eb; font-size: 14px; }
+        .dropdown-menu.show { display: flex; }
+        .menu-item { padding: 12px 16px; cursor: pointer; color: #374151; border-bottom: 1px solid #f3f4f6; font-family: 'Roboto', sans-serif; }
+        .menu-item:last-child { border-bottom: none; }
+        .menu-item:hover { background: #f9fafb; }
+        .menu-item.text-red { color: var(--primary-red); font-weight: bold; }
+
+        #main-container-overlay { flex: 1; overflow-y: auto; padding: 10px; padding-bottom: calc(var(--bottom-h) + var(--panel-h) + 20px); scrollbar-width: none; }
+        .overlay-item { position: absolute; transform-origin: center; cursor: move; white-space: nowrap; line-height: 1; z-index: 5; }
+        .overlay-img { display: block; width: 100%; height: auto; pointer-events: none; }
+        .overlay-item.text-layer { paint-order: stroke fill; }
+        .overlay-item.active { border: 2px dashed var(--primary-blue); z-index: 20; }
+        .ctrl-btn { display: none; position: absolute; width: 28px; height: 28px; background: white; border-radius: 50%; border: 1px solid #d1d5db; justify-content: center; align-items: center; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .overlay-item.active .ctrl-btn { display: flex; }
+        .ctrl-delete { top: -14px; left: -14px; color: var(--primary-red); }
+        .ctrl-scale-rotate { bottom: -14px; right: -14px; color: var(--primary-blue); cursor: nwse-resize; }
+
+        .custom-scroll-container { position: fixed; right: 10px; top: 45%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 15px; z-index: 150; }
+        .scroll-btn { width: 42px; height: 42px; background: rgba(255, 255, 255, 0.9); color: var(--primary-blue); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.15); font-size: 20px; cursor: pointer; border: 1px solid #e5e7eb; transition: 0.2s; }
+
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-h); background: var(--bg-white); display: flex; justify-content: space-around; box-shadow: 0 -4px 6px rgba(0,0,0,0.05); z-index: 200; border-top: 1px solid #f3f4f6; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 10px; color: #6b7280; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+        .nav-item.active { color: var(--primary-blue); font-weight: 700; }
+        
+        .control-panel { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: var(--panel-h); background: var(--bg-white); border-top: 1px solid #e5e7eb; z-index: 190; display: none; flex-direction: column; transition: 0.3s; transform: translateY(100%); }
+        .control-panel.active { display: flex; transform: translateY(0); }
+        
+        .sub-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid #f3f4f6; padding: 10px; gap: 10px; white-space: nowrap; flex-shrink: 0; }
+        .sub-tabs::-webkit-scrollbar { display: none; }
+        .sub-tab-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; background: none; font-size: 13px; cursor: pointer; color: var(--primary-blue); font-weight: 500; transition: 0.2s; }
+        .sub-tab-btn.active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        
+        .panel-content { flex: 1; padding: 10px 15px; overflow-y: auto; overflow-x: hidden; max-width: 100vw; display: flex; flex-direction: column; justify-content: flex-start; gap: 15px; }
+        .slider-row { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #4b5563; }
+        .slider-row input[type="range"] { flex: 1; accent-color: var(--primary-blue); }
+        
+        .color-list-wrapper { width: 100%; overflow-x: auto; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; padding-bottom: 5px; }
+        .color-list-wrapper::-webkit-scrollbar { display: none; }
+        .color-list { display: flex; flex-wrap: nowrap; gap: 14px; align-items: center; width: max-content; padding: 2px; }
+        .color-dot { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #e5e7eb; flex-shrink: 0; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .color-dot:active { transform: scale(0.85); }
+        
+        .action-row { display: flex; justify-content: center; gap: 10px; padding-top: 5px; flex-shrink: 0; }
+        .btn { padding: 8px 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: 0.2s; }
+        .btn-blue { background: var(--primary-blue); color: white; }
+        .btn-red { background: var(--primary-red); color: white; }
+        .btn-outline { background: white; border: 1px solid var(--primary-blue); color: var(--primary-blue); }
+
+        .rename-container { display: flex; width: 100%; height: 100%; gap: 12px; align-items: stretch; justify-content: flex-start; }
+        .rename-left { flex: 1; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #f3f4f6; padding-right: 12px; justify-content: center;}
+        .rename-right { flex: 1.5; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; justify-content: flex-start;}
+        .rename-right::-webkit-scrollbar { display: none; }
+        .rename-item { display: flex; align-items: center; gap: 10px; background: #f9fafb; padding: 8px; border-radius: 8px; border: 1px solid #e5e7eb; flex-shrink: 0;}
+        .rename-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #d1d5db; flex-shrink: 0;}
+        .rename-item input { flex: 1; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0; outline: none; font-family: inherit;}
+        
+        #input-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); z-index: 500; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+        #main-text-input { width: 100%; max-width: 400px; padding: 16px; font-size: 22px; border: 2px solid var(--primary-blue); border-radius: 12px; text-align: center; outline: none; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.1); }
+        
+        #watermark-popup { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: 55vh; background: white; border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 300; display: none; flex-direction: column; padding: 20px; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); }
+        
+        .wm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; overflow-y: auto; margin-top: 15px; padding: 5px; flex: 1; align-content: start; }
+        .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; background-color: white; }
+        .wm-item img { width: 100%; height: 100%; object-fit: contain; padding: 5px; pointer-events: none; }
+        .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; z-index: 10; pointer-events: auto; }
+
+        /* CUSTOM SELECT */
+        .custom-select-wrapper { position: relative; user-select: none; }
+        .custom-select { position: relative; display: flex; justify-content: space-between; align-items: center; border: 1px solid #d1d5db; padding: 12px; border-radius: 12px; background: #f9fafb; cursor: pointer; font-weight: 500; }
+        .custom-select-options { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d1d5db; border-radius: 12px; margin-top: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 10; display: none; overflow: hidden; }
+        .custom-select-options.open { display: block; }
+        .custom-select-option { padding: 12px; cursor: pointer; transition: background 0.2s; }
+        .custom-select-option:hover { background: #eff6ff; color: var(--primary-blue); }
+
+        /* CSS CHO TOAST POPUP CHỐNG LỘ NỀN */
+        .toast-popup {
+            position: fixed; top: -50px; left: 50%; transform: translateX(-50%);
+            background: rgba(17, 24, 39, 1); color: white; padding: 12px 24px;
+            border-radius: 30px; z-index: 10000; font-size: 14px; font-weight: bold;
+            transition: opacity 0.3s ease, top 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); 
+            opacity: 0; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
+            white-space: nowrap; display: flex; align-items: center; gap: 8px;
+        }
+        .toast-popup.show { opacity: 1; top: 40px; }
+    </style>
+</head>
+
+<body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
+
+    <div id="toast-container" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-[10000] flex flex-col gap-2 pointer-events-none"></div>
+
+    <div id="sync-indicator" class="fixed top-6 right-4 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg text-xs font-bold text-gray-700 flex items-center gap-2 z-[9999] transition-opacity duration-300 opacity-0 pointer-events-none border border-gray-100">
+        <div id="sync-icon"><i class="fas fa-circle-notch fa-spin text-blue-600"></i></div>
+        <span id="sync-text" class="text-blue-600">Đang lưu...</span>
+    </div>
+
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div id="sidebar">
+        <div class="p-6 border-b flex justify-between items-center bg-blue-50">
+            <div class="flex items-center gap-3">
+                <img src="vlimage.png" alt="Logo" class="w-8 h-8 object-cover rounded shadow-sm">
+                <h2 class="font-bold text-xl text-blue-600">Danh Mục</h2>
+            </div>
+            <i class="fas fa-times text-2xl text-gray-500 cursor-pointer" onclick="toggleSidebar()"></i>
+        </div>
+        <div class="flex-1 overflow-y-auto py-2">
+            <div class="sidebar-item active" onclick="switchCategory('Triển khai')" id="menu-trienkhai">
+                <i class="fas fa-rocket w-6 text-center"></i> Triển khai
+            </div>
+            <div class="sidebar-item" onclick="switchCategory('Ý tưởng')" id="menu-ytuong">
+                <i class="fas fa-lightbulb w-6 text-center"></i> Ý tưởng
+            </div>
+        </div>
+    </div>
+
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-20">
+        <div class="flex items-center gap-3 w-full overflow-hidden">
+            <i class="fas fa-bars text-xl cursor-pointer p-1 shrink-0" id="btnMenu" onclick="toggleSidebar()"></i>
+            <button id="btnBack" class="hidden text-xl p-1 active:bg-blue-700 rounded-full transition shrink-0"><i class="fas fa-arrow-left"></i></button>
+            <img src="vlimage.png" alt="Logo" class="w-7 h-7 object-cover rounded bg-white/20 p-0.5 shrink-0">
+            <h1 class="text-sm font-bold truncate whitespace-nowrap overflow-x-auto no-scrollbar" id="currentFolderName" style="flex:1;">Triển khai</h1>
+        </div>
+        <div id="loading" class="hidden loader shrink-0 ml-2"></div>
+    </header>
+
+    <div class="sticky top-0 z-10 bg-white p-3 border-b border-gray-200 shadow-sm">
+        <div class="relative">
+            <i class="fas fa-search absolute left-4 top-3 text-gray-400"></i>
+            <input type="text" id="searchInput" placeholder="Tìm kiếm..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition text-sm font-medium">
+            <i class="fas fa-times absolute right-4 top-3 text-gray-400 cursor-pointer hidden" id="clearSearchBtn" onclick="clearSearch()"></i>
+        </div>
+    </div>
+
+    <main class="flex-1 overflow-y-auto relative bg-gray-100" id="contentArea">
+        <div id="folderList" class="flex flex-col mb-4 bg-white"></div>
+        <div id="fileList" class="grid grid-cols-2 gap-3 px-3 pb-24"></div>
+    </main>
+
+    <div class="absolute bottom-6 right-6 flex flex-col-reverse items-end gap-3 z-30">
+<button id="fabMain" class="w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition transform hover:scale-105 active:scale-95 overflow-hidden bg-transparent border-none p-0">
+            <img src="addfolder.gif" id="fabIcon" class="w-full h-full object-cover transition-transform duration-300" alt="Thêm mới">
+        </button>
+        
+        <button id="btn-open-design" title="Mở trình chỉnh sửa" class="w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition transform hover:scale-105 active:scale-95 hidden overflow-hidden bg-transparent border-none p-0">
+            <img src="pendesign.png" class="w-full h-full object-cover" alt="Chỉnh sửa">
+        </button>
+
+        <div id="fabMenu" class="hidden flex-col gap-3 items-end mb-2 transition-all">
+            <button onclick="uiPromptFolder()" class="bg-white text-blue-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold active:bg-gray-50 border border-gray-100">
+                
+                <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center"><i class="fas fa-folder-plus"></i></div>
+            </button>
+            <label class="bg-white text-green-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
+                
+                <div class="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center"><i class="fas fa-image"></i></div>
+                <input type="file" id="uploadImage" class="hidden" multiple accept="image/*" onchange="handleMultipleFileUpload(event)">
+            </label>
+            <label class="bg-white text-orange-500 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
+                
+                <div class="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center"><i class="fas fa-camera"></i></div>
+                <input type="file" id="captureImage" class="hidden" accept="image/*" capture="environment" onchange="handleMultipleFileUpload(event)">
+            </label>
+            <label class="bg-white text-purple-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
+                
+                <div class="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center"><i class="fas fa-file-video"></i></div>
+                <input type="file" id="uploadVideo" class="hidden" multiple accept="video/*" onchange="handleMultipleFileUpload(event)">
+            </label>
+            <label class="bg-white text-pink-600 p-3 rounded-full shadow-lg flex items-center gap-3 font-semibold cursor-pointer active:bg-gray-50 border border-gray-100">
+                
+                <div class="w-10 h-10 bg-pink-50 rounded-full flex items-center justify-center"><i class="fas fa-video"></i></div>
+                <input type="file" id="captureVideo" class="hidden" accept="video/*" capture="environment" onchange="handleMultipleFileUpload(event)">
+            </label>
+        </div>
+    </div>
+
+    <div id="infoModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[9999] transition-opacity backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl transform scale-95 transition-transform max-h-[90vh] flex flex-col" id="infoBox">
+            <div class="p-5 border-b shrink-0">
+                <h3 class="text-xl font-bold text-blue-600">Thông tin & Cài đặt</h3>
+            </div>
+            
+            <div class="p-5 overflow-y-auto flex-1">
+                <div id="info-field-name" class="mb-4">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Tên</label>
+                    <input type="text" id="infoName" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50" />
+                </div>
+
+                <div id="info-field-type" class="mb-4 hidden relative">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Loại</label>
+                    <input type="hidden" id="infoType" value="Triển khai">
+                    <div class="custom-select-wrapper" id="customSelectWrapper">
+                        <div class="custom-select" id="customSelectValue">
+                            <span>Triển khai</span>
+                            <i class="fas fa-chevron-down text-gray-500"></i>
+                        </div>
+                        <div class="custom-select-options" id="customSelectOptions">
+                            <div class="custom-select-option" data-val="Triển khai">Triển khai</div>
+                            <div class="custom-select-option" data-val="Ý tưởng">Ý tưởng</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="info-field-desc" class="mb-4 hidden">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Mô tả chi tiết</label>
+                    <textarea id="infoDesc" rows="3" class="w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50" placeholder="Ý tưởng, nội dung chứa bên trong..."></textarea>
+                </div>
+
+                <div id="info-field-cover" class="mb-5 hidden">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Ảnh xem trước</label>
+                    <div id="infoCoverWrapper" class="w-full h-32 bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center relative overflow-hidden cursor-pointer">
+                        <img id="infoCoverPreview" src="" class="w-full h-full object-cover hidden">
+                        <div id="infoCoverPlaceholder" class="text-gray-400 flex flex-col items-center">
+                            <i class="fas fa-camera text-2xl mb-1"></i>
+                            <span class="text-xs font-medium">Bấm để tải ảnh lên</span>
+                        </div>
+                    </div>
+                    <input type="file" id="infoCoverInput" class="hidden" accept="image/*">
+                </div>
+            </div>
+
+            <div class="p-4 border-t flex justify-end gap-3 shrink-0 bg-gray-50 rounded-b-2xl">
+                <button onclick="closeInfoModal()" class="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl active:bg-gray-100 transition">Đóng</button>
+                <button id="infoSaveBtn" class="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl active:bg-blue-700 transition shadow-md shadow-blue-600/30">Lưu</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="customModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[9999] transition-opacity backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-2xl transform scale-95 transition-transform" id="modalBox">
+            <h3 id="modalTitle" class="text-lg font-bold mb-2 text-gray-800">Xác nhận</h3>
+            <p id="modalDesc" class="text-sm text-gray-600 mb-5"></p>
+            <input type="text" id="modalInput" class="hidden w-full border border-gray-300 p-3 rounded-xl focus:border-blue-600 outline-none font-medium bg-gray-50 mb-4" />
+            <div class="flex justify-end gap-3 mt-4">
+                <button onclick="closeModal()" class="px-5 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl">Hủy</button>
+                <button id="modalConfirmBtn" class="px-5 py-2 bg-red-600 text-white font-bold rounded-xl">Xóa</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mediaViewer" class="fixed inset-0 bg-black bg-opacity-95 hidden flex-col z-[60] transition-opacity">
+        <div class="flex justify-between items-center p-4 text-white z-10 bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full left-0">
+            <h2 id="mediaTitle" class="text-sm font-medium truncate flex-1 pr-4 drop-shadow-md">Tên file...</h2>
+            <div>
+                <button id="btnDownloadCurrentMedia" class="text-2xl p-2 mr-3"><i class="fas fa-download"></i></button>
+                <button onclick="closeMedia()" class="text-3xl p-2"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <div id="mediaContent" class="flex-1 flex items-center justify-center overflow-hidden w-full h-full relative pt-16 pb-4 px-2"></div>
+    </div>
+
+    <div id="watermark-overlay-container">
+        <header>
+            <div class="header-icons">
+                <i class="fa-solid fa-arrow-left" id="btn-close-design" title="Trở lại"></i>
+            </div>
+            <div class="header-icons">
+                <div class="dropdown">
+                    <i class="fa-solid fa-layer-group" id="layer-btn" title="Layers"></i>
+                    <div class="dropdown-menu" id="layer-menu"></div>
+                </div>
+                <i class="fa-solid fa-download" id="save-all-btn"></i>
+                <div class="dropdown">
+                    <i class="fa-solid fa-ellipsis-vertical" id="menu-btn"></i>
+                    <div class="dropdown-menu" id="dropdown-menu">
+                        <div id="select-all-btn" class="menu-item"><i class="fa-solid fa-check-double mr-2 text-blue-500"></i> Chọn tất cả</div>
+                        <div id="delete-selected-btn" class="menu-item text-red"><i class="fa-solid fa-trash mr-2"></i> Xóa ảnh đã chọn</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main id="main-container-overlay">
+            <div class="masonry-grid" id="image-grid"></div>
+        </main>
+
+        <div class="custom-scroll-container">
+            <div class="scroll-btn" id="scroll-up-btn"><i class="fa-solid fa-chevron-up"></i></div>
+            <div class="scroll-btn" id="scroll-down-btn"><i class="fa-solid fa-chevron-down"></i></div>
+        </div>
+
+        <div class="control-panel" id="panel-filter">
+            <div class="sub-tabs" id="filter-sub-tabs">
+                <button class="sub-tab-btn active" data-target="brightness">Sáng</button>
+                <button class="sub-tab-btn" data-target="darkness">Tối</button>
+                <button class="sub-tab-btn" data-target="sharpness">Nét</button>
+                <button class="sub-tab-btn" data-target="contrast">Tương phản</button>
+                <button class="sub-tab-btn" data-target="saturate">Bão hòa</button>
+                <button class="sub-tab-btn" data-target="rotate">Xoay</button>
+            </div>
+            <div class="panel-content" id="filter-sliders">
+                <div class="slider-row"><i class="fa-solid fa-sun text-gray-400"></i><input type="range" id="slider-filter-brightness" min="100" max="200" value="100"><i class="fa-solid fa-sun text-gray-800"></i></div>
+                <div class="slider-row" style="display:none;"><i class="fa-regular fa-moon text-gray-400"></i><input type="range" id="slider-filter-darkness" min="0" max="100" value="0"><i class="fa-solid fa-moon text-gray-800"></i></div>
+                <div class="slider-row" style="display:none;"><i class="fa-solid fa-droplet-slash text-gray-400"></i><input type="range" id="slider-filter-sharpness" min="0" max="100" value="0"><i class="fa-solid fa-mountain text-gray-800"></i></div>
+                <div class="slider-row" style="display:none;"><i class="fa-solid fa-circle-half-stroke text-gray-400"></i><input type="range" id="slider-filter-contrast" min="0" max="200" value="100"><i class="fa-solid fa-circle-half-stroke text-gray-800"></i></div>
+                <div class="slider-row" style="display:none;"><i class="fa-solid fa-palette text-gray-400 opacity-50"></i><input type="range" id="slider-filter-saturate" min="0" max="200" value="100"><i class="fa-solid fa-palette text-gray-800"></i></div>
+                <div class="slider-row" style="display:none;"><i class="fa-solid fa-rotate-left text-gray-800"></i><input type="range" id="slider-filter-rotate" min="-180" max="180" value="0"><i class="fa-solid fa-rotate-right text-gray-800"></i></div>
+            </div>
+        </div>
+
+        <div class="control-panel" id="panel-ratio">
+            <div class="panel-content" style="align-items: center; flex-direction: row; gap: 10px;">
+                <button class="sub-tab-btn" onclick="window.applyRatio('1/1')">1:1 (Vuông)</button>
+                <button class="sub-tab-btn" onclick="window.applyRatio('4/5')">4:5 (Dọc)</button>
+                <button class="sub-tab-btn" onclick="window.applyRatio('1.91/1')">1.91:1 (Ngang)</button>
+                <button class="sub-tab-btn" onclick="window.applyRatio('auto')">Gốc</button>
+            </div>
+        </div>
+
+        <div class="control-panel" id="panel-adjust">
+            <div class="target-selector" style="display:flex; justify-content:center; gap:20px; padding-top:10px;">
+                <label class="font-bold"><input type="radio" name="adjust-target" value="text" checked> Chữ</label>
+                <label class="font-bold"><input type="radio" name="adjust-target" value="wm"> Hình đóng dấu</label>
+            </div>
+            <div class="sub-tabs" id="adjust-sub-tabs">
+                <button class="sub-tab-btn active" data-target="scale">Phóng to</button>
+                <button class="sub-tab-btn" data-target="x">Trái/Phải</button>
+                <button class="sub-tab-btn" data-target="y">Lên/Xuống</button>
+                <button class="sub-tab-btn" data-target="opacity">Làm mờ</button>
+            </div>
+            <div class="panel-content" id="adjust-sliders">
+                <div class="slider-row"><i class="fa-solid fa-compress"></i><input type="range" id="slider-scale" min="10" max="300" value="100"><i class="fa-solid fa-expand"></i></div>
+                <div class="slider-row" style="display:none;"><i class="fa-solid fa-arrow-left"></i><input type="range" id="slider-x" min="0" max="100" value="50"><i class="fa-solid fa-arrow-right"></i></div>
+                <div class="slider-row" style="display:none;"><i class="fa-solid fa-arrow-up"></i><input type="range" id="slider-y" min="0" max="100" value="50"><i class="fa-solid fa-arrow-down"></i></div>
+                <div class="slider-row" style="display:none;"><i class="fa-solid fa-eye-slash"></i><input type="range" id="slider-opacity" min="0" max="100" value="100"><i class="fa-solid fa-eye"></i></div>
+            </div>
+        </div>
+
+        <div class="control-panel" id="panel-text">
+            <div class="sub-tabs" id="text-sub-tabs">
+                <button class="sub-tab-btn active" data-target="color">Màu chữ</button>
+                <button class="sub-tab-btn" data-target="stroke">Viền ngoài</button>
+                <button class="sub-tab-btn" data-target="font">Font chữ</button>
+                <button class="sub-tab-btn" data-target="style">Định dạng</button>
+            </div>
+            
+            <div class="panel-content relative">
+                <div class="color-list-wrapper" id="color-picker-wrapper">
+                    <div class="color-list" id="color-picker-container"></div>
+                </div>
+                
+                <div class="color-list-wrapper" id="font-picker-wrapper" style="display:none;">
+                    <div class="color-list" id="font-picker-container">
+                        <button class="btn btn-outline" style="font-family:'Arial'" onclick="window.updateProp('fontFamily','Arial')">Arial</button>
+                        <button class="btn btn-outline" style="font-family:'Times New Roman'" onclick="window.updateProp('fontFamily','Times New Roman')">Times</button>
+                        <button class="btn btn-outline" style="font-family:'Roboto'" onclick="window.updateProp('fontFamily','Roboto')">Roboto</button>
+                        <button class="btn btn-outline" style="font-family:'Saira'" onclick="window.updateProp('fontFamily','Saira')">Saira</button>
+                        <button class="btn btn-outline" style="font-family:'Anton'" onclick="window.updateProp('fontFamily','Anton')">Anton</button>
+                        <button class="btn btn-outline" style="font-family:'Montserrat'" onclick="window.updateProp('fontFamily','Montserrat')">Montserrat</button>
+                    </div>
+                </div>
+                
+                <div class="action-row" id="style-picker-container" style="display:none;">
+                    <button class="btn btn-outline" onclick="window.toggleStyle('fontWeight','bold','normal')">Đậm</button>
+                    <button class="btn btn-outline" onclick="window.toggleStyle('fontStyle','italic','normal')">Nghiêng</button>
+                    <button class="btn btn-outline" onclick="window.toggleStyle('textShadow','2px 2px 4px rgba(0,0,0,0.8)','none')">Bóng</button>
+                </div>
+                
+                <div class="action-row pb-2">
+                    <button class="btn btn-red" id="btn-delete-text" title="Xóa hàng loạt"><i class="fa-solid fa-trash"></i></button>
+                    <button class="btn btn-outline" id="btn-open-input" style="flex:1; justify-content:center;"><i class="fa-solid fa-keyboard"></i> Nhập chữ</button>
+                    <button class="btn btn-blue" id="btn-save-text-wm"><i class="fa-solid fa-floppy-disk"></i> Lưu</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel" id="panel-wm">
+            <div class="panel-content">
+                <div class="action-row" style="margin-bottom: 10px;">
+                    <button class="btn btn-outline" id="btn-upload-wm-local" style="flex:1; justify-content:center;">
+                        <i class="fa-solid fa-upload"></i> Up ảnh mới
+                    </button>
+                    <button class="btn btn-blue" id="btn-open-wm-library" style="flex:1; justify-content:center;">
+                        <i class="fa-solid fa-images"></i> Thư viện
+                    </button>
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-red" id="btn-delete-wm" style="width:100%; justify-content:center;" title="Xóa hàng loạt"><i class="fa-solid fa-trash"></i> Xóa Hàng Loạt</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel" id="panel-rename">
+            <div class="sub-tabs" id="rename-sub-tabs">
+                <button class="sub-tab-btn active" data-target="rename-batch">Tên chung</button>
+                <button class="sub-tab-btn" data-target="rename-individual">Tên riêng</button>
+            </div>
+            
+            <div class="panel-content relative">
+                <div id="rename-batch" style="display:flex; flex-direction:column; gap:15px; justify-content:center; align-items:center; width:100%; height:100%; padding-bottom:10px;">
+                    
+                    <input type="text" id="batch-name-input" placeholder="Ví dụ: Anh_KhaiTruong..." style="padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; width: 90%; outline: none; font-family: inherit;">
+                    <button class="btn btn-blue transition-colors duration-300" id="btn-apply-batch-name" style="padding: 12px; width: 90%; justify-content: center;"><i class="fa-solid fa-check-double"></i> Áp dụng nhanh</button>
+                </div>
+                
+                <div id="rename-individual" style="display:none; flex-direction:column; gap:10px; width:100%;">
+                    <div id="rename-list-container" style="display:flex; flex-direction:column; gap:10px; padding-bottom:10px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <nav class="bottom-nav">
+            <div class="nav-item" data-panel="panel-filter"><i class="fa-solid fa-wand-magic-sparkles text-lg mb-1"></i>Tùy chỉnh</div>
+            <div class="nav-item" data-panel="panel-ratio"><i class="fa-solid fa-crop-simple text-lg mb-1"></i>Tỷ lệ</div>
+            <div class="nav-item" data-panel="panel-adjust"><i class="fa-solid fa-sliders text-lg mb-1"></i>Vị trí</div>
+            <div class="nav-item" data-panel="panel-text"><i class="fa-solid fa-t text-lg mb-1"></i>Chữ</div>
+            <div class="nav-item" data-panel="panel-wm"><i class="fa-solid fa-stamp text-lg mb-1"></i>Logo</div>
+            <div class="nav-item" data-panel="panel-rename"><i class="fa-solid fa-file-signature text-lg mb-1"></i>Đổi tên</div>
+        </nav>
+
+        <div id="input-overlay">
+            <input type="text" id="main-text-input" placeholder="Nhập văn bản...">
+            <div class="action-row">
+                <button class="btn btn-red" id="btn-close-input">Hủy</button>
+                <button class="btn btn-blue" id="btn-apply-input">Hoàn tất</button>
+            </div>
+        </div>
+
+        <div id="watermark-popup">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:15px;">
+                <h3 style="color:var(--primary-blue); font-weight:bold; font-size:16px;">Thư viện Logo / Chữ</h3>
+                <i class="fa-solid fa-times" id="btn-close-wm-popup" style="font-size:22px; cursor:pointer; color:#6b7280;"></i>
+            </div>
+            <div class="wm-grid" id="wm-library-grid"></div>
+        </div>
+    </div> 
+    
+    <div id="save-options-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[10000] backdrop-blur-sm">
+        <div class="bg-white rounded-3xl p-6 w-11/12 max-w-sm shadow-2xl text-center transform transition-all">
+            <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h3 class="text-gray-800 text-xl font-bold mb-6">Tùy chọn xuất file</h3>
+            
+            <button id="btn-save-local" class="w-full flex justify-center items-center gap-3 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 px-4 rounded-xl mb-3 transition border border-gray-200">
+                <i class="fa-solid fa-mobile-screen-button text-lg"></i> Tải về máy
+            </button>
+            <button id="btn-save-drive" class="w-full flex justify-center items-center gap-3 bg-blue-600 active:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl mb-5 transition shadow-lg shadow-blue-600/30">
+                <i class="fa-brands fa-google-drive text-lg"></i> Lưu lên Drive
+            </button>
+            <button onclick="document.getElementById('save-options-modal').classList.add('hidden'); document.getElementById('save-options-modal').classList.remove('flex');" class="text-gray-400 font-semibold py-2 transition hover:text-gray-600">
+                Hủy bỏ
+            </button>
+        </div>
+    </div>
+
+    <script src="./src/script.js"></script>
+
+</body>
+</html>

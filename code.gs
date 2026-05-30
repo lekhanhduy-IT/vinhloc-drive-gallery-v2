@@ -92,11 +92,22 @@ function doPost(e) {
         result = { success: true, meta: getMetaFromSheet() };
         break;
 
-      case 'updateSingleMeta':
+case 'updateSingleMeta':
         if(payload.meta && payload.meta.id) {
+          try {
+            const f = DriveApp.getFolderById(payload.meta.id);
+            const typePrefix = "[" + payload.meta.type + "]";
+            // Thêm mác [Cover:URL] vào chuỗi Description
+            const coverPrefix = payload.meta.cover ? " [Cover:" + payload.meta.cover + "]" : " [Cover:NONE]";
+            
+            const fullDesc = typePrefix + coverPrefix + (payload.meta.desc ? " \n" + payload.meta.desc : "");
+            f.setDescription(fullDesc);
+          } catch(e) {}
+          
+          // Vẫn lưu dự phòng về Sheet như bình thường
           updateMetaInSheet(payload.meta.id, payload.meta.name, payload.meta.type, payload.meta.desc, payload.meta.cover);
         }
-        result = { success: true, message: "Đã cập nhật Sheet" };
+        result = { success: true, message: "Đã cập nhật Sheet và Folder Description" };
         break;
     }
 
@@ -154,12 +165,14 @@ function updateMetaInSheet(id, name, type, desc, cover) {
 }
 
 // ----------------- DRIVE FUNCTIONS -----------------
+// Ghi đè hàm getFolderContents
 function getFolderContents(folder) {
   let items = [];
   const folders = folder.getFolders();
   while (folders.hasNext()) {
     let f = folders.next();
-    items.push({ id: f.getId(), name: f.getName(), type: 'folder' });
+    // Bổ sung lấy description
+    items.push({ id: f.getId(), name: f.getName(), type: 'folder', description: f.getDescription() });
   }
 
   const files = folder.getFiles();
@@ -172,30 +185,26 @@ function getFolderContents(folder) {
     if (a.type === b.type) return a.name.localeCompare(b.name);
     return a.type === 'folder' ? -1 : 1;
   });
-
   return { success: true, data: items };
 }
 
-// === CƠ CHẾ TÌM KIẾM ĐỆ QUY SÂU VÀ BẢO MẬT TUYỆT ĐỐI ===
+// Ghi đè hàm searchFilesAndFoldersGlobally
 function searchFilesAndFoldersGlobally(keyword, rootId) {
   let items = [];
   const query = "title contains '" + keyword + "' and trashed = false";
   
-  // 1. Quét tìm thư mục theo từ khóa
   let folders = DriveApp.searchFolders(query);
   while(folders.hasNext() && items.filter(i => i.type === 'folder').length < 40) {
     let f = folders.next();
-    // Kiểm tra xem thư mục này có phải là con/cháu của rootId không
     if (isDescendantOfRoot(f, rootId)) {
-      items.push({ id: f.getId(), name: f.getName(), type: 'folder' });
+      // Bổ sung lấy description
+      items.push({ id: f.getId(), name: f.getName(), type: 'folder', description: f.getDescription() });
     }
   }
   
-  // 2. Quét tìm tệp theo từ khóa
   let files = DriveApp.searchFiles(query);
   while(files.hasNext() && items.filter(i => i.type === 'file').length < 50) {
     let f = files.next();
-    // Kiểm tra xem file này có phải là con/cháu của rootId không
     if (isDescendantOfRoot(f, rootId)) {
       items.push({ id: f.getId(), name: f.getName(), type: 'file', mimeType: f.getMimeType(), url: f.getUrl() });
     }
@@ -219,4 +228,45 @@ function isDescendantOfRoot(item, rootId) {
 function xacNhanQuyen() {
   var id = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT"; // Thay bằng ID folder bất kỳ
   DriveApp.getFolderById(id).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+}
+// =================================================================================
+// HÀM CHẠY 1 LẦN: ĐỒNG BỘ "LOẠI" TỪ SHEET SANG DESCRIPTION CỦA FOLDER TRÊN DRIVE
+// =================================================================================
+function tool_SyncDescriptionToAllExistingFolders() {
+  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheets()[0];
+  const data = sheet.getDataRange().getValues();
+  
+  let successCount = 0;
+  let failCount = 0;
+
+  // Vòng lặp bắt đầu từ 1 để bỏ qua dòng tiêu đề của Sheet
+  for (let i = 1; i < data.length; i++) {
+    let row = data[i];
+    let folderId = String(row[0]).trim();
+    let type = row[2] || 'Triển khai'; // Cột C: Loại
+    let desc = row[3] || '';           // Cột D: Mô tả
+    
+    if (folderId) {
+      try {
+        // Cố gắng lấy Folder bằng ID (Nếu ID là của File thì lệnh này sẽ nhảy vào catch)
+        let folder = DriveApp.getFolderById(folderId);
+        
+        // Tạo chuỗi mô tả chuẩn theo format đã thống nhất
+        let typePrefix = "[" + type + "]";
+        let fullDesc = typePrefix + (desc ? " \n" + desc : "");
+        
+        // Ghi đè vào Description của Folder trên Drive
+        folder.setDescription(fullDesc);
+        successCount++;
+        
+      } catch(e) {
+        // Bỏ qua nếu ID là của file (ảnh/video) hoặc thư mục đã bị xóa thùng rác
+        failCount++;
+      }
+    }
+  }
+  
+  Logger.log("ĐỒNG BỘ HOÀN TẤT!");
+  Logger.log("✓ Cập nhật thành công: " + successCount + " thư mục.");
+  Logger.log("✖ Bỏ qua (là File hoặc đã xóa): " + failCount + " mục.");
 }
