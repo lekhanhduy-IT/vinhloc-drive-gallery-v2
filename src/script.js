@@ -3620,3 +3620,43 @@ setTimeout(() => {
     if (currentDriveItems && currentDriveItems.length > 0 && window.renderItems) window.renderItems(currentDriveItems);
     console.log("✅ PATCH 21 SAFE: Bọc Khiên Bảo Vệ, Chống Gãy HTML và Fix Phím Back!");
 }, 10000);
+// ==============================================================
+// PATCH 22: CLICK LOGO HEADER ĐỂ VỀ NHANH TRANG CHỦ (MEGA-ROWS)
+// ==============================================================
+setTimeout(() => {
+    // Tìm đúng tấm ảnh Logo nằm trong thẻ header
+    const headerLogo = document.querySelector('header img[alt="Logo"]');
+    
+    if (headerLogo) {
+        // Thêm các class của Tailwind để biến ảnh thành nút bấm có hiệu ứng
+        headerLogo.classList.add('cursor-pointer', 'hover:opacity-80', 'active:scale-90', 'transition-all', 'duration-200');
+        
+        // Gắn sự kiện Click
+        headerLogo.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Nếu ĐÃ Ở trang chủ và KHÔNG PHẢI đang tìm kiếm thì không làm gì cả
+            if (folderStack.length <= 1 && !window.isSearching) return;
+            
+            // 1. Tắt chế độ tìm kiếm (nếu đang bật)
+            const searchInput = document.getElementById('searchInput');
+            const clearSearchBtn = document.getElementById('clearSearchBtn');
+            if (searchInput) searchInput.value = '';
+            if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
+            window.isSearching = false;
+            window.currentSearchResults = [];
+            
+            // 2. Gọi cỗ máy chuyển trang để Reset toàn bộ Stack về đúng gốc hiện tại
+            if (typeof window.switchCategory === 'function') {
+                window.switchCategory(currentCategory, true);
+            } else {
+                // Phương án dự phòng nếu không gọi được hàm
+                folderStack = [{ id: ROOT_FOLDER_ID, name: currentCategory, scrollTop: 0 }];
+                localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+                if(window.loadFolder) window.loadFolder(ROOT_FOLDER_ID, currentCategory, false, false);
+            }
+        });
+    }
+    console.log("✅ PATCH 22: Đã kích hoạt Logo thành nút Về Trang Chủ!");
+}, 10500); // Khởi chạy sau các patch trước để đảm bảo UI đã load xong
