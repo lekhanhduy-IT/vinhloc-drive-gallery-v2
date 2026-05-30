@@ -1897,3 +1897,29 @@ if (typeof silentFetchMeta === 'function' && !silentFetchMeta.isWrappedForGraceP
     };
     silentFetchMeta.isWrappedForGracePeriod = true;
 }
+// ==============================================================
+// PATCH 7: CẮT BỎ HOÀN TOÀN GOOGLE SHEETS
+// ==============================================================
+
+// 1. Giết chết hàm quét Sheets (Ngăn chặn nháy UI do Sheets trả về chậm)
+window.silentFetchMeta = function() {
+    // Không làm gì cả. Dữ liệu giờ 100% lấy từ Drive Description
+    return Promise.resolve();
+};
+window.silentFetchMeta.isWrappedForGracePeriod = true; // Khóa luôn không cho ai gọi lại
+
+// 2. Chặn các hàm ApiCall không cho gọi lệnh 'getMeta' lên server nữa
+const originalApiCall = window.apiCall;
+window.apiCall = async function(action, payload = {}) {
+    if (action === 'getMeta') {
+        // Trả về thẳng dữ liệu nội bộ, không cần lên mạng
+        return { success: true, meta: appMeta }; 
+    }
+    return originalApiCall(action, payload);
+};
+
+const originalBgApiCall = window.bgApiCall;
+window.bgApiCall = async function(action, payload = {}) {
+    if (action === 'getMeta') return { success: true, meta: appMeta };
+    return originalBgApiCall(action, payload);
+};
