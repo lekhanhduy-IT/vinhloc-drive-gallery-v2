@@ -2922,3 +2922,184 @@ if (btnCloseDesignFix) {
         }
     });
 }
+// =====================================================================
+// PATCH TỔNG HỢP: ĐỔI CHẾ ĐỘ XEM LIST/GRID & ZOOM 2 NGÓN TAY TRÊN MOBILE
+// =====================================================================
+(function() {
+    // 1. CHÈN CSS ĐỘNG ĐỂ XỬ LÝ GIAO DIỆN MÀ KHÔNG CẦN SỬA LẠI HÀM RENDER
+    const viewStyle = document.createElement('style');
+    viewStyle.innerHTML = `
+        /* ===== CHẾ ĐỘ XEM DANH SÁCH (LIST VIEW) ===== */
+        #fileList.list-view { display: flex !important; flex-direction: column; gap: 8px; }
+        #fileList.list-view > div.p-2\\.5 { flex-direction: row; align-items: center; padding: 10px !important; height: auto !important; border-radius: 16px !important; }
+        
+        /* Cố định ảnh cover khi ở dạng list */
+        #fileList.list-view > div > .h-32 { width: 60px !important; height: 60px !important; margin-bottom: 0 !important; margin-right: 14px; border-radius: 10px !important; flex-shrink: 0; }
+        
+        /* Nút 3 chấm nằm giữa theo chiều dọc ở bên phải */
+        #fileList.list-view > div .absolute.top-2.right-2 { top: 50% !important; transform: translateY(-50%); right: 12px !important; }
+        
+        /* Dấu check đặt góc trái đè lên ảnh */
+        #fileList.list-view > div .absolute.top-2.left-2 { top: 10px !important; left: 10px !important; z-index: 30; }
+        
+        /* Nội dung text chiếm phần còn lại */
+        #fileList.list-view > div .px-1.flex.flex-col { flex: 1; min-width: 0; justify-content: center; }
+        #fileList.list-view > div .line-clamp-2 { -webkit-line-clamp: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px !important; }
+        #fileList.list-view > div .text-\\[10px\\] { font-size: 11px !important; }
+
+        /* ===== CHẾ ĐỘ THU PHÓNG CỘT (GRID VIEW DYNAMIC SCALE) ===== */
+        #fileList { 
+            --col-scale: 1; 
+            transition: grid-template-columns 0.2s ease-out; 
+        }
+        
+        /* Áp dụng scale tỷ lệ thuận cho tất cả thẻ con (Chỉ áp dụng khi không bật List View) */
+        #fileList:not(.list-view) > div.p-2\\.5 { 
+            padding: calc(0.625rem * var(--col-scale)) !important; 
+            border-radius: calc(1rem * var(--col-scale)) !important; 
+        }
+        #fileList:not(.list-view) > div > .h-32 { 
+            height: calc(8rem * var(--col-scale)) !important; 
+            border-radius: calc(0.75rem * var(--col-scale)) !important; 
+            margin-bottom: calc(0.75rem * var(--col-scale)) !important; 
+        }
+        #fileList:not(.list-view) .text-\\[13px\\] { 
+            font-size: calc(13px * var(--col-scale)) !important; 
+            line-height: 1.2 !important; 
+        }
+        #fileList:not(.list-view) .text-\\[10px\\] { 
+            font-size: calc(10px * var(--col-scale)) !important; 
+            margin-top: calc(0.25rem * var(--col-scale)) !important;
+        }
+        /* Phóng to/thu nhỏ các nút công cụ (3 chấm, checkbox, loader) */
+        #fileList:not(.list-view) .w-8 { width: calc(2rem * var(--col-scale)) !important; }
+        #fileList:not(.list-view) .h-8 { height: calc(2rem * var(--col-scale)) !important; }
+        #fileList:not(.list-view) .w-6 { width: calc(1.5rem * var(--col-scale)) !important; }
+        #fileList:not(.list-view) .h-6 { height: calc(1.5rem * var(--col-scale)) !important; }
+        #fileList:not(.list-view) .text-xs { font-size: calc(0.75rem * var(--col-scale)) !important; }
+        #fileList:not(.list-view) i.fa-ellipsis-v { font-size: calc(1rem * var(--col-scale)) !important; }
+    `;
+    document.head.appendChild(viewStyle);
+
+    // 2. CHÈN NÚT ĐỔI GIAO DIỆN (LIST/GRID) VÀO THANH TÌM KIẾM
+    document.addEventListener("DOMContentLoaded", () => {
+        const searchContainer = document.querySelector('.sticky.top-0 > div.relative');
+        if (searchContainer && !document.getElementById('viewToggleBtn')) {
+            // Thay đổi cấu trúc wrapper của search để thêm nút cùng hàng
+            const parent = searchContainer.parentElement;
+            parent.classList.add('flex', 'gap-2', 'items-center');
+            searchContainer.classList.add('flex-1');
+            
+            const toggleBtn = document.createElement('button');
+            toggleBtn.id = 'viewToggleBtn';
+            toggleBtn.className = 'w-11 h-11 shrink-0 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 flex items-center justify-center transition shadow-sm border border-gray-200 active:bg-gray-300';
+            parent.appendChild(toggleBtn);
+            
+            // Lấy trạng thái lưu từ trước
+            let isListView = localStorage.getItem('vinhloc_list_view') === 'true';
+            
+            const applyViewMode = () => {
+                const fileList = document.getElementById('fileList');
+                if (isListView) {
+                    fileList.classList.add('list-view');
+                    toggleBtn.innerHTML = '<i class="fas fa-th-large text-lg"></i>'; // Icon để trở về dạng Grid
+                } else {
+                    fileList.classList.remove('list-view');
+                    toggleBtn.innerHTML = '<i class="fas fa-list text-lg"></i>'; // Icon chuyển sang dạng List
+                }
+                localStorage.setItem('vinhloc_list_view', isListView);
+            };
+            
+            toggleBtn.addEventListener('click', () => {
+                isListView = !isListView;
+                applyViewMode();
+            });
+            
+            applyViewMode();
+        }
+    });
+
+    // 3. XỬ LÝ LOGIC PINCH-TO-ZOOM (THU PHÓNG BẰNG 2 NGÓN TAY)
+    let currentCols = parseInt(localStorage.getItem('vinhloc_grid_cols')) || 2;
+    let initialPinchDistance = null;
+    let isPinching = false;
+    
+    // Hàm tính toán và cập nhật Layout Grid
+    function updateGridColumns(newCols) {
+        // Giới hạn số cột tối thiểu là 2 và tối đa là 6
+        currentCols = Math.max(2, Math.min(newCols, 6)); 
+        
+        const fileList = document.getElementById('fileList');
+        if (!fileList) return;
+        
+        // Bỏ qua nếu đang bật chế độ Danh sách (List View)
+        if (fileList.classList.contains('list-view')) return; 
+
+        // Ghi đè class tailwind tĩnh "grid-cols-2" bằng style động
+        fileList.classList.remove('grid-cols-2');
+        fileList.style.gridTemplateColumns = `repeat(${currentCols}, minmax(0, 1fr))`;
+        
+        // Thuật toán tính tỷ lệ Scale: Dựa vào mức chuẩn 2 cột = 1.0 (100%)
+        // Tính ra: 3 cột ~ 0.66, 4 cột ~ 0.5, 5 cột ~ 0.4, 6 cột ~ 0.33
+        const scaleFactor = (2 / currentCols).toFixed(2);
+        fileList.style.setProperty('--col-scale', scaleFactor);
+        
+        localStorage.setItem('vinhloc_grid_cols', currentCols);
+    }
+
+    // Áp dụng số cột đã lưu ngay khi khởi động
+    document.addEventListener("DOMContentLoaded", () => {
+        updateGridColumns(currentCols);
+    });
+
+    // Lắng nghe sự kiện cảm ứng trên khu vực Content
+    const touchArea = document.getElementById('contentArea');
+    if (touchArea) {
+        // Bắt đầu chạm
+        touchArea.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                isPinching = true;
+                initialPinchDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: true });
+
+        // Khi di chuyển ngón tay (Kéo ra / Chụm lại)
+        touchArea.addEventListener('touchmove', (e) => {
+            if (!isPinching || e.touches.length !== 2) return;
+            
+            // Chặn cuộn trang hoặc zoom mặc định của trình duyệt khi đang thao tác 2 ngón
+            e.preventDefault(); 
+            
+            const currentDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            
+            // Khoảng cách chênh lệch để kích hoạt zoom (70px để tránh bị nhạy quá)
+            const diff = currentDistance - initialPinchDistance;
+            
+            if (Math.abs(diff) > 70) { 
+                if (diff > 0) {
+                    // Zoom IN (Kéo xa 2 ngón) -> Phóng to file (giảm số cột)
+                    updateGridColumns(currentCols - 1);
+                } else {
+                    // Zoom OUT (Chụm 2 ngón) -> Thu nhỏ file (tăng số cột)
+                    updateGridColumns(currentCols + 1);
+                }
+                
+                // Đặt lại điểm gốc để chuẩn bị cho nấc thu/phóng tiếp theo
+                initialPinchDistance = currentDistance;
+            }
+        }, { passive: false });
+
+        // Kết thúc chạm
+        touchArea.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                isPinching = false;
+            }
+        });
+    }
+})();
