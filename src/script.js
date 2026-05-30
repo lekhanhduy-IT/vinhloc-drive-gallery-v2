@@ -1610,3 +1610,134 @@ window.silentFetchFolder = async function() {
         // Lỗi ngầm (mất mạng chập chờn) -> bỏ qua không làm phiền người dùng
     }
 };
+// ==============================================================
+// PATCH 5: SỬA LỖI ĐỔI ẢNH BÌA & GIỮ CHẶT MÔ TẢ TRÊN MOBILE
+// ==============================================================
+
+// 1. Ép ảnh nén xong 100% ngay lúc chọn file (Khắc phục CPU điện thoại chậm)
+window.handleCoverUpload = function(event) {
+    const file = event.target.files[0]; 
+    if (!file) return; 
+    
+    showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang nén ảnh...');
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            try {
+                const canvas = document.createElement('canvas'); 
+                let width = img.width; 
+                let height = img.height; 
+                const MAX_SIZE = 800; // Resize về 800px cho nhẹ
+                
+                if (width > height) { 
+                    if (width > MAX_SIZE) { height = Math.round(height * (MAX_SIZE / width)); width = MAX_SIZE; } 
+                } else { 
+                    if (height > MAX_SIZE) { width = Math.round(width * (MAX_SIZE / height)); height = MAX_SIZE; } 
+                }
+                
+                canvas.width = width; canvas.height = height; 
+                const ctx = canvas.getContext('2d'); 
+                ctx.fillStyle = '#ffffff'; 
+                ctx.fillRect(0, 0, width, height); 
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Nén ra Base64 chất lượng 80%
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8); 
+                
+                document.getElementById('infoCoverPreview').src = compressedDataUrl; 
+                document.getElementById('infoCoverPreview').classList.remove('hidden'); 
+                document.getElementById('infoCoverPlaceholder').classList.add('hidden');
+                
+                window.pendingCoverBase64 = compressedDataUrl.split(',')[1]; 
+                window.pendingCoverMimeType = 'image/jpeg';
+                
+            } catch (err) {
+                // Fallback an toàn nếu trình duyệt mobile không hỗ trợ canvas tốt
+                document.getElementById('infoCoverPreview').src = e.target.result;
+                window.pendingCoverBase64 = e.target.result.split(',')[1];
+                window.pendingCoverMimeType = file.type || 'image/jpeg';
+            }
+        };
+        img.src = e.target.result;
+    }; 
+    reader.readAsDataURL(file);
+};
+
+// 2. Chặn đồng bộ ngầm đè giao diện khi đang Lưu (Giữ chặt UI)
+setTimeout(() => {
+    const oldSaveBtn = document.getElementById('infoSaveBtn');
+    if(oldSaveBtn) {
+        const newSaveBtn = oldSaveBtn.cloneNode(true);
+        oldSaveBtn.parentNode.replaceChild(newSaveBtn, oldSaveBtn);
+        newSaveBtn.onclick = async () => { 
+            if(!currentEditId) return closeInfoModal();
+            
+            const newName = document.getElementById('infoName').value.trim(); 
+            const newType = document.getElementById('infoType').value; 
+            const newDesc = document.getElementById('infoDesc').value.trim();
+            
+            let newCover = appMeta[currentEditId]?.cover || ''; 
+            let pendingB64 = window.pendingCoverBase64; 
+            let pendingMime = window.pendingCoverMimeType; 
+            let tempCoverUrl = document.getElementById('infoCoverPreview').src;
+            
+            // Cập nhật UI NGAY LẬP TỨC để người dùng thấy mượt
+            if (pendingB64) newCover = tempCoverUrl;
+            appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
+            localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
+            
+            let nameChanged = false; 
+            // Gom tất cả các mảng cache để tìm thư mục đang sửa
+            const allItems = [...currentDriveItems, ...Object.values(subFolderCache).flat()];
+            const oldItem = allItems.find(i => i.id === currentEditId);
+            if (newName && oldItem && newName !== oldItem.name) { nameChanged = true; }
+            
+            smoothUpdateUI(appMeta); 
+            closeInfoModal();
+            
+            // --- CỰC KỲ QUAN TRỌNG: KHÓA BACKGROUND SYNC (GIỮ GIAO DIỆN) ---
+            syncQueueCount++; updateSyncIndicator();
+            
+            try {
+                if (pendingB64) {
+                    window.pendingCoverBase64 = null; window.pendingCoverMimeType = null;
+                    showToast(`<i class="fas fa-cloud-upload-alt mr-2 text-blue-400"></i> Đang up ảnh bìa...`);
+                    
+                    // Upload trực tiếp và chờ kết quả từ Drive
+                    const res = await fetch(SCRIPT_URL, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ action: 'upload', folderId: currentEditId, filename: '_cover.jpg', mimeType: pendingMime, data: pendingB64 }) 
+                    }).then(r => r.json());
+                    
+                    if (res && res.success) {
+                        let permanentCover = `https://drive.google.com/thumbnail?id=${res.fileId || res.id}&sz=w800`;
+                        appMeta[currentEditId].cover = permanentCover; 
+                        localforage.setItem('vinhloc_meta', appMeta).catch(e=>{}); 
+                        
+                        // Chuyển êm ái từ ảnh mờ sang link ảnh xịn của Drive
+                        smoothUpdateUI(appMeta);
+                        
+                        // Đẩy Mô tả và Tên vào Queue chạy ngầm
+                        addActionToQueue('updateSingleMeta', { meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: permanentCover } });
+                        showToast(`<i class="fas fa-check mr-2 text-green-400"></i> Đã lưu thư mục`);
+                    } else {
+                        showToast('Lỗi tải ảnh bìa lên Drive!', true);
+                    }
+                } else {
+                    showToast(`<i class="fas fa-check mr-2 text-green-400"></i> Đã lưu thư mục`);
+                    addActionToQueue('updateSingleMeta', { meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover } });
+                }
+
+                if (nameChanged) addActionToQueue('rename', { id: currentEditId, newName: newName, type: currentEditType });
+                
+            } catch (err) {
+                console.error(err);
+            } finally {
+                // --- MỞ KHÓA BACKGROUND SYNC ---
+                syncQueueCount--; updateSyncIndicator();
+            }
+        };
+    }
+}, 1000); // Khởi tạo sau 1s để đảm bảo đè lên các bản cũ
