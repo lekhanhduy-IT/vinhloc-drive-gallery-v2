@@ -2166,3 +2166,75 @@ setTimeout(() => {
     console.log("✅ Hệ thống đã bao phủ 100% chức năng Thêm, Sửa, Xóa!");
 
 }, 4000);
+// ==============================================================
+// PATCH 10: FIX LỖI TẠO MEGA-ROW BỊ MẶC ĐỊNH LÀ "TRIỂN KHAI"
+// ==============================================================
+replaceTempId = function(tempId, realId) {
+    let itemName = '';
+    
+    // 1. Cập nhật ID thật trong mảng hiển thị hiện tại
+    let itemIdx = currentDriveItems.findIndex(i => i.id === tempId);
+    if (itemIdx > -1) {
+        currentDriveItems[itemIdx].id = realId;
+        itemName = currentDriveItems[itemIdx].name;
+        delete currentDriveItems[itemIdx].isPending;
+    }
+
+    // 2. Cập nhật ID thật trong Cache Thư mục
+    for (let fId in folderDataCache) {
+        let idx = folderDataCache[fId].findIndex(i => i.id === tempId);
+        if (idx > -1) {
+            folderDataCache[fId][idx].id = realId;
+            itemName = itemName || folderDataCache[fId][idx].name;
+            delete folderDataCache[fId][idx].isPending;
+        }
+    }
+
+    // 3. Cập nhật ID thật trong Cache Thư mục con
+    for (let mId in subFolderCache) {
+        let idx = subFolderCache[mId].findIndex(i => i.id === tempId);
+        if (idx > -1) {
+            subFolderCache[mId][idx].id = realId;
+            itemName = itemName || subFolderCache[mId][idx].name;
+            delete subFolderCache[mId][idx].isPending;
+        }
+    }
+
+    // 4. CHÌA KHÓA Ở ĐÂY: Chuyển Meta sang ID thật VÀ GỬI LÊN SHEETS LẬP TỨC
+    if (appMeta[tempId]) {
+        appMeta[realId] = appMeta[tempId];
+        appMeta[realId].name = itemName || appMeta[realId].name || '';
+        delete appMeta[tempId];
+        localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
+        
+        // Gửi ngay lệnh chốt Loại (Triển khai/Ý tưởng) lên Google Sheets
+        addActionToQueue('updateSingleMeta', { 
+            meta: { 
+                id: realId, 
+                name: appMeta[realId].name, 
+                type: appMeta[realId].type || currentCategory, 
+                desc: appMeta[realId].desc || '', 
+                cover: appMeta[realId].cover || '' 
+            } 
+        });
+    } else if (folderStack.length === 1) {
+        // Đề phòng trường hợp lỗi chưa có Meta, tự động ép thành Category hiện tại
+        appMeta[realId] = { type: currentCategory, desc: '', cover: '', name: itemName };
+        localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
+        
+        addActionToQueue('updateSingleMeta', { 
+            meta: { 
+                id: realId, 
+                name: itemName, 
+                type: currentCategory, 
+                desc: '', 
+                cover: '' 
+            } 
+        });
+    }
+
+    // 5. Vẽ lại giao diện để tắt vòng xoay Loading
+    if (currentDriveItems.some(i => i.id === realId)) {
+        if (typeof window.renderItems === 'function') window.renderItems(currentDriveItems);
+    }
+};
