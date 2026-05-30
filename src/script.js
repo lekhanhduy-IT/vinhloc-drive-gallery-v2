@@ -3052,3 +3052,189 @@ setTimeout(() => {
 
     console.log("✅ PATCH 18: Đã hồi sinh Thanh Tìm Kiếm siêu tốc độ!");
 }, 8500); // Khởi chạy trễ nhất để đè bẹp các lỗi cũ
+// ==============================================================
+// PATCH 19: FIX GIẬT LAG NÚT BACK & CHỐNG CHỚP GIAO DIỆN (RACE CONDITION)
+// ==============================================================
+setTimeout(() => {
+
+    // 1. SỬA HÀM LOAD FOLDER: LOẠI BỎ LOADING THỪA KHI BẤM BACK
+    window.loadFolder = async function (folderId, folderName, isNewNavigation = false, isPopState = false) {
+        // Hỗ trợ thoát giao diện Design bằng nút Back
+        if (window.isDesignOverlayActive && isPopState) { 
+            window.isDesignOverlayActive = false; 
+            const overlayContainer = document.getElementById('watermark-overlay-container'); 
+            if (overlayContainer) overlayContainer.style.display = 'none'; 
+            return; 
+        }
+
+        if (isNewNavigation && !isPopState) {
+            if (folderStack.length > 0) folderStack[folderStack.length - 1].scrollTop = document.getElementById('contentArea').scrollTop;
+        }
+        
+        currentFolderId = folderId; // Đánh dấu vị trí hiện tại ngay lập tức
+        
+        if (isNewNavigation && !isPopState) {
+            const existingIdx = folderStack.findIndex(f => f.id === folderId);
+            if (existingIdx !== -1) folderStack = folderStack.slice(0, existingIdx + 1);
+            else folderStack.push({ id: folderId, name: folderName, scrollTop: 0 });
+            localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+            history.pushState({ id: folderId }, '', '');
+        }
+        
+        updateBreadcrumbs();
+        if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
+        if (document.getElementById('clearSearchBtn')) document.getElementById('clearSearchBtn').classList.add('hidden');
+
+        const restoreScroll = () => {
+            const targetStackItem = folderStack[folderStack.length - 1];
+            if (targetStackItem && targetStackItem.scrollTop) {
+                setTimeout(() => { document.getElementById('contentArea').scrollTop = targetStackItem.scrollTop; }, 10);
+            } else { document.getElementById('contentArea').scrollTop = 0; }
+        };
+
+        // BÍ QUYẾT MƯỢT MÀ TẠI ĐÂY:
+        if (folderDataCache[folderId]) {
+            // A. Đã có Cache -> BUNG RA NGAY TỨC THÌ, KHÔNG HIỆN LOADING
+            currentDriveItems = folderDataCache[folderId];
+            window.renderItems(currentDriveItems);
+            restoreScroll();
+
+            // B. Chỉ gọi API ngầm (Tắt 100% các vòng xoay loading cản trở UI)
+            fetch(SCRIPT_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: 'list', folderId: folderId }) 
+            }).then(r => r.json()).then(res => {
+                // BẢO VỆ GIAO DIỆN: Chỉ cập nhật nếu người dùng VẪN ĐANG Ở thư mục này
+                if (res && res.success && currentFolderId === folderId) { 
+                    let newData = res.data;
+                    newData.forEach(item => { if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name; });
+                    
+                    const oldData = folderDataCache[folderId] || [];
+                    const oldIds = oldData.filter(i => !i.isPending).map(i => i.id).sort().join(',');
+                    const newIds = newData.filter(i => !i.isPending).map(i => i.id).sort().join(',');
+                    
+                    if (oldIds !== newIds) {
+                        const pendingItems = oldData.filter(i => i.isPending);
+                        newData = [...pendingItems, ...newData];
+                        
+                        folderDataCache[folderId] = newData;
+                        localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(()=>{});
+                        currentDriveItems = newData;
+                        
+                        const currentScroll = document.getElementById('contentArea').scrollTop;
+                        window.renderItems(currentDriveItems);
+                        document.getElementById('contentArea').scrollTop = currentScroll;
+                    }
+                }
+            }).catch(e => {});
+
+        } else {
+            // THƯ MỤC MỚI TINH CHƯA TỪNG MỞ -> LÚC NÀY MỚI CẦN HIỆN LOADING
+            const folderListEl = document.getElementById('folderList');
+            const fileListEl = document.getElementById('fileList');
+            folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang tải dữ liệu...</div>';
+            fileListEl.innerHTML = '';
+            
+            const res = await apiCall('list', { folderId: folderId });
+            if (res && res.success) {
+                // CHỐNG CHỚP: Chỉ hiển thị nếu người dùng chưa chuyển đi thư mục khác
+                if (currentFolderId === folderId) {
+                    let newData = res.data;
+                    newData.forEach(item => { if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name; });
+                    currentDriveItems = newData; 
+                    folderDataCache[folderId] = newData;
+                    window.renderItems(currentDriveItems); 
+                    restoreScroll();
+                }
+            } else { 
+                if (currentFolderId === folderId) {
+                    folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full italic">Lỗi kết nối hoặc thư mục trống.</div>'; 
+                }
+            }
+        }
+    };
+
+    // 2. SỬA LẠI CỖ MÁY MASTER SYNC: TRÁNH ĐỤNG ĐỘ KHI NGƯỜI DÙNG CHUYỂN TRANG
+    if (window.masterSyncInterval) clearInterval(window.masterSyncInterval);
+
+    window.masterSync = async function() {
+        if (syncQueueCount > 0 || (window.lastEditTime && Date.now() - window.lastEditTime < 15000)) return;
+        if (document.querySelector('.item-action-menu:not(.hidden)') || !document.getElementById('customModal').classList.contains('hidden') || !document.getElementById('infoModal').classList.contains('hidden')) return;
+
+        // BẮT CỐC VỊ TRÍ HIỆN TẠI (GPS CỦA NGƯỜI DÙNG)
+        const syncTargetId = currentFolderId; 
+
+        try {
+            const metaRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getMeta' }) }).then(r => r.json());
+            if (metaRes && metaRes.success && metaRes.meta) {
+                if (JSON.stringify(appMeta) !== JSON.stringify(metaRes.meta)) {
+                    appMeta = metaRes.meta; 
+                    localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
+                    smoothUpdateUI(appMeta); 
+                }
+            }
+
+            const hasStructureChanged = (oldArr, newArr) => {
+                const oldIds = oldArr.filter(i => !i.isPending).map(i => i.id).sort().join(',');
+                const newIds = newArr.filter(i => !i.isPending).map(i => i.id).sort().join(',');
+                return oldIds !== newIds; 
+            };
+
+            if (syncTargetId && syncTargetId !== 'dummy_design_state') {
+                const listRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'list', folderId: syncTargetId }) }).then(r => r.json());
+                
+                // LÁ CHẮN CHỐNG CHỚP GIAO DIỆN:
+                // Nếu tải xong mà thấy người dùng đã đi chỗ khác (currentFolderId đổi) -> Dừng ngay lập tức!
+                if (currentFolderId !== syncTargetId) return;
+
+                if (listRes && listRes.success && listRes.data) {
+                    let newData = listRes.data;
+                    newData.forEach(item => { if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name; });
+                    
+                    const oldData = folderDataCache[syncTargetId] || [];
+                    
+                    if (hasStructureChanged(oldData, newData)) {
+                        const pendingItems = oldData.filter(i => i.isPending);
+                        newData = [...pendingItems, ...newData];
+                        
+                        folderDataCache[syncTargetId] = newData;
+                        localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(()=>{});
+                        currentDriveItems = newData;
+                        window.renderItems(currentDriveItems); 
+                    }
+                }
+            }
+
+            // Xử lý nốt các Mega-row đang được mở ở trang chủ
+            if (folderStack.length === 1 && typeof expandedMegas !== 'undefined' && expandedMegas.length > 0) {
+                for (let megaId of expandedMegas) {
+                    const currentHomeTargetId = currentFolderId;
+                    const subRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'list', folderId: megaId }) }).then(r => r.json());
+                    
+                    // Nếu đang load mà người dùng bấm qua trang khác -> Dừng lại ngay
+                    if (currentFolderId !== currentHomeTargetId) continue; 
+
+                    if (subRes && subRes.success && subRes.data) {
+                        let newSubData = subRes.data.filter(i => i.type === 'folder');
+                        newSubData.forEach(item => { if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name; });
+                        
+                        const oldSubData = subFolderCache[megaId] || [];
+                        if (hasStructureChanged(oldSubData, newSubData)) {
+                            const pendingSub = oldSubData.filter(i => i.isPending);
+                            newSubData = [...pendingSub, ...newSubData];
+                            
+                            subFolderCache[megaId] = newSubData;
+                            localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(()=>{});
+                            if (typeof renderSubFolders === 'function') renderSubFolders(megaId, newSubData);
+                            else if (window.renderSubFolders) window.renderSubFolders(megaId, newSubData);
+                        }
+                    }
+                }
+            }
+        } catch(e) {}
+    };
+
+    window.masterSyncInterval = setInterval(window.masterSync, 6000);
+    console.log("✅ PATCH 19: Đã gắn định vị cho Cỗ máy, sửa dứt điểm lỗi giật chớp!");
+
+}, 9000);
