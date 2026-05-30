@@ -3177,14 +3177,15 @@ if (btnCloseDesignFix) {
     });
 })();
 // =====================================================================
-// PATCH FIX: HIỂN THỊ TỨC THÌ ẢNH BÌA FOLDER & TỰ ĐỘNG NÉN ẢNH BẰNG CANVAS
+// PATCH FIX V2: ĐỒNG BỘ NÉN ẢNH (BỎ PROMISE) ĐỂ TRÁNH MẤT ẢNH TRÊN MOBILE
 // =====================================================================
 (function() {
     // Tìm và ghi đè lại sự kiện click của nút Lưu Thông Tin
     const infoSaveBtn = document.getElementById('infoSaveBtn');
     
     if (infoSaveBtn) {
-        infoSaveBtn.onclick = async () => {
+        // Gỡ bỏ async để hàm chạy đồng bộ hoàn toàn, tránh race condition
+        infoSaveBtn.onclick = () => { 
             if(!currentEditId) return closeInfoModal();
             
             const newName = document.getElementById('infoName').value.trim();
@@ -3193,72 +3194,73 @@ if (btnCloseDesignFix) {
             
             let newCover = appMeta[currentEditId]?.cover || '';
             
-            // Lấy dữ liệu ảnh mới từ bộ nhớ tạm
             let pendingB64 = window.pendingCoverBase64;
             let pendingMime = window.pendingCoverMimeType;
-            let tempCoverUrl = document.getElementById('infoCoverPreview').src; // Ảnh Base64 hiển thị trên khung preview
+            let tempCoverUrl = document.getElementById('infoCoverPreview').src;
+            let previewImg = document.getElementById('infoCoverPreview'); // Lấy trực tiếp thẻ IMG
             
             // -------------------------------------------------------------
-            // THUẬT TOÁN NÉN ẢNH (CANVAS RESIZE) TRƯỚC KHI LƯU
+            // THUẬT TOÁN NÉN ẢNH ĐỒNG BỘ (TRỰC TIẾP TỪ THẺ IMG PREVIEW)
             // -------------------------------------------------------------
-            if (pendingB64) {
+            if (pendingB64 && previewImg && previewImg.src && !previewImg.src.endsWith('default.jpg')) {
                 try {
-                    const compressedDataUrl = await new Promise((resolve) => {
-                        const img = new Image();
-                        img.onload = () => {
-                            const canvas = document.createElement('canvas');
-                            let width = img.width;
-                            let height = img.height;
-                            const MAX_SIZE = 800; // Đặt kích thước cạnh dài nhất là 800px
+                    const canvas = document.createElement('canvas');
+                    // Lấy kích thước thật của ảnh đã render
+                    let width = previewImg.naturalWidth || previewImg.width;
+                    let height = previewImg.naturalHeight || previewImg.height;
+                    const MAX_SIZE = 800;
 
-                            // Tính toán tỷ lệ khung hình mới
-                            if (width > height) {
-                                if (width > MAX_SIZE) {
-                                    height = Math.round(height * (MAX_SIZE / width));
-                                    width = MAX_SIZE;
-                                }
-                            } else {
-                                if (height > MAX_SIZE) {
-                                    width = Math.round(width * (MAX_SIZE / height));
-                                    height = MAX_SIZE;
-                                }
-                            }
+                    // Fallback an toàn nếu chưa lấy được naturalWidth
+                    if (!width || !height) {
+                        width = 800; height = 800;
+                    }
 
-                            canvas.width = width;
-                            canvas.height = height;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(img, 0, 0, width, height);
+                    if (width > height) {
+                        if (width > MAX_SIZE) {
+                            height = Math.round(height * (MAX_SIZE / width));
+                            width = MAX_SIZE;
+                        }
+                    } else {
+                        if (height > MAX_SIZE) {
+                            width = Math.round(width * (MAX_SIZE / height));
+                            height = MAX_SIZE;
+                        }
+                    }
 
-                            // Nén ra định dạng JPEG với chất lượng 70%
-                            resolve(canvas.toDataURL('image/jpeg', 0.7));
-                        };
-                        img.onerror = () => resolve(tempCoverUrl); // Nếu lỗi, trả về ảnh gốc
-                        img.src = tempCoverUrl;
-                    });
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Tô nền trắng (đề phòng ảnh trong suốt PNG bị biến thành nền đen)
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, width, height);
+                    
+                    // Vẽ CHỚP NHOÁNG từ thẻ img đang có sẵn trên màn hình vào Canvas
+                    ctx.drawImage(previewImg, 0, 0, width, height);
 
-                    // Cập nhật lại dữ liệu đã nén
+                    // Nén ra định dạng JPEG với chất lượng 70%
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    
                     newCover = compressedDataUrl; 
                     
-                    // Tách bỏ tiền tố "data:image/jpeg;base64," để lấy dữ liệu thô cho bgApiCall upload
+                    // Tách Base64 để đẩy ngầm lên API
                     const base64DataOnly = compressedDataUrl.split(',')[1];
                     if (base64DataOnly) {
                         pendingB64 = base64DataOnly;
-                        pendingMime = 'image/jpeg'; // Chuyển đổi định dạng upload thành jpeg
+                        pendingMime = 'image/jpeg';
                     }
                 } catch (e) {
-                    console.error("Lỗi trong quá trình nén ảnh:", e);
-                    newCover = tempCoverUrl; // Fallback lại ảnh cũ nếu có lỗi bất ngờ
+                    console.error("Lỗi nén ảnh trên điện thoại:", e);
+                    newCover = tempCoverUrl; // Fallback lại ảnh cũ nếu có lỗi
                 }
             }
             // -------------------------------------------------------------
 
-            // 1. CẬP NHẬT UI NGAY LẬP TỨC (Dùng ảnh đã nén)
+            // 1. CẬP NHẬT UI NGAY LẬP TỨC (Dùng ảnh đã nén siêu nhẹ)
             appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
             try { 
                 localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
-            } catch(e){
-                console.error("Vẫn không thể lưu LocalStorage, có thể dung lượng bộ nhớ đã đầy.", e);
-            }
+            } catch(e) {}
 
             let nameChanged = false;
             const allSubItems = Object.values(subFolderCache).reduce((acc, arr) => acc.concat(arr), []);
@@ -3269,11 +3271,11 @@ if (btnCloseDesignFix) {
                 folderDataCache[currentFolderId] = currentDriveItems; 
             }
 
-            // Áp dụng cập nhật giao diện mượt (Smooth Update) và đóng modal lập tức
+            // Cập nhật giao diện và đóng modal lập tức (Lúc này UI 100% hiện ảnh bìa)
             smoothUpdateUI(appMeta); 
             closeInfoModal();
             
-            // Hiện thông báo tùy theo việc có đang up ảnh hay không
+            // Hiện thông báo
             if (pendingB64) {
                 showToast(`<i class="fas fa-cloud-upload-alt mr-2 text-blue-400"></i> Đang tải ảnh bìa ngầm...`);
             } else {
@@ -3282,12 +3284,9 @@ if (btnCloseDesignFix) {
 
             // 2. CHẠY NGẦM UPLOAD LÊN DRIVE VÀ GHI METADATA
             if (pendingB64) {
-                // Đặt lại biến tạm ngay để không bị dính vào lần sửa tiếp theo
                 window.pendingCoverBase64 = null;
                 window.pendingCoverMimeType = null;
                 
-                // Gọi API Upload nhưng KHÔNG dùng await để tránh block giao diện
-                // Lúc này pendingB64 đã nhẹ đi rất nhiều, upload sẽ nhanh và ổn định hơn
                 bgApiCall('upload', { 
                     folderId: currentEditId, 
                     filename: '_cover.jpg', 
@@ -3298,11 +3297,12 @@ if (btnCloseDesignFix) {
                         let fileId = res.fileId || res.id;
                         let permanentCover = `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
                         
-                        // Đã có link xịn từ Drive, cập nhật lại biến
                         appMeta[currentEditId].cover = permanentCover;
                         try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
                         
-                        // Lúc này mới đẩy toàn bộ mô tả + link ảnh bìa chuẩn lên Description của Google Drive
+                        // [BỔ SUNG QUAN TRỌNG]: Gọi cập nhật UI thêm 1 lần nữa sau khi có link xịn
+                        smoothUpdateUI(appMeta);
+
                         bgApiCall('updateSingleMeta', {
                             meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: permanentCover }
                         });
@@ -3313,7 +3313,6 @@ if (btnCloseDesignFix) {
                 });
                 
             } else {
-                // Nếu không có ảnh bìa mới, đẩy thông tin chữ (tên, mô tả) lên Drive bình thường
                 bgApiCall('updateSingleMeta', {
                     meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover }
                 });
