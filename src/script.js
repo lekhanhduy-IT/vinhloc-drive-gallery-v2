@@ -3869,3 +3869,41 @@ setTimeout(() => {
     }
     console.log("✅ PATCH 24: Đã thêm nút Chia sẻ thư mục vào Menu 3 chấm Header!");
 }, 11500); // Khởi chạy trễ nhất để tích hợp trơn tru vào menu
+// ==============================================================
+// PATCH 25: ĐÁNH CHẶN TUYỆT ĐỐI LỖI CHỚP TRANG CHỦ KHI MỞ LINK SHARE
+// ==============================================================
+(function() {
+    // Đọc tham số URL ngay nhịp đầu tiên khi file script vừa nạp (Trước khi bị luồng khác xóa)
+    const initialParams = new URLSearchParams(window.location.search);
+    if (initialParams.get('shareId')) {
+        // Kích hoạt khiên bảo vệ độc quyền luồng chia sẻ
+        window.vinhloc_is_sharing_boot = true;
+        
+        // Tự động gỡ bỏ khiên bảo vệ sau 5 giây để trả lại tự do hoàn toàn cho ứng dụng làm việc sau đó
+        setTimeout(() => { window.vinhloc_is_sharing_boot = false; }, 5000);
+
+        const applyHook = () => {
+            if (window.loadFolder && !window.loadFolder.isSharedHooked) {
+                const originalLoadFolder = window.loadFolder;
+                window.loadFolder = function(folderId, folderName, isNewNavigation, isPopState) {
+                    // CHIẾC KHIÊN PHẢN ĐÒN: Nghiêm cấm tuyệt đối luồng khởi động cũ nạp đè trang chủ ROOT
+                    if (window.vinhloc_is_sharing_boot && folderId === ROOT_FOLDER_ID) {
+                        console.log("🕷️ [Radar] Đã đánh chặn và tiêu diệt luồng khởi động cũ ghi đè nhầm trang chủ ROOT");
+                        return; // Chặn đứng hoàn toàn lệnh lỗi
+                    }
+                    return originalLoadFolder(folderId, folderName, isNewNavigation, isPopState);
+                };
+                window.loadFolder.isSharedHooked = true;
+            }
+        };
+
+        // Quét và khóa chặt hàm liên tục trong 1.5 giây đầu tiên để không hụt bất kỳ mili-giây nào của hệ thống
+        applyHook();
+        let attempts = 0;
+        const hookInterval = setInterval(() => {
+            applyHook();
+            attempts++;
+            if (attempts > 30) clearInterval(hookInterval);
+        }, 50);
+    }
+})();
