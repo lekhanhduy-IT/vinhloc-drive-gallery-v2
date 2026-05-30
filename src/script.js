@@ -3177,7 +3177,7 @@ if (btnCloseDesignFix) {
     });
 })();
 // =====================================================================
-// PATCH FIX: HIỂN THỊ TỨC THÌ ẢNH BÌA FOLDER (CHẠY NGẦM UPLOAD DRIVE)
+// PATCH FIX: HIỂN THỊ TỨC THÌ ẢNH BÌA FOLDER & TỰ ĐỘNG NÉN ẢNH BẰNG CANVAS
 // =====================================================================
 (function() {
     // Tìm và ghi đè lại sự kiện click của nút Lưu Thông Tin
@@ -3198,14 +3198,67 @@ if (btnCloseDesignFix) {
             let pendingMime = window.pendingCoverMimeType;
             let tempCoverUrl = document.getElementById('infoCoverPreview').src; // Ảnh Base64 hiển thị trên khung preview
             
-            // 1. CẬP NHẬT UI NGAY LẬP TỨC (Dùng ảnh tạm Base64)
+            // -------------------------------------------------------------
+            // THUẬT TOÁN NÉN ẢNH (CANVAS RESIZE) TRƯỚC KHI LƯU
+            // -------------------------------------------------------------
             if (pendingB64) {
-                newCover = tempCoverUrl; // Đắp luôn ảnh nháp lên UI
-            }
+                try {
+                    const compressedDataUrl = await new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
+                            const MAX_SIZE = 800; // Đặt kích thước cạnh dài nhất là 800px
 
-            // Ghi vào state và lưu LocalStorage
+                            // Tính toán tỷ lệ khung hình mới
+                            if (width > height) {
+                                if (width > MAX_SIZE) {
+                                    height = Math.round(height * (MAX_SIZE / width));
+                                    width = MAX_SIZE;
+                                }
+                            } else {
+                                if (height > MAX_SIZE) {
+                                    width = Math.round(width * (MAX_SIZE / height));
+                                    height = MAX_SIZE;
+                                }
+                            }
+
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+
+                            // Nén ra định dạng JPEG với chất lượng 70%
+                            resolve(canvas.toDataURL('image/jpeg', 0.7));
+                        };
+                        img.onerror = () => resolve(tempCoverUrl); // Nếu lỗi, trả về ảnh gốc
+                        img.src = tempCoverUrl;
+                    });
+
+                    // Cập nhật lại dữ liệu đã nén
+                    newCover = compressedDataUrl; 
+                    
+                    // Tách bỏ tiền tố "data:image/jpeg;base64," để lấy dữ liệu thô cho bgApiCall upload
+                    const base64DataOnly = compressedDataUrl.split(',')[1];
+                    if (base64DataOnly) {
+                        pendingB64 = base64DataOnly;
+                        pendingMime = 'image/jpeg'; // Chuyển đổi định dạng upload thành jpeg
+                    }
+                } catch (e) {
+                    console.error("Lỗi trong quá trình nén ảnh:", e);
+                    newCover = tempCoverUrl; // Fallback lại ảnh cũ nếu có lỗi bất ngờ
+                }
+            }
+            // -------------------------------------------------------------
+
+            // 1. CẬP NHẬT UI NGAY LẬP TỨC (Dùng ảnh đã nén)
             appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
-            try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
+            try { 
+                localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); 
+            } catch(e){
+                console.error("Vẫn không thể lưu LocalStorage, có thể dung lượng bộ nhớ đã đầy.", e);
+            }
 
             let nameChanged = false;
             const allSubItems = Object.values(subFolderCache).reduce((acc, arr) => acc.concat(arr), []);
@@ -3234,6 +3287,7 @@ if (btnCloseDesignFix) {
                 window.pendingCoverMimeType = null;
                 
                 // Gọi API Upload nhưng KHÔNG dùng await để tránh block giao diện
+                // Lúc này pendingB64 đã nhẹ đi rất nhiều, upload sẽ nhanh và ổn định hơn
                 bgApiCall('upload', { 
                     folderId: currentEditId, 
                     filename: '_cover.jpg', 
