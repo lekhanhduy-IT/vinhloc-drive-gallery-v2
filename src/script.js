@@ -1923,3 +1923,77 @@ window.bgApiCall = async function(action, payload = {}) {
     if (action === 'getMeta') return { success: true, meta: appMeta };
     return originalBgApiCall(action, payload);
 };
+// ==============================================================
+// PATCH 8: PHỤC SINH ĐA THIẾT BỊ & LẬP VÒM SẮT CHỐNG NHÁY UI
+// ==============================================================
+
+// 1. Phục hồi lại cửa ngõ API để giao tiếp với Google Sheets
+window.apiCall = async function(action, payload = {}) {
+    if (action !== 'getMeta') loading.classList.remove('hidden');
+    payload.action = action;
+    if (!payload.folderId) payload.folderId = currentFolderId;
+    try {
+        const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const data = await response.json();
+        if (action !== 'getMeta') loading.classList.add('hidden');
+        return data;
+    } catch (error) {
+        if (action !== 'getMeta') loading.classList.add('hidden');
+        return { success: false };
+    }
+};
+
+window.bgApiCall = async function(action, payload = {}) {
+    syncQueueCount++; updateSyncIndicator();
+    payload.action = action;
+    if (!payload.folderId) payload.folderId = currentFolderId;
+    return fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) })
+        .then(res => res.json()).catch(err => ({ success: false })).finally(() => {
+        syncQueueCount--; updateSyncIndicator();
+    });
+};
+
+// 2. Bật lại rada đồng bộ Đa thiết bị (Cứ 5s quét Sheets 1 lần)
+window.silentFetchMeta = async function() {
+    // Chặn quét trong 15 giây sau khi bạn vừa bấm LƯU để chờ server xử lý (Chống nháy)
+    if (window.lastEditTime && Date.now() - window.lastEditTime < 15000) return;
+    
+    try {
+        const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getMeta' }) }).then(r => r.json());
+        if (res && res.success && res.meta) {
+            const isChanged = JSON.stringify(appMeta) !== JSON.stringify(res.meta);
+            if (isChanged) {
+                appMeta = res.meta; 
+                localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
+                
+                // Đồng bộ mượt mà: Chỉ đổi đúng cái chữ/cái ảnh bị thay đổi trên màn hình
+                smoothUpdateUI(appMeta); 
+            }
+        }
+    } catch (e) {}
+};
+window.silentFetchMeta.isWrappedForGracePeriod = true;
+
+// 3. VÒM SẮT: Chặn đứng Drive đè dữ liệu cũ rích lên giao diện
+if (!window.renderItems_isSheetProtected) {
+    const cachedOriginalRender = window.renderItems; // Giữ lại bản vẽ gốc
+    window.renderItems = function(items, isSearchMode = false) {
+        
+        // Trước khi vẽ, thanh trừng toàn bộ tàn dư của Drive
+        items.forEach(item => {
+            item.description = ""; // Xóa sạch Description rác để code cũ không lấy được
+            
+            // Nếu Sheets đã ghi nhận tên mới, ÉP Drive phải dùng tên của Sheets
+            if (appMeta[item.id] && appMeta[item.id].name) {
+                item.name = appMeta[item.id].name; 
+            }
+        });
+        
+        // Cho phép vẽ ra màn hình
+        cachedOriginalRender(items, isSearchMode);
+        
+        // Quét lại một lượt nữa bằng dữ liệu Sheets cho chắc cú 100%
+        smoothUpdateUI(appMeta);
+    };
+    window.renderItems_isSheetProtected = true;
+}
