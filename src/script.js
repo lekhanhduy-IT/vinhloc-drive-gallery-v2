@@ -3176,3 +3176,99 @@ if (btnCloseDesignFix) {
         }
     });
 })();
+// =====================================================================
+// PATCH FIX: HIỂN THỊ TỨC THÌ ẢNH BÌA FOLDER (CHẠY NGẦM UPLOAD DRIVE)
+// =====================================================================
+(function() {
+    // Tìm và ghi đè lại sự kiện click của nút Lưu Thông Tin
+    const infoSaveBtn = document.getElementById('infoSaveBtn');
+    
+    if (infoSaveBtn) {
+        infoSaveBtn.onclick = async () => {
+            if(!currentEditId) return closeInfoModal();
+            
+            const newName = document.getElementById('infoName').value.trim();
+            const newType = document.getElementById('infoType').value;
+            const newDesc = document.getElementById('infoDesc').value.trim();
+            
+            let newCover = appMeta[currentEditId]?.cover || '';
+            
+            // Lấy dữ liệu ảnh mới từ bộ nhớ tạm
+            let pendingB64 = window.pendingCoverBase64;
+            let pendingMime = window.pendingCoverMimeType;
+            let tempCoverUrl = document.getElementById('infoCoverPreview').src; // Ảnh Base64 hiển thị trên khung preview
+            
+            // 1. CẬP NHẬT UI NGAY LẬP TỨC (Dùng ảnh tạm Base64)
+            if (pendingB64) {
+                newCover = tempCoverUrl; // Đắp luôn ảnh nháp lên UI
+            }
+
+            // Ghi vào state và lưu LocalStorage
+            appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
+            try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
+
+            let nameChanged = false;
+            const allSubItems = Object.values(subFolderCache).reduce((acc, arr) => acc.concat(arr), []);
+            const oldItem = currentDriveItems.find(i => i.id === currentEditId) || allSubItems.find(i => i.id === currentEditId);
+            
+            if (newName && oldItem && newName !== oldItem.name) {
+                nameChanged = true;
+                folderDataCache[currentFolderId] = currentDriveItems; 
+            }
+
+            // Áp dụng cập nhật giao diện mượt (Smooth Update) và đóng modal lập tức
+            smoothUpdateUI(appMeta); 
+            closeInfoModal();
+            
+            // Hiện thông báo tùy theo việc có đang up ảnh hay không
+            if (pendingB64) {
+                showToast(`<i class="fas fa-cloud-upload-alt mr-2 text-blue-400"></i> Đang tải ảnh bìa ngầm...`);
+            } else {
+                showToast(`<i class="fas fa-check mr-2 text-green-400"></i> Đã lưu cài đặt thư mục`);
+            }
+
+            // 2. CHẠY NGẦM UPLOAD LÊN DRIVE VÀ GHI METADATA
+            if (pendingB64) {
+                // Đặt lại biến tạm ngay để không bị dính vào lần sửa tiếp theo
+                window.pendingCoverBase64 = null;
+                window.pendingCoverMimeType = null;
+                
+                // Gọi API Upload nhưng KHÔNG dùng await để tránh block giao diện
+                bgApiCall('upload', { 
+                    folderId: currentEditId, 
+                    filename: '_cover.jpg', 
+                    mimeType: pendingMime, 
+                    data: pendingB64 
+                }).then(res => {
+                    if (res && res.success) {
+                        let fileId = res.fileId || res.id;
+                        let permanentCover = `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+                        
+                        // Đã có link xịn từ Drive, cập nhật lại biến
+                        appMeta[currentEditId].cover = permanentCover;
+                        try { localStorage.setItem('vinhloc_meta', JSON.stringify(appMeta)); } catch(e){}
+                        
+                        // Lúc này mới đẩy toàn bộ mô tả + link ảnh bìa chuẩn lên Description của Google Drive
+                        bgApiCall('updateSingleMeta', {
+                            meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: permanentCover }
+                        });
+                        
+                    } else {
+                        showToast('Lỗi tải ảnh bìa lên Drive!', true);
+                    }
+                });
+                
+            } else {
+                // Nếu không có ảnh bìa mới, đẩy thông tin chữ (tên, mô tả) lên Drive bình thường
+                bgApiCall('updateSingleMeta', {
+                    meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover }
+                });
+            }
+
+            // 3. XỬ LÝ ĐỔI TÊN NẾU CÓ
+            if (nameChanged) {
+                bgApiCall('rename', { id: currentEditId, newName: newName, type: currentEditType });
+            }
+        };
+    }
+})();
