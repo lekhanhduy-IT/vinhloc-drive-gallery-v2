@@ -1997,3 +1997,176 @@ if (!window.renderItems_isSheetProtected) {
     };
     window.renderItems_isSheetProtected = true;
 }
+// ==============================================================
+// PATCH 9: TRỊ DỨT ĐIỂM LOOP NHÁY UI VÀ FIX CHUYỂN TAB MEGA ROW
+// ==============================================================
+
+// 1. SỬA LỖI VÒNG LẶP VÔ TẬN (INFINITE LOOP) KHI ĐỒNG BỘ NGẦM TỪ DRIVE
+window.silentFetchFolder = async function() {
+    if (!currentFolderId || currentFolderId === 'dummy_design_state' || syncQueueCount > 0) return;
+    const hasOpenMenu = document.querySelector('.item-action-menu:not(.hidden)');
+    const hasOpenModal = !document.getElementById('customModal').classList.contains('hidden');
+    if (hasOpenMenu || hasOpenModal) return;
+
+    const targetFolderId = currentFolderId; 
+    try {
+        const res = await fetch(SCRIPT_URL, { 
+            method: 'POST', body: JSON.stringify({ action: 'list', folderId: targetFolderId }) 
+        }).then(r => r.json());
+
+        if (res && res.success && res.data) {
+            let newData = res.data;
+            
+            // BÍ QUYẾT TRỊ LOOP: Trộn dữ liệu Tên từ Sheets vào Drive TRƯỚC KHI so sánh
+            // (Như vậy Drive và Local sẽ luôn đồng nhất, không bị cãi nhau nữa)
+            newData.forEach(item => {
+                item.description = ""; 
+                if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name;
+            });
+
+            const oldData = folderDataCache[targetFolderId] || [];
+            const cleanOld = oldData.filter(i => !i.isPending);
+            
+            if (JSON.stringify(newData) !== JSON.stringify(cleanOld)) {
+                folderDataCache[targetFolderId] = newData;
+                localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(e=>{});
+                if (currentFolderId === targetFolderId) {
+                    currentDriveItems = newData;
+                    window.renderItems(currentDriveItems);
+                }
+            }
+        }
+
+        // Tương tự cho Mega Folders
+        if (folderStack.length === 1 && typeof expandedMegas !== 'undefined' && expandedMegas.length > 0) {
+            for (let megaId of expandedMegas) {
+                const subRes = await fetch(SCRIPT_URL, { 
+                    method: 'POST', body: JSON.stringify({ action: 'list', folderId: megaId }) 
+                }).then(r => r.json());
+                if (subRes && subRes.success && subRes.data) {
+                    let newSubData = subRes.data.filter(i => i.type === 'folder');
+                    newSubData.forEach(item => {
+                        item.description = "";
+                        if (appMeta[item.id] && appMeta[item.id].name) item.name = appMeta[item.id].name;
+                    });
+                    const oldSubData = (subFolderCache[megaId] || []).filter(i => !i.isPending);
+                    
+                    if (JSON.stringify(newSubData) !== JSON.stringify(oldSubData)) {
+                        subFolderCache[megaId] = newSubData;
+                        localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(e=>{});
+                        if (typeof renderSubFolders === 'function') renderSubFolders(megaId, newSubData);
+                        else if (window.renderSubFolders) window.renderSubFolders(megaId, newSubData);
+                    }
+                }
+            }
+        }
+    } catch (err) {}
+};
+
+// 2. ÉP GIAO DIỆN PHẢI NHẢY TAB KHI ĐỔI "LOẠI" HOẶC ĐỔI TÊN
+setTimeout(() => {
+    const oldSaveBtn = document.getElementById('infoSaveBtn');
+    if(oldSaveBtn) {
+        const newSaveBtn = oldSaveBtn.cloneNode(true);
+        oldSaveBtn.parentNode.replaceChild(newSaveBtn, oldSaveBtn);
+        newSaveBtn.onclick = async () => { 
+            if(!currentEditId) return closeInfoModal();
+            
+            window.lastEditTime = Date.now(); 
+            const newName = document.getElementById('infoName').value.trim(); 
+            const newType = document.getElementById('infoType').value; 
+            const newDesc = document.getElementById('infoDesc').value.trim();
+            
+            let oldType = appMeta[currentEditId]?.type || '';
+            let newCover = appMeta[currentEditId]?.cover || ''; 
+            let pendingB64 = window.pendingCoverBase64; 
+            let pendingMime = window.pendingCoverMimeType; 
+            let tempCoverUrl = document.getElementById('infoCoverPreview').src;
+            
+            if (pendingB64) newCover = tempCoverUrl; 
+            
+            appMeta[currentEditId] = { type: newType, desc: newDesc, cover: newCover, name: newName };
+            localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
+            
+            let nameChanged = false; 
+            const allItems = [...currentDriveItems, ...Object.values(subFolderCache).flat()];
+            const oldItem = allItems.find(i => i.id === currentEditId);
+            if (newName && oldItem && newName !== oldItem.name) { nameChanged = true; }
+            
+            // XỬ LÝ NHẢY TAB: Nếu là Thư mục gốc (Mega) và bị đổi Type -> Tải lại toàn bộ giao diện!
+            if ((currentEditLevel === 'mega' && oldType !== newType) || nameChanged) {
+                window.renderItems(currentDriveItems);
+            } else {
+                smoothUpdateUI(appMeta); 
+            }
+            
+            closeInfoModal();
+            syncQueueCount++; updateSyncIndicator();
+            
+            try {
+                if (pendingB64) {
+                    window.pendingCoverBase64 = null; window.pendingCoverMimeType = null;
+                    showToast(`<i class="fas fa-cloud-upload-alt mr-2 text-blue-400"></i> Đang up ảnh bìa...`);
+                    
+                    const res = await fetch(SCRIPT_URL, { 
+                        method: 'POST', body: JSON.stringify({ action: 'upload', folderId: currentEditId, filename: '_cover.jpg', mimeType: pendingMime, data: pendingB64 }) 
+                    }).then(r => r.json());
+                    
+                    if (res && res.success) {
+                        let permanentCover = `https://drive.google.com/thumbnail?id=${res.fileId || res.id}&sz=w800`;
+                        appMeta[currentEditId].cover = permanentCover; 
+                        localforage.setItem('vinhloc_meta', appMeta).catch(e=>{}); 
+                        smoothUpdateUI(appMeta); 
+                        
+                        addActionToQueue('updateSingleMeta', { meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: permanentCover } });
+                        showToast(`<i class="fas fa-check mr-2 text-green-400"></i> Đã lưu thư mục`);
+                    } else {
+                        showToast('Lỗi tải ảnh bìa lên Drive!', true);
+                    }
+                } else {
+                    showToast(`<i class="fas fa-check mr-2 text-green-400"></i> Đã lưu thông tin`);
+                    addActionToQueue('updateSingleMeta', { meta: { id: currentEditId, name: newName, type: newType, desc: newDesc, cover: newCover } });
+                }
+
+                if (nameChanged) addActionToQueue('rename', { id: currentEditId, newName: newName, type: currentEditType });
+                
+            } catch (err) {
+                console.error(err);
+            } finally {
+                syncQueueCount--; updateSyncIndicator();
+            }
+        };
+    }
+}, 2000);
+
+// 3. ĐỒNG BỘ ĐA THIẾT BỊ CHO CHỨC NĂNG CHUYỂN TAB
+window.silentFetchMeta = async function() {
+    if (window.lastEditTime && Date.now() - window.lastEditTime < 15000) return;
+    try {
+        const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getMeta' }) }).then(r => r.json());
+        if (res && res.success && res.meta) {
+            
+            let requiresFullRender = false;
+            // Dò xem có thiết bị khác nào vừa lén chuyển Loại của Mega Folder không
+            for (let id in res.meta) {
+                if (appMeta[id] && appMeta[id].type !== res.meta[id].type) {
+                    requiresFullRender = true;
+                }
+            }
+
+            const isChanged = JSON.stringify(appMeta) !== JSON.stringify(res.meta);
+            if (isChanged) {
+                appMeta = res.meta; 
+                localforage.setItem('vinhloc_meta', appMeta).catch(e=>{});
+                
+                // Nếu đang ở màn hình chính và có thư mục đổi loại, vẽ lại để nó nhảy tab!
+                if (requiresFullRender && folderStack.length === 1) {
+                    window.renderItems(currentDriveItems);
+                } else {
+                    smoothUpdateUI(appMeta); 
+                }
+            }
+        }
+    } catch (e) {}
+};
+window.silentFetchMeta.isWrappedForGracePeriod = true;
