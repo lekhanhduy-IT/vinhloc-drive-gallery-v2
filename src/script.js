@@ -1534,3 +1534,79 @@ setTimeout(() => {
         }
     }
 }, 500);
+// ==============================================================
+// PATCH 4: BACKGROUND SYNC CHO CẤU TRÚC FILE/FOLDER (ĐA THIẾT BỊ)
+// ==============================================================
+window.silentFetchFolder = async function() {
+    // 1. Dừng đồng bộ ngầm nếu: chưa có folder, đang ở giao diện Design, hoặc máy NÀY đang bận up file (tránh đụng độ)
+    if (!currentFolderId || currentFolderId === 'dummy_design_state' || syncQueueCount > 0) return;
+    
+    // 2. Dừng đồng bộ nếu người dùng đang mở Menu 3 chấm hoặc Modal (để tránh bị giật mất Menu đang thao tác)
+    const hasOpenMenu = document.querySelector('.item-action-menu:not(.hidden)');
+    const hasOpenModal = !document.getElementById('customModal').classList.contains('hidden');
+    if (hasOpenMenu || hasOpenModal) return;
+
+    const targetFolderId = currentFolderId; // Giữ ID của thư mục lúc bắt đầu gọi
+    
+    try {
+        // --- ĐỒNG BỘ 1: THƯ MỤC HIỆN TẠI ĐANG XEM ---
+        const res = await fetch(SCRIPT_URL, { 
+            method: 'POST', 
+            body: JSON.stringify({ action: 'list', folderId: targetFolderId }) 
+        }).then(r => r.json());
+
+        if (res && res.success && res.data) {
+            const newData = res.data;
+            const oldData = folderDataCache[targetFolderId] || [];
+            
+            // Lọc bỏ các thư mục "ảo" (isPending) đang chờ tạo trên máy này ra khỏi phép so sánh
+            const cleanOld = oldData.filter(i => !i.isPending);
+            
+            // So sánh thông minh: Nếu dữ liệu Drive khác với Cache nội bộ (có máy khác vừa thêm/xóa file)
+            if (JSON.stringify(newData) !== JSON.stringify(cleanOld)) {
+                
+                // Cập nhật ngay vào ổ cứng
+                folderDataCache[targetFolderId] = newData;
+                localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(e=>{});
+                
+                // Nếu người dùng vẫn đang đứng ở thư mục đó (chưa chuyển đi nơi khác), cập nhật giao diện
+                if (currentFolderId === targetFolderId) {
+                    currentDriveItems = newData;
+                    // Hàm renderItems đã được thiết kế tối ưu, gọi lại sẽ thay thế đúng các node cần thiết
+                    window.renderItems(currentDriveItems);
+                }
+            }
+        }
+
+        // --- ĐỒNG BỘ 2: ĐỒNG BỘ CÁC THƯ MỤC CON NẾU ĐANG Ở TRANG CHỦ ---
+        // (Xử lý trường hợp người dùng đang xổ các Mega folder ở ngoài trang chủ Triển khai/Ý tưởng)
+        if (folderStack.length === 1 && typeof expandedMegas !== 'undefined' && expandedMegas.length > 0) {
+            for (let megaId of expandedMegas) {
+                const subRes = await fetch(SCRIPT_URL, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ action: 'list', folderId: megaId }) 
+                }).then(r => r.json());
+                
+                if (subRes && subRes.success && subRes.data) {
+                    const newSubData = subRes.data.filter(i => i.type === 'folder');
+                    const oldSubData = (subFolderCache[megaId] || []).filter(i => !i.isPending);
+                    
+                    if (JSON.stringify(newSubData) !== JSON.stringify(oldSubData)) {
+                        subFolderCache[megaId] = newSubData;
+                        localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(e=>{});
+                        
+                        // Chỉ vẽ lại đúng cái khối sub-folder bị thay đổi
+                        if (typeof renderSubFolders === 'function') {
+                            renderSubFolders(megaId, newSubData);
+                        } else if (window.renderSubFolders) {
+                            window.renderSubFolders(megaId, newSubData);
+                        }
+                    }
+                }
+            }
+        }
+
+    } catch (err) {
+        // Lỗi ngầm (mất mạng chập chờn) -> bỏ qua không làm phiền người dùng
+    }
+};
