@@ -2,9 +2,10 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3Ly
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
-let savedStack = localStorage.getItem('appFolderStack');
-let folderStack = savedStack ? JSON.parse(savedStack) : [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }];
-let currentFolderId = folderStack[folderStack.length - 1].id;
+// Bỏ đọc từ localStorage để luôn làm mới stack mỗi khi mở app
+localStorage.removeItem('appFolderStack'); 
+let folderStack = [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }];
+let currentFolderId = folderStack[0].id;
 
 let currentDriveItems = [];
 let subFolderCache = {};
@@ -20,24 +21,53 @@ localforage.config({
 
 let appMeta = {};
 
+// Thay thế toàn bộ hàm initDatabase() cũ bằng đoạn này:
 async function initDatabase() {
     try {
+        // 1. Tải Meta (Ảnh bìa, mô tả, loại)
         const storedMeta = await localforage.getItem('vinhloc_meta');
         appMeta = storedMeta || {};
+
+        // 2. TẢI CẤU TRÚC THƯ MỤC TỪ Ổ CỨNG VÀO RAM (Fix lỗi mất cache khi thoát App)
+        const storedFolderCache = await localforage.getItem('vinhloc_folder_cache');
+        folderDataCache = storedFolderCache || {};
+        
+        const storedSubCache = await localforage.getItem('vinhloc_subfolder_cache');
+        subFolderCache = storedSubCache || {};
 
         let metaCleaned = false;
         for (let id in appMeta) {
             if (appMeta[id].cover && appMeta[id].cover.length > 30000) {
-                appMeta[id].cover = '';
+                appMeta[id].cover = ''; 
                 metaCleaned = true;
             }
         }
         if (metaCleaned) await localforage.setItem('vinhloc_meta', appMeta);
-        console.log("Đã tải xong DB. Sẵn sàng...");
+
+        console.log("Đã tải xong toàn bộ dữ liệu Offline DB. Bắt đầu render...");
+        
+        // 3. Render ngay lập tức trang chủ bằng dữ liệu từ ổ cứng
+        const params = new URLSearchParams(window.location.search);
+        if (!params.get('shareId')) {
+            loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false);
+        }
+
     } catch (err) {
         console.error("Lỗi tải cơ sở dữ liệu:", err);
     }
 }
+
+// 4. Kích hoạt Auto-Save ngầm cấu trúc thư mục
+let lastCacheString = "";
+setInterval(() => {
+    // Nếu danh sách thư mục/file có sự thay đổi (tạo mới, xóa, up ảnh) thì mới lưu
+    let currentCacheString = JSON.stringify(folderDataCache) + JSON.stringify(subFolderCache);
+    if (currentCacheString !== lastCacheString) {
+        localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(e=>{});
+        localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(e=>{});
+        lastCacheString = currentCacheString;
+    }
+}, 3000); // 3 giây quét 1 lần, không gây lag UI
 initDatabase();
 
 // ==========================================
@@ -983,12 +1013,19 @@ function loadImage(src) {
 window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     const sId = params.get('shareId'); const sType = params.get('shareType'); const sName = params.get('shareName'); const sMime = params.get('mimeType');
+    
+    // Nếu có link chia sẻ thì mới xử lý, còn lại để initDatabase lo
     if (sId) {
         window.history.replaceState({}, document.title, window.location.pathname);
-        if (sType === 'folder') { folderStack = [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }, { id: sId, name: sName || "Thư mục chia sẻ", scrollTop: 0 }]; currentFolderId = sId; localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); loadFolder(sId, sName || "Thư mục chia sẻ", false, false); }
-        else if (sType === 'file') { loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false); setTimeout(() => { openMedia(sId, sMime || '', sName || 'File chia sẻ'); }, 500); }
-    } else {
-        const initItem = folderStack[folderStack.length - 1]; loadFolder(initItem.id, initItem.name, false, false);
+        if (sType === 'folder') { 
+            folderStack = [ { id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }, { id: sId, name: sName || "Thư mục chia sẻ", scrollTop: 0 } ]; 
+            currentFolderId = sId; localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); 
+            loadFolder(sId, sName || "Thư mục chia sẻ", false, false); 
+        } 
+        else if (sType === 'file') { 
+            loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false); 
+            setTimeout(() => { openMedia(sId, sMime || '', sName || 'File chia sẻ'); }, 500); 
+        }
     }
 });
 
