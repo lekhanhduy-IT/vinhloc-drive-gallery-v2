@@ -3820,3 +3820,52 @@ setTimeout(() => {
 
     console.log("✅ PATCH 23: Đã sửa Lỗi Up Ảnh vào Thư mục ảo & Lỗi Link chia sẻ!");
 }, 11000); // Khởi chạy trễ nhất hệ thống
+// ==============================================================
+// PATCH 24: THÊM NÚT CHIA SẺ THƯ MỤC HIỆN TẠI VÀO MENU HEADER
+// ==============================================================
+setTimeout(() => {
+    // 1. Tạo hàm riêng để xử lý việc chia sẻ thư mục đang mở
+    window.shareCurrentFolder = function(e) {
+        if (e) e.stopPropagation();
+        
+        // Đóng menu header
+        const headerDropdown = document.getElementById('headerDropdown');
+        if (headerDropdown) headerDropdown.classList.add('hidden');
+
+        // Lấy thông tin thư mục đang mở hiện tại
+        if (folderStack.length > 1 && currentFolderId) {
+            const currentFolder = folderStack[folderStack.length - 1];
+            const folderName = currentFolder.name;
+            
+            // Tận dụng lại hàm shareItem có sẵn để sinh link và copy
+            if (window.shareItem) {
+                window.shareItem(currentFolderId, 'folder', folderName, e);
+            }
+        }
+    };
+
+    // 2. Ghi đè hàm buildHeaderMenu để chèn thêm nút "Chia sẻ" vào dưới cùng
+    if (window.buildHeaderMenu) {
+        const originalBuildHeaderMenu = window.buildHeaderMenu;
+        
+        window.buildHeaderMenu = function() {
+            // Chạy hàm gốc để tạo ra các nút "Tất cả", "Đuôi file", "Xóa đã chọn"...
+            originalBuildHeaderMenu();
+            
+            const headerDropdown = document.getElementById('headerDropdown');
+            
+            // CHỈ THÊM NÚT CHIA SẺ KHI ĐANG Ở TRONG THƯ MỤC (Không thêm ở ngoài Mega-row)
+            if (headerDropdown && folderStack.length > 1) {
+                const shareHtml = `
+                    <div class="border-t border-gray-200 mt-1"></div>
+                    <div class="px-5 py-3 hover:bg-green-50 cursor-pointer text-green-600 font-bold flex items-center justify-between transition" onclick="window.shareCurrentFolder(event)">
+                        <span><i class="fas fa-share-nodes mr-2"></i>Chia sẻ</span>
+                    </div>
+                `;
+                // Nối thêm vào dưới cùng của menu
+                headerDropdown.innerHTML += shareHtml;
+            }
+        };
+    }
+    console.log("✅ PATCH 24: Đã thêm nút Chia sẻ thư mục vào Menu 3 chấm Header!");
+}, 11500); // Khởi chạy trễ nhất để tích hợp trơn tru vào menu
