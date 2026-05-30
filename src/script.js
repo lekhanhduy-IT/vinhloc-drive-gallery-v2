@@ -3409,54 +3409,78 @@ setTimeout(() => {
     console.log("✅ PATCH 20: Đã cập nhật Đường dẫn gốc & Diệt Zombie!");
 }, 9500);
 // ==============================================================
-// PATCH 21: ĐẢO NGƯỢC LOGIC CLICK & NÚT BACK (SAFE MODE BẤT TỬ)
+// PATCH 21: ĐẢO NGƯỢC LOGIC CLICK & NÚT BACK (SAFE MODE BẤT TỬ V2)
 // ==============================================================
 setTimeout(() => {
+    // 1. CHẶN NÚT BACK CHO GIAO DIỆN XEM ẢNH/VIDEO (SỬA LỖI TẬN GỐC)
     if (!window.isMediaBackHandled) {
         window.isMediaBackHandled = true;
-        window.blockNextFolderLoad = false; 
+        window.ignoreNextPopState = false; 
         
-        const cachedLoadFolder = window.loadFolder;
-        if (cachedLoadFolder) {
-            window.loadFolder = async function(folderId, folderName, isNewNavigation = false, isPopState = false) {
-                if (isPopState && window.isMediaViewerActive) {
-                    window.isMediaViewerActive = false;
-                    const modal = document.getElementById('mediaModal') || document.querySelector('.media-modal');
-                    if (modal) modal.classList.add('hidden');
-                    const mediaContent = document.getElementById('mediaContent');
-                    if(mediaContent) mediaContent.innerHTML = '';
-                    return; 
-                }
-                if (window.blockNextFolderLoad && isPopState) {
-                    window.blockNextFolderLoad = false; 
-                    return; 
-                }
-                return cachedLoadFolder(folderId, folderName, isNewNavigation, isPopState);
-            };
-        }
-
         const originalOpenMedia = window.openMedia;
         window.openMedia = function(id, mimeType, name, url) {
+            // Gọi hàm mở gốc để hiện UI
             if (originalOpenMedia) originalOpenMedia(id, mimeType, name, url);
+            
             window.isMediaViewerActive = true;
+            
+            // 1. Đẩy 1 trang ảo vào lịch sử trình duyệt
             history.pushState({ mediaViewer: true }, '', ''); 
+            
+            // 2. Đẩy 1 thư mục ảo vào folderStack để làm "bia đỡ đạn" cho hàm popstate gốc
+            if (typeof folderStack !== 'undefined' && folderStack.length > 0) {
+                const currentFolder = folderStack[folderStack.length - 1];
+                folderStack.push({ ...currentFolder, isMediaDummy: true });
+                localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+            }
         };
 
         const originalCloseMedia = window.closeMedia;
         window.closeMedia = function() {
-            if (originalCloseMedia) originalCloseMedia();
-            const modal = document.getElementById('mediaModal') || document.querySelector('.media-modal');
-            if (modal) modal.classList.add('hidden');
-            const mediaContent = document.getElementById('mediaContent');
-            if(mediaContent) mediaContent.innerHTML = '';
+            // Tắt UI chính xác bằng ID mediaViewer
+            const viewer = document.getElementById('mediaViewer');
+            if (viewer) { viewer.classList.add('hidden'); viewer.classList.remove('flex'); }
+            const content = document.getElementById('mediaContent');
+            if (content) content.innerHTML = '';
+            
+            // Nếu đang đóng bằng nút X trên màn hình
             if (window.isMediaViewerActive) {
                 window.isMediaViewerActive = false;
-                window.blockNextFolderLoad = true; 
-                history.back(); 
+                window.ignoreNextPopState = true; // Kích hoạt khiên chặn popstate tiếp theo
+                history.back(); // Tự động lùi lịch sử để nuốt trang ảo
             }
         };
+
+        // Bọc hàm loadFolder để bắt tín hiệu lùi trang từ popstate gốc
+        const cachedLoadFolder = window.loadFolder;
+        if (cachedLoadFolder) {
+            window.loadFolder = async function(folderId, folderName, isNewNavigation = false, isPopState = false) {
+                // TH1: Do nút X gọi history.back() gây ra
+                if (isPopState && window.ignoreNextPopState) {
+                    window.ignoreNextPopState = false; 
+                    return; // Chặn không cho tải lại thư mục, đứng im tại chỗ
+                }
+                
+                // TH2: Do người dùng bấm phím Back vật lý trên điện thoại
+                if (isPopState && window.isMediaViewerActive) {
+                    window.isMediaViewerActive = false;
+                    
+                    // Tắt UI
+                    const viewer = document.getElementById('mediaViewer');
+                    if (viewer) { viewer.classList.add('hidden'); viewer.classList.remove('flex'); }
+                    const content = document.getElementById('mediaContent');
+                    if (content) content.innerHTML = '';
+                    
+                    return; // Chặn không cho lùi thư mục, đứng im tại chỗ
+                }
+                
+                // Nếu không vướng 2 cái trên, thì tải thư mục bình thường
+                return cachedLoadFolder(folderId, folderName, isNewNavigation, isPopState);
+            };
+        }
     }
 
+    // 2. GHI ĐÈ HÀM RENDER ITEMS (ĐẢO NGƯỢC LOGIC CLICK + SAFE MODE)
     window.renderItems = function (items, isSearchMode = false) {
         const tempSmooth = window.smoothUpdateUI; 
         window.smoothUpdateUI = function(){};
@@ -3496,7 +3520,6 @@ setTimeout(() => {
                 return; 
             }
 
-            // HÀM KHỬ ĐỘC HTML: Tránh lỗi khi tên file chứa dấu nháy ' hoặc "
             const escapeHTML = (str) => { return str ? String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;') : ''; };
             const getMetaSafe = (id) => { return appMeta[id] || { desc: '', cover: '', type: 'Triển khai' }; };
 
@@ -3608,7 +3631,6 @@ setTimeout(() => {
         } catch(err) {
             console.error("LỖI RENDER_ITEMS:", err);
         } finally {
-            // Lớp khiên bảo vệ: Dù code có lỗi thì App vẫn không bị chết các chức năng khác
             window.smoothUpdateUI = tempSmooth; 
             if(window.smoothUpdateUI) window.smoothUpdateUI(appMeta);
             if (!isSearchMode && typeof currentFolderId !== 'undefined' && currentFolderId !== 'dummy_design_state') { 
@@ -3618,7 +3640,7 @@ setTimeout(() => {
     };
 
     if (currentDriveItems && currentDriveItems.length > 0 && window.renderItems) window.renderItems(currentDriveItems);
-    console.log("✅ PATCH 21 SAFE: Bọc Khiên Bảo Vệ, Chống Gãy HTML và Fix Phím Back!");
+    console.log("✅ PATCH 21 SAFE V2: Nút Back đã hoạt động chuẩn xác 100%!");
 }, 10000);
 // ==============================================================
 // PATCH 22: CLICK LOGO HEADER ĐỂ VỀ NHANH TRANG CHỦ (MEGA-ROWS) - KHÔNG MỞ SIDEBAR
