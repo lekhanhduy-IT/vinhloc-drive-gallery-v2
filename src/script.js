@@ -2859,3 +2859,196 @@ setTimeout(() => {
 
     console.log("✅ Đã nâng cấp Tìm kiếm Sâu Đa lớp & Cuộn tải dần (Lazy Load)!");
 }, 7500); // Đợi các patch nền móng hoàn tất trước
+// ==============================================================
+// PATCH 18: FIX ĐƠ APP, TRẢ LẠI TỐC ĐỘ TÌM KIẾM SIÊU TỐC
+// ==============================================================
+setTimeout(() => {
+    // ---------------------------------------------------------
+    // 1. CHẶN ĐỨNG NGUYÊN NHÂN GÂY ĐƠ (TỐI ƯU CẬP NHẬT GIAO DIỆN)
+    // ---------------------------------------------------------
+    window.smoothUpdateUI = function(newMeta) {
+        // Bí quyết chống đơ: Chỉ cập nhật những ID ĐANG HIỂN THỊ trên màn hình!
+        let visibleIds = new Set();
+        if (currentDriveItems) currentDriveItems.forEach(i => visibleIds.add(i.id));
+        
+        if (folderStack.length === 1) {
+            if (folderDataCache[ROOT_FOLDER_ID]) folderDataCache[ROOT_FOLDER_ID].forEach(i => visibleIds.add(i.id));
+            if (typeof expandedMegas !== 'undefined') {
+                expandedMegas.forEach(megaId => {
+                    if (subFolderCache[megaId]) subFolderCache[megaId].forEach(i => visibleIds.add(i.id));
+                });
+            }
+        }
+
+        visibleIds.forEach(id => {
+            const meta = newMeta[id];
+            if (!meta) return;
+            
+            document.querySelectorAll(`.item-name-${id}`).forEach(el => {
+                if (meta.name && el.textContent !== meta.name) { el.textContent = meta.name; el.title = meta.name; }
+            });
+            document.querySelectorAll(`.item-desc-${id}`).forEach(el => {
+                const newDesc = meta.desc || 'Chưa có mô tả';
+                if (el.textContent !== newDesc) el.textContent = newDesc;
+                if(meta.desc) el.classList.remove('hidden'); else el.classList.add('hidden');
+            });
+            document.querySelectorAll(`.item-cover-img-${id}`).forEach(img => {
+                const icon = document.querySelector(`.item-cover-icon-${id}`);
+                if (meta.cover) {
+                    if(img.src !== meta.cover) img.src = meta.cover;
+                    img.classList.remove('hidden'); if(icon) icon.classList.add('hidden');
+                } else {
+                    img.classList.add('hidden'); if(icon) icon.classList.remove('hidden');
+                }
+            });
+
+            if (folderStack.length === 1) {
+                const headerIcon = document.getElementById(`icon-${id}`);
+                if (headerIcon) {
+                    const row = headerIcon.closest('.mega-row');
+                    if (row) row.style.display = (meta.type !== currentCategory) ? 'none' : 'block';
+                }
+            }
+        });
+    };
+
+    // Khử hàm smoothUpdateUI dư thừa lúc render bị gọi sai
+    const originalRenderItems = window.renderItems;
+    window.renderItems = function(items, isSearchMode = false) {
+        // Ghi đè hàm rỗng để chặn renderItems gọi smoothUpdateUI gây đơ
+        const tempSmooth = window.smoothUpdateUI;
+        window.smoothUpdateUI = function(){}; 
+        
+        originalRenderItems(items, isSearchMode);
+        
+        // Trả lại hàm sau khi render xong
+        window.smoothUpdateUI = tempSmooth; 
+    };
+
+    // ---------------------------------------------------------
+    // 2. PHỤC SINH THANH TÌM KIẾM (TẮT CLOUD, 100% OFFLINE NHỆN)
+    // ---------------------------------------------------------
+    const searchInputEl = document.getElementById('searchInput');
+    if (!searchInputEl) return;
+
+    // Thay ruột thanh tìm kiếm
+    const newSearchInput = searchInputEl.cloneNode(true);
+    searchInputEl.parentNode.replaceChild(newSearchInput, searchInputEl);
+
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const contentArea = document.getElementById('contentArea');
+
+    window.currentSearchResults = [];
+    window.searchDisplayLimit = 30;
+    window.isSearching = false;
+
+    function removeAccents(str) { 
+        if (!str) return ''; 
+        return String(str).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); 
+    }
+
+    clearSearchBtn.onclick = function() { 
+        newSearchInput.value = ''; 
+        this.classList.add('hidden'); 
+        window.isSearching = false;
+        window.currentSearchResults = [];
+        window.renderItems(currentDriveItems); 
+    };
+
+    function performDeepOfflineSearch(rawKeyword) {
+        const kw = removeAccents(rawKeyword.trim());
+        let localResults = new Map(); 
+
+        const checkMatch = (item) => {
+            if (!item || !item.name) return false;
+            const itemName = removeAccents(String(item.name)); 
+            const itemMeta = appMeta[item.id] || {}; 
+            const metaName = removeAccents(String(itemMeta.name || '')); 
+            return itemName.includes(kw) || metaName.includes(kw); 
+        };
+
+        const allCaches = [folderDataCache, subFolderCache];
+        allCaches.forEach(cacheObj => {
+            Object.values(cacheObj).forEach(arr => {
+                if(Array.isArray(arr)) {
+                    arr.forEach(item => {
+                        if (checkMatch(item)) localResults.set(item.id, item);
+                    });
+                }
+            });
+        });
+
+        Object.keys(appMeta).forEach(id => { 
+            if (removeAccents(String(appMeta[id].name || '')).includes(kw)) { 
+                if (!localResults.has(id)) {
+                    localResults.set(id, { id: id, name: appMeta[id].name, type: 'folder' }); 
+                }
+            } 
+        });
+
+        let finalArray = Array.from(localResults.values());
+        finalArray.sort((a, b) => {
+            if (a.type === b.type) return String(a.name).localeCompare(String(b.name));
+            return a.type === 'folder' ? -1 : 1;
+        });
+
+        return finalArray;
+    }
+
+    let searchTimeout = null;
+
+    newSearchInput.addEventListener('input', (e) => {
+        const rawKeyword = e.target.value; 
+        if (searchTimeout) clearTimeout(searchTimeout);
+        
+        if(!rawKeyword.trim()) { 
+            clearSearchBtn.classList.add('hidden'); 
+            window.isSearching = false;
+            window.renderItems(currentDriveItems); 
+            return; 
+        }
+        
+        clearSearchBtn.classList.remove('hidden');
+        window.isSearching = true;
+
+        searchTimeout = setTimeout(() => {
+            const folderListEl = document.getElementById('folderList'); 
+            const fileListEl = document.getElementById('fileList');
+            
+            folderListEl.innerHTML = '<div class="text-center mt-8"><div class="loader mx-auto border-blue-400 mb-2"></div><p class="text-sm text-gray-500 font-semibold">Đang truy quét...</p></div>'; 
+            fileListEl.innerHTML = '';
+
+            // TÌM KIẾM 100% OFFLINE - KHÔNG DÙNG CLOUD NỮA ĐỂ CHỐNG ĐƠ
+            let resultsArray = performDeepOfflineSearch(rawKeyword);
+            window.currentSearchResults = resultsArray;
+            window.searchDisplayLimit = 30; 
+
+            if (resultsArray.length > 0) {
+                window.renderItems(resultsArray.slice(0, window.searchDisplayLimit), true);
+            } else {
+                folderListEl.innerHTML = `<div class="text-center text-gray-400 mt-8 w-full italic">Không tìm thấy kết quả nào chứa "${rawKeyword}".</div>`;
+            }
+        }, 300); // Đợi gõ xong 300ms mới quét để mượt
+    });
+
+    // ---------------------------------------------------------
+    // 3. CUỘN TẢI DẦN (LAZY LOAD) CHỐNG LAG KHI KẾT QUẢ QUÁ NHIỀU
+    // ---------------------------------------------------------
+    const handleScroll = function() {
+        if (window.isSearching && window.currentSearchResults.length > 0) {
+            // Cuộn gần tới đáy thì nhả thêm 30 kết quả
+            if (this.scrollTop + this.clientHeight >= this.scrollHeight - 250) {
+                if (window.searchDisplayLimit < window.currentSearchResults.length) {
+                    window.searchDisplayLimit += 30; 
+                    window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
+                }
+            }
+        }
+    };
+    
+    contentArea.removeEventListener('scroll', window.lastScrollHandler);
+    contentArea.addEventListener('scroll', handleScroll);
+    window.lastScrollHandler = handleScroll;
+
+    console.log("✅ PATCH 18: Đã hồi sinh Thanh Tìm Kiếm siêu tốc độ!");
+}, 8500); // Khởi chạy trễ nhất để đè bẹp các lỗi cũ
