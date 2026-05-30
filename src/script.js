@@ -3681,3 +3681,142 @@ setTimeout(() => {
     }
     console.log("✅ PATCH 22: Đã tối ưu logic quay về trang chủ (chống mở sidebar)!");
 }, 10500);
+// ==============================================================
+// PATCH 23: FIX LỖI UP ẢNH VÀO FOLDER ẢO & LỖI LINK CHIA SẺ THƯ MỤC
+// ==============================================================
+
+// BẮT THÔNG TIN LINK CHIA SẺ NGAY LẬP TỨC TRƯỚC KHI BỊ XÓA BỞI CÁC HÀM KHÁC
+window.vinhloc_share_params = new URLSearchParams(window.location.search);
+
+setTimeout(() => {
+    // -----------------------------------------------------------------
+    // FIX 1: LỖI UP ẢNH VÀO THƯ MỤC VỪA TẠO (DO CHƯA CÓ ID THẬT TỪ DRIVE)
+    // -----------------------------------------------------------------
+    
+    // Cập nhật hàm thay thế ID ảo để nó đổi luôn ID của thư mục đang mở
+    const originalReplaceTempId = window.replaceTempId || function(){};
+    window.replaceTempId = function(tempId, realId) {
+        if (appMeta[tempId]) {
+            appMeta[realId] = appMeta[tempId];
+            delete appMeta[tempId];
+            localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
+        }
+
+        let itemIdx = currentDriveItems.findIndex(i => i.id === tempId);
+        if (itemIdx > -1) { currentDriveItems[itemIdx].id = realId; delete currentDriveItems[itemIdx].isPending; }
+
+        for (let fId in folderDataCache) {
+            let idx = folderDataCache[fId].findIndex(i => i.id === tempId);
+            if (idx > -1) { folderDataCache[fId][idx].id = realId; delete folderDataCache[fId][idx].isPending; }
+        }
+
+        for (let mId in subFolderCache) {
+            let idx = subFolderCache[mId].findIndex(i => i.id === tempId);
+            if (idx > -1) { subFolderCache[mId][idx].id = realId; delete subFolderCache[mId][idx].isPending; }
+        }
+
+        // -> SỬA LỖI Ở ĐÂY: Nếu đang đứng trong folder vừa tạo, đổi ID hiện tại sang ID thật ngay tắp lự!
+        if (currentFolderId === tempId) {
+            currentFolderId = realId;
+        }
+        
+        // -> Đổi ID trong thanh đường dẫn (folderStack) để back/up không bị lỗi
+        let stackChanged = false;
+        folderStack.forEach(f => {
+            if (f.id === tempId) { f.id = realId; stackChanged = true; }
+        });
+        if (stackChanged) localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+
+        if (currentDriveItems.some(i => i.id === realId) || currentFolderId === realId) {
+            if(window.renderItems) window.renderItems(currentDriveItems);
+        }
+    };
+
+    // Bọc hàm up ảnh: Chặn không cho up nếu Folder chưa kịp tạo xong trên Drive
+    if(window.handleMultipleFileUpload && !window.handleMultipleFileUpload.isWrappedForFakeId) {
+        const originalUpload = window.handleMultipleFileUpload;
+        window.handleMultipleFileUpload = async function(event) {
+            if (currentFolderId && currentFolderId.startsWith('temp_folder_')) {
+                showToast("Vẫn đang tạo thư mục...", true);
+                if (typeof closeFab === 'function') closeFab();
+                event.target.value = '';
+                return; // Chặn đứng lệnh up ảnh ảo
+            }
+            return originalUpload(event);
+        };
+        window.handleMultipleFileUpload.isWrappedForFakeId = true;
+    }
+
+
+    // -----------------------------------------------------------------
+    // FIX 2: LỖI LINK CHIA SẺ FOLDER (BỊ GHI ĐÈ BỞI MEGA-ROW KHI MỞ APP)
+    // -----------------------------------------------------------------
+    
+    // Ghi đè lại hàm khởi tạo Database để xử lý Link chia sẻ đúng chuẩn
+    window.initDatabase = async function() {
+        try {
+            let storedMeta = await localforage.getItem('vinhloc_meta');
+            appMeta = storedMeta || {};
+
+            if (Object.keys(appMeta).length === 0) {
+                const folderListEl = document.getElementById('folderList');
+                if (folderListEl) folderListEl.innerHTML = '<div class="text-center text-gray-500 mt-10 w-full"><div class="loader mx-auto mb-3 border-blue-400"></div>Đang chuẩn bị dữ liệu...</div>';
+                try {
+                    const metaRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getMeta' }) }).then(r => r.json());
+                    if (metaRes && metaRes.success && metaRes.meta) {
+                        appMeta = metaRes.meta; await localforage.setItem('vinhloc_meta', appMeta);
+                    }
+                } catch(e) {}
+            }
+
+            const storedFolderCache = await localforage.getItem('vinhloc_folder_cache');
+            folderDataCache = storedFolderCache || {};
+            const storedSubCache = await localforage.getItem('vinhloc_subfolder_cache');
+            subFolderCache = storedSubCache || {};
+
+            let metaCleaned = false;
+            for (let id in appMeta) {
+                if (appMeta[id].cover && appMeta[id].cover.length > 30000) { appMeta[id].cover = ''; metaCleaned = true; }
+            }
+            if (metaCleaned) await localforage.setItem('vinhloc_meta', appMeta);
+
+            // --- SỬA LỖI CHIA SẺ NẰM Ở ĐÂY ---
+            // Gọi lại cái link đã bắt được lúc mới mở App
+            const sId = window.vinhloc_share_params.get('shareId');
+            const sType = window.vinhloc_share_params.get('shareType');
+            const sName = window.vinhloc_share_params.get('shareName');
+
+            if (sId) {
+                // Nếu là Link chia sẻ, KHÔNG TẢI Mega-row nữa, tải thẳng Folder chia sẻ
+                if (sType === 'folder') {
+                    folderStack = [ { id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }, { id: sId, name: sName || "Thư mục chia sẻ", scrollTop: 0 } ];
+                    currentFolderId = sId;
+                    localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+                    if(window.loadFolder) window.loadFolder(sId, sName || "Thư mục chia sẻ", false, false);
+                } else {
+                    if(window.loadFolder) window.loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false);
+                }
+            } else {
+                // Nếu mở web bình thường thì về trang chủ Triển khai
+                if(window.loadFolder) window.loadFolder(ROOT_FOLDER_ID, "Triển khai", false, false);
+            }
+
+        } catch (err) {
+            console.error("Lỗi tải DB:", err);
+        }
+    };
+
+    // Áp dụng ép hiển thị luôn khi Patch vừa kích hoạt xong để vá ngay lập tức
+    const sId = window.vinhloc_share_params.get('shareId');
+    const sType = window.vinhloc_share_params.get('shareType');
+    const sName = window.vinhloc_share_params.get('shareName');
+    
+    if (sId && sType === 'folder') {
+        folderStack = [ { id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }, { id: sId, name: sName || "Thư mục chia sẻ", scrollTop: 0 } ];
+        currentFolderId = sId;
+        localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+        if(window.loadFolder) window.loadFolder(sId, sName || "Thư mục chia sẻ", false, false);
+    }
+
+    console.log("✅ PATCH 23: Đã sửa Lỗi Up Ảnh vào Thư mục ảo & Lỗi Link chia sẻ!");
+}, 11000); // Khởi chạy trễ nhất hệ thống
