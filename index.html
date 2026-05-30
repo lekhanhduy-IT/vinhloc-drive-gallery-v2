@@ -117,10 +117,10 @@
         #input-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); z-index: 500; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
         #main-text-input { width: 100%; max-width: 400px; padding: 16px; font-size: 22px; border: 2px solid var(--primary-blue); border-radius: 12px; text-align: center; outline: none; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.1); }
         
-        #watermark-popup { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: 55vh; background: white; border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 300; display: none; flex-direction: column; padding: 20px; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); }
-        
-        .wm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; overflow-y: auto; margin-top: 15px; padding: 5px; flex: 1; align-content: start; }
-        .wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; background-color: white; }
+        #watermark-popup { position: fixed; bottom: var(--bottom-h); left: 0; right: 0; height: 65vh; background: white; border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 300; display: none; flex-direction: column; padding: 20px; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); }
+
+.wm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; overflow-y: auto; margin-top: 15px; padding: 5px; padding-bottom: 40px; flex: 1; min-height: 0; align-content: start; grid-auto-rows: max-content; }
+.wm-item { position: relative; border: 1px solid #e5e7eb; border-radius: 8px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: repeating-conic-gradient(#f3f4f6 0% 25%, transparent 0% 50%) 50% / 20px 20px; cursor: pointer; overflow: hidden; background-color: white; flex-shrink: 0; }
         .wm-item img { width: 100%; height: 100%; object-fit: contain; padding: 5px; pointer-events: none; }
         .wm-delete-btn { position: absolute; top: 4px; right: 4px; background: var(--primary-red); color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 12px; cursor: pointer; z-index: 10; pointer-events: auto; }
 
