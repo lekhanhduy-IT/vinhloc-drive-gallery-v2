@@ -2365,3 +2365,37 @@ setTimeout(() => {
     console.log("✅ Đã bật Đa Upload và Đóng Băng Giao Diện 100%");
 
 }, 6000);
+// ==============================================================
+// PATCH 13: LÔI MENU TẢI ẢNH/LƯU DRIVE RA KHỎI LỚP BỊ CHE KHUẤT
+// ==============================================================
+setTimeout(() => {
+    // 1. Sửa lỗi Modal bị che: Nâng Z-index của Modal xuất file lên mức tối đa
+    const saveModal = document.getElementById('save-options-modal');
+    if (saveModal) {
+        saveModal.style.zIndex = '99999999'; // Lớp 8 số 9: Đè bẹp lớp 7 số 9 của giao diện Design!
+    }
+
+    // 2. Nâng luôn Z-index của khu vực thông báo (Toast) để thấy chữ "Đang xử lý..."
+    const toastContainer = document.getElementById('toast-container');
+    if (toastContainer) {
+        toastContainer.style.zIndex = '999999999'; // Lớp 9 số 9: Cao nhất vũ trụ
+    }
+
+    // 3. Nâng Z-index của Modal nhập Text (khi chèn chữ vào ảnh) để không bị che
+    const inputOverlay = document.getElementById('input-overlay');
+    if (inputOverlay) {
+        inputOverlay.style.zIndex = '99999999';
+    }
+
+    // 4. Tiện tay thêm tính năng: Bấm vào vùng tối xung quanh để đóng Menu Tải Xuống nhanh
+    if (saveModal) {
+        saveModal.addEventListener('click', (e) => {
+            if (e.target === saveModal) { // Chỉ đóng khi bấm vào nền mờ
+                saveModal.classList.add('hidden');
+                saveModal.classList.remove('flex');
+            }
+        });
+    }
+    
+    console.log("✅ Đã khôi phục hoàn hảo Menu xuất file trong Design!");
+}, 2500); // Trễ 2.5s để đảm bảo mọi DOM đã load xong
