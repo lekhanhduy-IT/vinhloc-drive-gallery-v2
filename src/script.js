@@ -4235,7 +4235,7 @@ setTimeout(() => {
         versionDiv.id = 'app-version-display';
         
         // SỬA Ở ĐÂY: Xóa text-center, thêm px-5, flex, items-center, gap-3 để giống hệt menu
-        versionDiv.className = 'pt-6 pb-4 px-5 flex items-center gap-3 text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80';
+        versionDiv.className = 'pt-6 pb-8 px-5 flex items-center gap-3 text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80';
         
         // SỬA Ở ĐÂY: Thêm w-6 text-center cho icon để trục dọc icon thẳng hàng 100%
         versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${currentVersion}`;
