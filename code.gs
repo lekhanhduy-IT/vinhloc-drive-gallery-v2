@@ -17,9 +17,29 @@ function doPost(e) {
 
     switch (action) {
       case 'list': result = getFolderContents(currentFolder); break;
-      case 'createFolder':
+case 'createFolder':
         const newFolder = currentFolder.createFolder(payload.name);
-        result = { success: true, id: newFolder.getId(), tempId: payload.tempId }; break;
+        const realId = newFolder.getId();
+        
+        // 1. Ghi Description trực tiếp vào Folder Details trên Drive
+        if (payload.description) {
+          newFolder.setDescription(payload.description);
+        }
+        
+        // 2. Nếu đây là Mega-row, TỰ ĐỘNG lưu ID thật vào Google Sheets ngay lập tức
+        if (payload.isMegaRow) {
+          updateMetaInSheet(
+            realId,               // Đảm bảo 100% lưu ID thật
+            payload.name,         // Tên thư mục
+            payload.category,     // Loại (Ý tưởng/Triển khai)
+            '',                   // Mô tả (để trống lúc mới tạo)
+            ''                    // Ảnh cover (để trống lúc mới tạo)
+          );
+        }
+        
+        // Trả kết quả ID thật về cho giao diện web
+        result = { success: true, id: realId, tempId: payload.tempId }; 
+        break;
       case 'rename':
         if (payload.type === 'folder') DriveApp.getFolderById(payload.id).setName(payload.newName);
         else DriveApp.getFileById(payload.id).setName(payload.newName);
@@ -48,9 +68,23 @@ function doPost(e) {
         result = { success: true, data: searchFilesAndFoldersGlobally(payload.keyword, ROOT_FOLDER_ID) }; break;
       case 'getMeta':
         result = { success: true, meta: getMetaFromSheet() }; break;
-      case 'updateSingleMeta':
+case 'updateSingleMeta':
         updateMetaInSheet(payload.meta.id, payload.meta.name, payload.meta.type, payload.meta.desc, payload.meta.cover);
-        result = { success: true, message: "Đã lưu vào Sheets" }; break;
+        
+        try {
+          // Bổ sung tính năng: Cập nhật lại Description trên Drive khi người dùng bấm Lưu sửa đổi
+          let driveDesc = "";
+          if (payload.meta.type) driveDesc += `[${payload.meta.type}]\n`;
+          if (payload.meta.desc) driveDesc += payload.meta.desc;
+          
+          // Ghi đè mô tả mới vào Folder Details
+          DriveApp.getFolderById(payload.meta.id).setDescription(driveDesc.trim());
+        } catch(e) {
+          // Bọc try-catch phòng trường hợp cập nhật thông tin của File (vì File dùng getFileById thay vì getFolderById)
+        }
+        
+        result = { success: true, message: "Đã lưu vào Sheets và Drive" }; 
+        break;
     }
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (error) {

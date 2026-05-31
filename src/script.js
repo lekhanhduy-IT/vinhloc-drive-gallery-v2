@@ -4080,3 +4080,233 @@ setTimeout(() => {
     
     console.log("✅ PATCH 27 V3: Quy chuẩn hóa hoàn toàn quá trình tạo Thư mục, 100% ID thật!");
 }, 12500);
+// ==============================================================
+// PATCH 28: UPLOAD KHÔNG GIỚI HẠN & HIỂN THỊ TRÌNH PHÁT MP4
+// ==============================================================
+setTimeout(() => {
+    // 1. THUẬT TOÁN UPLOAD VÔ CỰC BẰNG DRIVE API RESUMABLE
+    window.handleMultipleFileUpload = async function(event) {
+        if (typeof closeFab === 'function') closeFab(); 
+        const files = event.target.files; 
+        if (!files || files.length === 0) return;
+        
+        // Chặn nếu đang đứng ở thư mục ảo chưa tạo xong
+        if (currentFolderId && currentFolderId.startsWith('temp_folder_')) {
+            showToast("Vui lòng đợi thư mục tạo xong...", true);
+            event.target.value = ''; return;
+        }
+        
+        syncQueueCount++; updateSyncIndicator(); 
+        let uploadQueue = [];
+        
+        // Hiển thị khung chờ lên UI
+        for (let i = 0; i < files.length; i++) {
+            let file = files[i]; 
+            let fakeId = 'temp_file_' + Date.now() + '_' + i; 
+            let tempUrl = URL.createObjectURL(file); 
+            let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl, isPending: true };
+            uploadQueue.push({ file: file, id: fakeId, itemRef: newItem }); 
+            currentDriveItems.unshift(newItem); 
+        }
+        
+        folderDataCache[currentFolderId] = currentDriveItems; 
+        window.renderItems(currentDriveItems);
+        
+        // Bắt đầu đẩy file
+        for (let obj of uploadQueue) {
+            try {
+                let realId = null;
+
+                // CHÌA KHÓA: Xin link đường hầm từ Server
+                let getUrlRes = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'getUploadUrl', folderId: currentFolderId, filename: obj.file.name })
+                }).then(r => r.json());
+
+                if (getUrlRes.success && getUrlRes.uploadUrl) {
+                    // CÓ ĐƯỜNG HẦM: Bơm trực tiếp dữ liệu thô (Binary) lên Google, nhanh & không giới hạn
+                    let uploadRes = await fetch(getUrlRes.uploadUrl, {
+                        method: 'PUT',
+                        body: obj.file 
+                    });
+                    
+                    let uploadedData = await uploadRes.json();
+                    if (uploadedData && uploadedData.id) realId = uploadedData.id;
+                    else throw new Error("Lỗi tải lên máy chủ Google");
+
+                } else {
+                    // FALLBACK: Kịch bản dự phòng nếu người dùng quên bật Drive API (dùng cho file nhẹ < 30MB)
+                    if (obj.file.size > 30 * 1024 * 1024) throw new Error("File quá lớn. Hãy bật Drive API trong Apps Script!");
+                    
+                    let base64Data = await new Promise((resolve, reject) => { 
+                        let reader = new FileReader(); 
+                        reader.onload = (e) => resolve(e.target.result.split(',')[1]); 
+                        reader.onerror = (e) => reject(e); reader.readAsDataURL(obj.file); 
+                    });
+                    
+                    let res = await fetch(SCRIPT_URL, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ action: 'upload', folderId: currentFolderId, filename: obj.file.name, mimeType: obj.file.type, data: base64Data }) 
+                    }).then(r => r.json());
+                    
+                    if (res && res.success) realId = res.fileId || res.id;
+                    else throw new Error("Lỗi tải lên Base64");
+                }
+                
+                // Gắn ID thật vào giao diện và tắt hiệu ứng mờ
+                let uploadedItem = currentDriveItems.find(i => i.id === obj.id);
+                if (uploadedItem && realId) {
+                    uploadedItem.id = realId;
+                    delete uploadedItem.isPending; delete uploadedItem.tempUrl;
+                }
+                if (folderDataCache[currentFolderId]) {
+                    let cacheItem = folderDataCache[currentFolderId].find(i => i.id === obj.id);
+                    if (cacheItem && realId) { cacheItem.id = realId; delete cacheItem.isPending; delete cacheItem.tempUrl; }
+                }
+                
+                window.renderItems(currentDriveItems); 
+                URL.revokeObjectURL(obj.itemRef.tempUrl); 
+            } catch(err) { 
+                showToast(`Lỗi: ${err.message}`, true); 
+                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
+                folderDataCache[currentFolderId] = currentDriveItems;
+                window.renderItems(currentDriveItems);
+            }
+        }
+        syncQueueCount--; updateSyncIndicator(); event.target.value = ''; 
+    };
+
+    // 2. NÂNG CẤP MEDIA VIEWER: HỖ TRỢ PHÁT VIDEO MP4 TRỰC TIẾP TỪ DRIVE
+    window.openMedia = function(id, mimeType, name, tempUrlFull = null) {
+        // Safe Mode: Khóa nút Back điện thoại
+        window.isMediaViewerActive = true;
+        window.ignoreNextPopState = false; 
+        history.pushState({ mediaViewer: true }, '', ''); 
+        if (typeof folderStack !== 'undefined' && folderStack.length > 0) {
+            const currentFolder = folderStack[folderStack.length - 1];
+            if (!currentFolder.isMediaDummy) {
+                folderStack.push({ ...currentFolder, isMediaDummy: true });
+                localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+            }
+        }
+
+        if (typeof closeFab === 'function') closeFab(); 
+        document.getElementById('mediaTitle').textContent = name;
+        curMediaIdForDownload = id; curMediaNameForDownload = name;
+        
+        const viewer = document.getElementById('mediaViewer');
+        viewer.classList.remove('hidden'); viewer.classList.add('flex');
+        const content = document.getElementById('mediaContent');
+
+        if (mimeType.includes('image')) {
+            let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
+            content.innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`;
+        } else if (mimeType.includes('video')) {
+            if (tempUrlFull && tempUrlFull.startsWith('blob:')) {
+                // Tệp Video cục bộ đang được Upload
+                content.innerHTML = `<video controls autoplay class="max-w-full max-h-full rounded-lg shadow-2xl" src="${tempUrlFull}"></video>`;
+            } else {
+                // Trình phát Drive cho file đã lưu
+                content.innerHTML = `<iframe src="https://drive.google.com/file/d/${id}/preview" width="100%" height="100%" allow="autoplay" frameborder="0" class="rounded-lg shadow-2xl bg-black"></iframe>`;
+            }
+        } else {
+            content.innerHTML = `<div class="text-white flex flex-col items-center"><i class="fas fa-file text-6xl mb-4"></i><p>Tệp này cần tải về để xem.</p></div>`;
+        }
+    };
+
+    // 3. NÂNG CẤP GIAO DIỆN LƯỚI: HIỂN THỊ THUMBNAIL CHO VIDEO MP4
+    const originalRenderItemsForVideo = window.renderItems;
+    window.renderItems = function(items, isSearchMode = false) {
+        // Tạm mượn quy trình render cũ nhưng trích xuất và biến đổi khối HTML của file
+        const tempSmooth = window.smoothUpdateUI; window.smoothUpdateUI = function(){};
+        
+        try {
+            // Chạy hàm chuẩn bị dữ liệu meta gốc (giữ nguyên logic của patch 21)
+            let metaChanged = false;
+            items.forEach(item => {
+                if (item.type === 'folder') {
+                    if (!appMeta[item.id]) { appMeta[item.id] = { type: 'Triển khai', desc: '', cover: '' }; metaChanged = true; }
+                    let descStr = item.description || "";
+                    if (descStr) {
+                        let parsedType = null;
+                        if (descStr.includes('[Ý tưởng]') || descStr === 'Ý tưởng') parsedType = 'Ý tưởng';
+                        else if (descStr.includes('[Triển khai]') || descStr === 'Triển khai') parsedType = 'Triển khai';
+                        if (parsedType && appMeta[item.id].type !== parsedType) { appMeta[item.id].type = parsedType; metaChanged = true; }
+                        let coverMatch = descStr.match(/\[Cover:(.*?)\]/);
+                        if (coverMatch) {
+                            let extractedCover = coverMatch[1] === 'NONE' ? '' : coverMatch[1].trim();
+                            if (appMeta[item.id].cover !== extractedCover) { appMeta[item.id].cover = extractedCover; metaChanged = true; }
+                        }
+                        let rawDesc = descStr.replace(/\[(Ý tưởng|Triển khai)\]/g, '').replace(/\[Cover:.*?\]/g, '').trim();
+                        if (appMeta[item.id].desc !== rawDesc) { appMeta[item.id].desc = rawDesc; metaChanged = true; }
+                    }
+                    if (appMeta[item.id] && appMeta[item.id].name) { item.name = appMeta[item.id].name; }
+                }
+            });
+            if (metaChanged) localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
+
+            // ... Xử lý Render thư mục (Giữ nguyên) ...
+            originalRenderItemsForVideo(items, isSearchMode); // Tái sử dụng để vẽ Mega-row và Sub-folder
+            
+            // CAN THIỆP GHI ĐÈ KHỐI FILES
+            const files = items.filter(i => i.type !== 'folder');
+            const fileListEl = document.getElementById('fileList');
+            const escapeHTML = (str) => { return str ? String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;') : ''; };
+
+            if (files.length > 0 && fileListEl && (folderStack.length > 1 || isSearchMode)) {
+                fileListEl.innerHTML = files.map(item => {
+                    let isImage = item.mimeType.includes('image'); 
+                    let isVideo = item.mimeType.includes('video'); 
+                    let isSelected = window.multiSelectState && window.multiSelectState.selectedIds.has(item.id);
+                    
+                    // Tuyệt chiêu: Drive tự sinh Thumbnail cho Video dùng chung link của Ảnh!
+                    let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`; 
+                    let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
+                    
+                    let visualEl = '';
+                    if (isImage || isVideo) {
+                        visualEl = `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy">`;
+                        if (isVideo) {
+                            // Gắn nút Play giả đè lên Thumbnail video
+                            visualEl += `<div class="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none transition group-hover:bg-black/50"><i class="fas fa-play-circle text-white text-4xl opacity-90 drop-shadow-lg"></i></div>`;
+                        }
+                    } else {
+                        visualEl = `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-file-alt text-gray-400 text-4xl"></i></div>`;
+                    }
+                    
+                    let isTemp = item.tempUrl ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` : '';
+                    let checkUi = isSelected ? `<div class="absolute top-2 left-2 z-20 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"><i class="fas fa-check text-xs"></i></div>` : '';
+                    let borderClass = isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:bg-gray-50';
+                    const safeName = escapeHTML(item.name); 
+
+                    const fileClickAction = isSearchMode ? `window.openSearchResult('${item.id}', '${safeName}', 'file', '${item.mimeType}', '${fullImgUrl}')` : `window.openMedia('${item.id}', '${item.mimeType}', '${safeName}', '${fullImgUrl}')`;
+
+                    return `
+                    <div class="p-2.5 rounded-2xl shadow-sm border flex flex-col relative transition group ${borderClass}">
+                        ${checkUi} ${isTemp}
+                        <div class="absolute top-2 right-2 z-30">
+                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
+                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-[500] py-1 text-sm item-action-menu overflow-hidden">
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
+                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${safeName}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
+                                <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
+                            </div>
+                        </div>
+                        <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3 relative" onclick="${fileClickAction}">${visualEl}</div>
+                        <div class="px-1 flex flex-col justify-center flex-1 cursor-pointer" onclick="window.toggleFileSelection ? window.toggleFileSelection('${item.id}', event) : null">
+                            <span class="text-[13px] font-bold ${isSelected ? 'text-blue-700' : 'text-gray-800'} line-clamp-2 leading-tight drive-img-name item-name-${item.id}" title="${item.name}">${item.name}</span>
+                            <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+        } catch(err) {} finally {
+            window.smoothUpdateUI = tempSmooth; if(window.smoothUpdateUI) window.smoothUpdateUI(appMeta);
+        }
+    };
+    
+    // Tải lại lưới ảnh hiện tại
+    if (currentDriveItems && currentDriveItems.length > 0 && window.renderItems) window.renderItems(currentDriveItems);
+    console.log("✅ PATCH 28: Đã bẻ khóa giới hạn 50MB Upload & Trình phát Video Iframe!");
+}, 13000);
