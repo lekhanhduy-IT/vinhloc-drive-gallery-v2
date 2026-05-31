@@ -4211,7 +4211,7 @@ try {
 // HIỂN THỊ SỐ PHIÊN BẢN NGAY DƯỚI CÁC MỤC TRONG SIDEBAR
 // ==============================================================
 setTimeout(() => {
-    // Tìm thẳng vào vùng chứa danh sách mục menu (div có class flex-1)
+    // Tìm thẳng vào vùng chứa danh sách mục menu
     const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
     
     if (sidebarMenuContainer) {
@@ -4233,12 +4233,13 @@ setTimeout(() => {
         // 3. Tạo thẻ hiển thị mới
         const versionDiv = document.createElement('div');
         versionDiv.id = 'app-version-display';
-        // ĐÃ XÓA 'mt-auto' để không bị đẩy xuống đáy.
-        // Chỉnh lại đệm trên (pt-6) để cách mục "Ý tưởng" một khoảng đẹp mắt
-        versionDiv.className = 'pt-6 pb-4 text-center text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80';
-        versionDiv.innerHTML = `<i class="fas fa-code-branch mr-1"></i> Phiên bản ${currentVersion}`;
         
-        // Nhét vào ngay dưới cùng của danh sách menu
+        // SỬA Ở ĐÂY: Xóa text-center, thêm px-5, flex, items-center, gap-3 để giống hệt menu
+        versionDiv.className = 'pt-6 pb-4 px-5 flex items-center gap-3 text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80';
+        
+        // SỬA Ở ĐÂY: Thêm w-6 text-center cho icon để trục dọc icon thẳng hàng 100%
+        versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${currentVersion}`;
+        
         sidebarMenuContainer.appendChild(versionDiv);
     }
-}, 1500); // Trễ 1.5s để đảm bảo sidebar đã load xong
+}, 1500);
