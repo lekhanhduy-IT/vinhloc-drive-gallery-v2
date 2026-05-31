@@ -4081,138 +4081,161 @@ setTimeout(() => {
     console.log("✅ PATCH 27 V3: Quy chuẩn hóa hoàn toàn quá trình tạo Thư mục, 100% ID thật!");
 }, 12500);
 // ==============================================================
-// PATCH 28 (V5 PRO): UPLOAD CHUNKING & HỖ TRỢ SHARED DRIVE (TRỊ 404)
+// PATCH 28 (V7 BẤT TỬ): UPLOAD CHUNKING VÀ KHÓA CHỐNG GHI ĐÈ 
 // ==============================================================
-setTimeout(() => {
-    window.handleMultipleFileUpload = async function(event) {
-        if (typeof closeFab === 'function') closeFab(); 
-        const files = event.target.files; 
-        if (!files || files.length === 0) return;
-        
-        if (currentFolderId && currentFolderId.startsWith('temp_folder_')) {
-            showToast("Vui lòng đợi thư mục tạo xong...", true);
-            event.target.value = ''; return;
-        }
-        
-        syncQueueCount++; updateSyncIndicator(); 
-        let uploadQueue = [];
-        
-        for (let i = 0; i < files.length; i++) {
-            let file = files[i]; 
-            let fakeId = 'temp_file_' + Date.now() + '_' + i; 
-            let tempUrl = URL.createObjectURL(file); 
-            let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl, isPending: true };
-            uploadQueue.push({ file: file, id: fakeId, itemRef: newItem }); 
-            currentDriveItems.unshift(newItem); 
-        }
-        folderDataCache[currentFolderId] = currentDriveItems; 
-        window.renderItems(currentDriveItems);
-        
-        let token = null;
+const newUploadLogic = async function(event) {
+    if (typeof closeFab === 'function') closeFab(); 
+    const files = event.target.files; 
+    if (!files || files.length === 0) return;
+    
+    if (currentFolderId && currentFolderId.startsWith('temp_folder_')) {
+        showToast("Vui lòng đợi thư mục tạo xong...", true);
+        event.target.value = ''; return;
+    }
+    
+    syncQueueCount++; updateSyncIndicator(); 
+    let uploadQueue = [];
+    
+    // Dàn khung "Đang Up..." lên giao diện
+    for (let i = 0; i < files.length; i++) {
+        let file = files[i]; 
+        let fakeId = 'temp_file_' + Date.now() + '_' + i; 
+        let tempUrl = URL.createObjectURL(file); 
+        let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl, isPending: true };
+        uploadQueue.push({ file: file, id: fakeId, itemRef: newItem }); 
+        currentDriveItems.unshift(newItem); 
+    }
+    folderDataCache[currentFolderId] = currentDriveItems; 
+    window.renderItems(currentDriveItems);
+    
+    // Xin Thẻ bài
+    let token = null;
+    try {
+        let tokenRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getToken' }) }).then(r => r.json());
+        if (tokenRes && tokenRes.success) token = tokenRes.token;
+    } catch(e) {}
+
+    if (!token) {
+        showToast("Lỗi: Không lấy được quyền Upload.", true);
+        for (let obj of uploadQueue) currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id);
+        folderDataCache[currentFolderId] = currentDriveItems; window.renderItems(currentDriveItems);
+        syncQueueCount--; updateSyncIndicator(); event.target.value = ''; return;
+    }
+
+    // Bơm file vào Đường hầm Drive
+    for (let obj of uploadQueue) {
         try {
-            let tokenRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getToken' }) }).then(r => r.json());
-            if (tokenRes && tokenRes.success) token = tokenRes.token;
-        } catch(e) {}
+            if (obj.file.size === 0) throw new Error("File rỗng");
+            let realId = null;
 
-        if (!token) {
-            showToast("Lỗi: Không lấy được quyền Upload.", true);
-            for (let obj of uploadQueue) currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id);
-            folderDataCache[currentFolderId] = currentDriveItems; window.renderItems(currentDriveItems);
-            syncQueueCount--; updateSyncIndicator(); event.target.value = ''; return;
-        }
+            let initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': 'Bearer ' + token, 
+                    'Content-Type': 'application/json',
+                    'X-Upload-Content-Type': obj.file.type || 'application/octet-stream'
+                },
+                body: JSON.stringify({ name: obj.file.name, parents: [currentFolderId] })
+            });
 
-        for (let obj of uploadQueue) {
-            try {
-                if (obj.file.size === 0) throw new Error("File bị rỗng (0 KB)");
-                let realId = null;
+            let uploadUrl = initRes.headers.get('Location') || initRes.headers.get('location');
+            if (!uploadUrl) {
+                let errText = await initRes.text();
+                if(errText.includes('404')) throw new Error("Lỗi 404: Thư mục không tồn tại.");
+                throw new Error(`Google chặn khởi tạo Upload.`);
+            }
 
-                // THÊM CỜ supportsAllDrives=true ĐỂ GOOGLE NHÌN THẤY THƯ MỤC CÔNG TY
-                let initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true', {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': 'Bearer ' + token, 
-                        'Content-Type': 'application/json',
-                        'X-Upload-Content-Type': obj.file.type || 'application/octet-stream',
-                        'X-Upload-Content-Length': obj.file.size.toString()
-                    },
-                    body: JSON.stringify({ name: obj.file.name, parents: [currentFolderId] })
+            const CHUNK_SIZE = 5242880; 
+            let start = 0;
+            let uploadedData = null;
+
+            // Thuật toán Băm nhỏ File chống Timeout
+            while (start < obj.file.size) {
+                let end = Math.min(start + CHUNK_SIZE, obj.file.size);
+                let chunk = obj.file.slice(start, end);
+                
+                let chunkRes = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Range': `bytes ${start}-${end - 1}/${obj.file.size}` },
+                    body: chunk
                 });
 
-                let uploadUrl = initRes.headers.get('Location');
-                if (!uploadUrl) {
-                    let errText = await initRes.text();
-                    // Bọc lỗi cho đẹp, không hiện mã JSON loằng ngoằng ra màn hình nữa
-                    if(errText.includes('404')) throw new Error("Lỗi 404: Thư mục không tồn tại hoặc sai quyền.");
-                    throw new Error(`Bị chặn khởi tạo.`);
+                if (chunkRes.status === 308) {
+                    start = end;
+                } else if (chunkRes.ok) {
+                    uploadedData = await chunkRes.json();
+                    break;
+                } else {
+                    throw new Error(`Đứt mạng khi tải.`);
                 }
-
-                const CHUNK_SIZE = 5242880; 
-                let start = 0;
-                let uploadedData = null;
-
-                while (start < obj.file.size) {
-                    let end = Math.min(start + CHUNK_SIZE, obj.file.size);
-                    let chunk = obj.file.slice(start, end);
-                    
-                    let chunkRes = await fetch(uploadUrl, {
-                        method: 'PUT',
-                        headers: { 'Content-Range': `bytes ${start}-${end - 1}/${obj.file.size}` },
-                        body: chunk
-                    });
-
-                    if (chunkRes.status === 308) {
-                        start = end;
-                    } else if (chunkRes.ok) {
-                        uploadedData = await chunkRes.json();
-                        break;
-                    } else {
-                        throw new Error(`Đứt gãy mạng khi tải.`);
-                    }
-                }
-
-                if (uploadedData && uploadedData.id) realId = uploadedData.id;
-                else throw new Error("Google không trả về ID file.");
-                
-                let uploadedItem = currentDriveItems.find(i => i.id === obj.id);
-                if (uploadedItem && realId) {
-                    uploadedItem.id = realId; delete uploadedItem.isPending; delete uploadedItem.tempUrl;
-                }
-                if (folderDataCache[currentFolderId]) {
-                    let cacheItem = folderDataCache[currentFolderId].find(i => i.id === obj.id);
-                    if (cacheItem && realId) { cacheItem.id = realId; delete cacheItem.isPending; delete cacheItem.tempUrl; }
-                }
-                
-                window.renderItems(currentDriveItems); 
-                URL.revokeObjectURL(obj.itemRef.tempUrl); 
-            } catch(err) { 
-                showToast(`Lỗi ${obj.file.name}: ${err.message}`, true); 
-                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
-                folderDataCache[currentFolderId] = currentDriveItems;
-                window.renderItems(currentDriveItems);
             }
-        }
-        syncQueueCount--; updateSyncIndicator(); event.target.value = ''; 
-    };
 
-    // Giữ nguyên Trình phát MP4
-    window.openMedia = function(id, mimeType, name, tempUrlFull = null) {
-        window.isMediaViewerActive = true; window.ignoreNextPopState = false; history.pushState({ mediaViewer: true }, '', ''); 
-        if (typeof folderStack !== 'undefined' && folderStack.length > 0) {
-            const currentFolder = folderStack[folderStack.length - 1];
-            if (!currentFolder.isMediaDummy) { folderStack.push({ ...currentFolder, isMediaDummy: true }); localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); }
+            if (uploadedData && uploadedData.id) realId = uploadedData.id;
+            else throw new Error("Không lấy được ID file.");
+            
+            // Xong -> Gỡ giao diện Đang Up
+            let uploadedItem = currentDriveItems.find(i => i.id === obj.id);
+            if (uploadedItem && realId) {
+                uploadedItem.id = realId; delete uploadedItem.isPending; delete uploadedItem.tempUrl;
+            }
+            if (folderDataCache[currentFolderId]) {
+                let cacheItem = folderDataCache[currentFolderId].find(i => i.id === obj.id);
+                if (cacheItem && realId) { cacheItem.id = realId; delete cacheItem.isPending; delete cacheItem.tempUrl; }
+            }
+            
+            window.renderItems(currentDriveItems); 
+            URL.revokeObjectURL(obj.itemRef.tempUrl); 
+
+        } catch(err) { 
+            // Nếu có lỗi, XÓA NGAY khung UI để chống đơ
+            showToast(`Lỗi ${obj.file.name}: ${err.message}`, true); 
+            currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
+            folderDataCache[currentFolderId] = currentDriveItems;
+            window.renderItems(currentDriveItems);
         }
-        if (typeof closeFab === 'function') closeFab(); 
-        document.getElementById('mediaTitle').textContent = name; curMediaIdForDownload = id; curMediaNameForDownload = name;
-        const viewer = document.getElementById('mediaViewer'); viewer.classList.remove('hidden'); viewer.classList.add('flex');
-        const content = document.getElementById('mediaContent');
-        if (mimeType.includes('image')) {
-            let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
-            content.innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`;
-        } else if (mimeType.includes('video')) {
-            if (tempUrlFull && tempUrlFull.startsWith('blob:')) content.innerHTML = `<video controls autoplay class="max-w-full max-h-full rounded-lg shadow-2xl" src="${tempUrlFull}"></video>`;
-            else content.innerHTML = `<iframe src="https://drive.google.com/file/d/${id}/preview" width="100%" height="100%" allow="autoplay" frameborder="0" class="rounded-lg shadow-2xl bg-black"></iframe>`;
-        } else {
-            content.innerHTML = `<div class="text-white flex flex-col items-center"><i class="fas fa-file text-6xl mb-4"></i><p>Tệp này cần tải về để xem.</p></div>`;
-        }
-    };
-}, 14000);
+    }
+    syncQueueCount--; updateSyncIndicator(); event.target.value = ''; 
+};
+
+// ĐÓNG BĂNG HÀM UPLOAD: CẤM TUYỆT ĐỐI CÁC PATCH CŨ GHI ĐÈ LÊN!
+try {
+    Object.defineProperty(window, 'handleMultipleFileUpload', {
+        value: newUploadLogic,
+        writable: false,
+        configurable: false
+    });
+} catch (e) {
+    window.handleMultipleFileUpload = newUploadLogic;
+}
+// ==============================================================
+// HIỂN THỊ SỐ PHIÊN BẢN Ở ĐÁY SIDEBAR ĐỂ THEO DÕI CACHE PWA
+// ==============================================================
+setTimeout(() => {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        // 1. Tự động đi tìm số phiên bản đang chạy trong HTML
+        let currentVersion = "Không rõ";
+        const scripts = document.querySelectorAll('script');
+        scripts.forEach(s => {
+            if (s.src && s.src.includes('script.js?v=')) {
+                // Bóc tách lấy đúng con số sau chữ v=
+                const match = s.src.match(/v=([0-9.]+)/);
+                if (match && match[1]) currentVersion = match[1];
+            }
+        });
+
+        // 2. Xóa thẻ cũ (nếu có) để tránh bị nhân đôi khi lướt web
+        const oldVerDiv = document.getElementById('app-version-display');
+        if (oldVerDiv) oldVerDiv.remove();
+
+        // 3. Tạo thẻ hiển thị mới và gắn vào đáy Sidebar
+        const versionDiv = document.createElement('div');
+        versionDiv.id = 'app-version-display';
+        // mt-auto giúp đẩy div này xuống tận cùng đáy sidebar
+        // text-blue-400 cho màu xanh nhạt, text-[11px] cho kích thước nhỏ gọn
+        versionDiv.className = 'mt-auto pb-6 pt-4 text-center text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80';
+        versionDiv.innerHTML = `<i class="fas fa-code-branch mr-1"></i> Phiên bản ${currentVersion}`;
+        
+        sidebar.appendChild(versionDiv);
+    }
+}, 1500); // Trễ 1.5s để đảm bảo sidebar đã load xong hoàn toàn

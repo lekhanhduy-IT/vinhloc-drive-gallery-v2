@@ -17,7 +17,7 @@ function doPost(e) {
 
     switch (action) {
       case 'list': result = getFolderContents(currentFolder); break;
-case 'createFolder':
+      case 'createFolder':
         const newFolder = currentFolder.createFolder(payload.name);
         const realId = newFolder.getId();
         
@@ -52,6 +52,9 @@ case 'createFolder':
         const blobUpload = Utilities.newBlob(Utilities.base64Decode(payload.data), payload.mimeType, payload.filename);
         const newFile = currentFolder.createFile(blobUpload);
         result = { success: true, id: newFile.getId(), url: newFile.getUrl() }; break;
+        // CHÈN THÊM CASE NÀY VÀO ĐỂ CẤP THẺ BÀI CHO TRÌNH DUYỆT
+      case 'getToken':
+        result = { success: true, token: ScriptApp.getOAuthToken() }; break;
       case 'makePublic':
         try {
           if (payload.type === 'folder') DriveApp.getFolderById(payload.id).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -68,7 +71,7 @@ case 'createFolder':
         result = { success: true, data: searchFilesAndFoldersGlobally(payload.keyword, ROOT_FOLDER_ID) }; break;
       case 'getMeta':
         result = { success: true, meta: getMetaFromSheet() }; break;
-case 'updateSingleMeta':
+      case 'updateSingleMeta':
         updateMetaInSheet(payload.meta.id, payload.meta.name, payload.meta.type, payload.meta.desc, payload.meta.cover);
         
         try {
@@ -85,6 +88,7 @@ case 'updateSingleMeta':
         
         result = { success: true, message: "Đã lưu vào Sheets và Drive" }; 
         break;
+        
     }
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
@@ -155,4 +159,8 @@ function searchFilesAndFoldersGlobally(keyword, rootId) {
 function isDescendantOfRoot(item, rootId) {
   if (item.getId() === rootId) return true; let current = item;
   while (true) { let parents = current.getParents(); if (!parents.hasNext()) return false; let parent = parents.next(); if (parent.getId() === rootId) return true; current = parent; }
+}
+function FORCE_AUTH() {
+  DriveApp.getRootFolder();
+  Logger.log(ScriptApp.getOAuthToken());
 }
