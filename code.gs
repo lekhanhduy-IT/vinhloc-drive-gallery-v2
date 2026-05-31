@@ -69,9 +69,11 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     const action = payload.action;
     const folderId = payload.folderId || ROOT_FOLDER_ID;
+    
+    // ======== BẠN BỊ THIẾU ĐOẠN CHẶN NÀY ========
     const userEmail = payload.email; // Lấy email từ frontend gửi lên
     
-    // BƯỚC CHẶN BẢO MẬT: Kiểm tra quyền truy cập thư mục gốc
+    // BƯỚC CHẶN BẢO MẬT: Kiểm tra xem email có nằm trong mảng ALLOWED_EMAILS không
     if (!checkAccess(ROOT_FOLDER_ID, userEmail)) {
       return ContentService.createTextOutput(JSON.stringify({ 
         success: false, 
@@ -79,14 +81,12 @@ function doPost(e) {
         needLogin: true 
       })).setMimeType(ContentService.MimeType.JSON);
     }
-
-    // --- NẾU CODE XUỐNG ĐƯỢC ĐÂY TỨC LÀ TÀI KHOẢN HỢP LỆ ---
-    let currentFolder;
-    // Bổ sung thêm saveGlobalCache và loadGlobalCache vào danh sách ngoại trừ
-    if (folderId && action !== 'getMeta' && action !== 'updateSingleMeta' && action !== 'globalSearch' && action !== 'getFileBase64' && action !== 'makePublic' && action !== 'saveGlobalCache' && action !== 'loadGlobalCache') {
-      try { currentFolder = DriveApp.getFolderById(folderId); } catch(err){}
-    }
+    // ============================================
     
+    let currentFolder;
+    if (folderId && action !== 'getMeta' && action !== 'updateSingleMeta' && action !== 'globalSearch' && action !== 'getFileBase64' && action !== 'makePublic') {
+      try { currentFolder = DriveApp.getFolderById(folderId); } catch(err){}
+    }    
     let result = { success: false, message: "Hành động không hợp lệ" };
     switch (action) {
       case 'saveGlobalCache':
