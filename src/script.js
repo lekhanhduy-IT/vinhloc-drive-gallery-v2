@@ -4716,3 +4716,96 @@ setTimeout(() => {
 
     console.log("✅ PATCH 34: Đã fix triệt để lỗi click đường dẫn bị gom chung Tab!");
 }, 18500); // Khởi chạy sau cùng để đảm bảo bắt đè được các hàm gốc
+// ==============================================================
+// PATCH 35 (V2): NHÃN "NEW" NẰM BÊN TRÁI NÚT 3 CHẤM
+// ==============================================================
+setTimeout(() => {
+    // 1. Khởi tạo danh sách "Đã Xem" từ Ổ cứng máy
+    window.vinhloc_seen_megas = new Set(JSON.parse(localStorage.getItem('vinhloc_seen_megas') || '[]'));
+
+    // 2. CHỐT CHẶN KHỞI ĐỘNG (HOẶC TẢI NÃO NHỆN LẦN ĐẦU)
+    const originalInitDatabaseP35 = window.initDatabase;
+    window.initDatabase = async function() {
+        if (originalInitDatabaseP35) await originalInitDatabaseP35();
+        
+        // Đánh dấu tất cả Mega-row đang có sẵn là "Đã Xem" khi mở app lần đầu
+        if (folderDataCache[ROOT_FOLDER_ID]) {
+            folderDataCache[ROOT_FOLDER_ID].forEach(item => {
+                if (item.type === 'folder') window.vinhloc_seen_megas.add(item.id);
+            });
+            localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
+        }
+    };
+
+    // 3. CHỐT CHẶN RENDER: Vẽ nhãn New cho các Folder chưa xem
+    const originalRenderItemsP35 = window.renderItems;
+    window.renderItems = function(items, isSearchMode = false) {
+        const result = originalRenderItemsP35(items, isSearchMode);
+        
+        if (folderStack.length === 1 && !isSearchMode && items) {
+            const megaRows = document.querySelectorAll('.mega-row');
+            
+            megaRows.forEach(row => {
+                const header = row.querySelector('.mega-header');
+                const iconEl = row.querySelector('[id^="icon-"]');
+                
+                if (header && iconEl) {
+                    const id = iconEl.id.replace('icon-', '');
+                    
+                    // Nếu ID này KHÔNG nằm trong danh sách Đã Xem -> Gắn nhãn
+                    if (!window.vinhloc_seen_megas.has(id)) {
+                        if (!header.querySelector('.vinhloc-new-label')) {
+                            // Biến header thành hệ tọa độ để canh vị trí tuyệt đối
+                            header.style.position = 'relative';
+                            
+                            const img = document.createElement('img');
+                            img.src = 'new_folder.png';
+                            
+                            // [ĐÃ SỬA]: right-[42px] để né nút 3 chấm. h-full = cao 100%. py-1 để cách viền trên/dưới một chút cho đẹp.
+                            img.className = 'vinhloc-new-label absolute top-0 right-[42px] h-full w-auto object-contain z-[5] pointer-events-none drop-shadow-sm animate-pulse transition-opacity duration-300 py-1';
+                            
+                            header.appendChild(img);
+                        }
+                    }
+                }
+            });
+        }
+        return result;
+    };
+
+    // 4. CHỐT CHẶN CLICK: Xóa nhãn vĩnh viễn khi bấm mở Mega-row
+    const originalToggleAccordionP35 = window.toggleAccordion;
+    window.toggleAccordion = function(id, forceOpen = false) {
+        if (window.vinhloc_seen_megas && !window.vinhloc_seen_megas.has(id)) {
+            window.vinhloc_seen_megas.add(id);
+            localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
+            
+            const iconEl = document.getElementById(`icon-${id}`);
+            if (iconEl) {
+                const header = iconEl.closest('.mega-header');
+                if (header) {
+                    const label = header.querySelector('.vinhloc-new-label');
+                    if (label) {
+                        label.classList.remove('animate-pulse');
+                        label.style.opacity = '0';
+                        setTimeout(() => label.remove(), 300); 
+                    }
+                }
+            }
+        }
+        if (originalToggleAccordionP35) originalToggleAccordionP35(id, forceOpen);
+    };
+
+    // 5. CHỐT CHẶN ĐỔI ID: Bảo toàn trạng thái "Đã Xem" khi Drive nhả ID thật
+    const originalReplaceTempIdP35 = window.replaceTempId;
+    window.replaceTempId = function(tempId, realId) {
+        if (window.vinhloc_seen_megas && window.vinhloc_seen_megas.has(tempId)) {
+            window.vinhloc_seen_megas.delete(tempId);
+            window.vinhloc_seen_megas.add(realId);
+            localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
+        }
+        if (originalReplaceTempIdP35) originalReplaceTempIdP35(tempId, realId);
+    };
+
+    console.log("✅ PATCH 35 (V2): Đã dời nhãn NEW sang phải, kế bên nút 3 chấm!");
+}, 19000);
