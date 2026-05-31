@@ -4208,11 +4208,13 @@ try {
     window.handleMultipleFileUpload = newUploadLogic;
 }
 // ==============================================================
-// HIỂN THỊ SỐ PHIÊN BẢN Ở ĐÁY SIDEBAR ĐỂ THEO DÕI CACHE PWA
+// HIỂN THỊ SỐ PHIÊN BẢN NGAY DƯỚI CÁC MỤC TRONG SIDEBAR
 // ==============================================================
 setTimeout(() => {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
+    // Tìm thẳng vào vùng chứa danh sách mục menu (div có class flex-1)
+    const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
+    
+    if (sidebarMenuContainer) {
         // 1. Tự động đi tìm số phiên bản đang chạy trong HTML
         let currentVersion = "Không rõ";
         const scripts = document.querySelectorAll('script');
@@ -4228,14 +4230,15 @@ setTimeout(() => {
         const oldVerDiv = document.getElementById('app-version-display');
         if (oldVerDiv) oldVerDiv.remove();
 
-        // 3. Tạo thẻ hiển thị mới và gắn vào đáy Sidebar
+        // 3. Tạo thẻ hiển thị mới
         const versionDiv = document.createElement('div');
         versionDiv.id = 'app-version-display';
-        // mt-auto giúp đẩy div này xuống tận cùng đáy sidebar
-        // text-blue-400 cho màu xanh nhạt, text-[11px] cho kích thước nhỏ gọn
-        versionDiv.className = 'mt-auto pb-6 pt-4 text-center text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80';
+        // ĐÃ XÓA 'mt-auto' để không bị đẩy xuống đáy.
+        // Chỉnh lại đệm trên (pt-6) để cách mục "Ý tưởng" một khoảng đẹp mắt
+        versionDiv.className = 'pt-6 pb-4 text-center text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80';
         versionDiv.innerHTML = `<i class="fas fa-code-branch mr-1"></i> Phiên bản ${currentVersion}`;
         
-        sidebar.appendChild(versionDiv);
+        // Nhét vào ngay dưới cùng của danh sách menu
+        sidebarMenuContainer.appendChild(versionDiv);
     }
-}, 1500); // Trễ 1.5s để đảm bảo sidebar đã load xong hoàn toàn
+}, 1500); // Trễ 1.5s để đảm bảo sidebar đã load xong
