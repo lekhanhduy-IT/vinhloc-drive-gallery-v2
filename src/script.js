@@ -4234,10 +4234,10 @@ setTimeout(() => {
         const versionDiv = document.createElement('div');
         versionDiv.id = 'app-version-display';
         
-        // SỬA Ở ĐÂY: Xóa text-center, thêm px-5, flex, items-center, gap-3 để giống hệt menu
-        versionDiv.className = 'pt-6 pb-30 px-5 flex items-center gap-3 text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80';
+        // SỬA Ở ĐÂY: Dùng pl-[24px] để khớp chính xác 100% với (20px padding + 4px border) của menu
+        versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px] font-bold text-blue-400 uppercase tracking-widest opacity-80 cursor-default';
         
-        // SỬA Ở ĐÂY: Thêm w-6 text-center cho icon để trục dọc icon thẳng hàng 100%
+        // Icon được fix cứng độ rộng w-6 và căn giữa giống hệt menu
         versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${currentVersion}`;
         
         sidebarMenuContainer.appendChild(versionDiv);
