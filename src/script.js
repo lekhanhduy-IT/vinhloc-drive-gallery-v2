@@ -4841,27 +4841,105 @@ setTimeout(() => {
     console.log("✅ PATCH 36: Đã kích hoạt hệ thống Nhãn New Folder thông minh cho Mega-row!");
 }, 19500); // Chạy trễ nhất để bao bọc các bản vá cũ
 // ==============================================================
-// PATCH 37: SỬA LỖI MENU HEADER BỊ CẮT XÉN DO OVERFLOW: HIDDEN
+// PATCH 37-38: FIX MENU HEADER BỊ CẮT & ĐỒNG BỘ THỨ TỰ TẠO FOLDER
 // ==============================================================
 setTimeout(() => {
+    // ---------------------------------------------------------
+    // 1. FIX LỖI MENU HEADER BỊ CẮT XÉN DO OVERFLOW & Z-INDEX
+    // ---------------------------------------------------------
     const header = document.querySelector('header');
     if (header) {
-        // Gỡ bỏ thuộc tính cắt xén, cho phép menu thả xuống tràn ra khỏi viền header
-        header.style.overflow = 'visible'; 
+        header.style.overflow = 'visible';  // Mở khóa để menu thả xuống không bị cắt
+        header.style.position = 'relative'; 
+        header.style.zIndex = '999999';     // Đè bẹp mọi z-index của Mega-row
     }
     
-    // Đảm bảo ảnh decor góc phải không làm tràn chiều ngang màn hình khi gỡ overflow
     const rightHeaderImg = document.querySelector('.vl-decor-header');
     if (rightHeaderImg) {
         rightHeaderImg.style.maxWidth = '100vw';
-        rightHeaderImg.style.clipPath = 'inset(0 0 0 0)'; // Cắt ảnh gọn gàng ngay tại viền, không ảnh hưởng menu thả xuống
+        rightHeaderImg.style.clipPath = 'inset(0 0 0 0)'; // Cắt viền ảnh mà không ảnh hưởng thẻ cha
     }
 
-    // Nâng Z-index của Container Menu lên tối thượng (Nếu Patch 37 chưa ăn)
     const headerDropdownContainer = document.getElementById('headerDropdownContainer');
-    if (headerDropdownContainer) {
-        headerDropdownContainer.style.zIndex = '9999999';
-    }
+    if (headerDropdownContainer) headerDropdownContainer.style.zIndex = '9999999';
+    
+    const headerDropdown = document.getElementById('headerDropdown');
+    if (headerDropdown) headerDropdown.style.zIndex = '9999999';
 
-    console.log("✅ PATCH 37: Đã vô hiệu hóa overflow:hidden trên Header, Menu thả xuống hiển thị hoàn hảo!");
-}, 2000); // Khởi chạy sau cùng để đè các Patch cũ
+    // ---------------------------------------------------------
+    // 2. FIX THỨ TỰ SẮP XẾP KHI TẠO THƯ MỤC MỚI (CHỐNG LỖI NHÂN BẢN)
+    // ---------------------------------------------------------
+    window.uiPromptFolder = function (targetParentId = null, e = null) {
+        if (e) { e.stopPropagation(); document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden')); }
+        if (typeof closeFab === 'function') closeFab();
+
+        document.getElementById('modalTitle').textContent = 'Thư mục mới';
+        document.getElementById('modalDesc').classList.add('hidden');
+        document.getElementById('modalInput').classList.remove('hidden');
+        document.getElementById('modalInput').value = '';
+        document.getElementById('modalInput').placeholder = "Nhập tên thư mục...";
+
+        const btn = document.getElementById('modalConfirmBtn');
+        btn.textContent = 'Tạo'; 
+        btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
+
+        btn.onclick = () => {
+            const val = document.getElementById('modalInput').value.trim();
+            if (val) {
+                const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
+                closeModal();
+
+                const isMegaRow = (parentIdToUse === ROOT_FOLDER_ID);
+                const tempId = 'temp_folder_' + Date.now();
+                const newItem = { id: tempId, name: val, type: 'folder', isPending: true };
+
+                let targetCategory = "Triển khai"; 
+                let targetDesc = ""; 
+
+                if (isMegaRow) {
+                    targetCategory = window.currentCategory || "Triển khai";
+                    targetDesc = `[${targetCategory}]\n`;
+                    
+                    appMeta[tempId] = { type: targetCategory, desc: '', cover: '', name: val };
+                    localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
+                }
+
+                // Hàm sắp xếp chuẩn theo thứ tự chữ cái giống hệt Server (Drive)
+                const sortAlphabetically = (arr) => {
+                    arr.sort((a, b) => {
+                        if (a.type === b.type) return (a.name || '').localeCompare(b.name || '');
+                        return a.type === 'folder' ? -1 : 1;
+                    });
+                };
+
+                // A. HIỂN THỊ TỨC THÌ LÊN GIAO DIỆN VỚI ĐÚNG VỊ TRÍ ALPHABET
+                if (parentIdToUse === currentFolderId) {
+                    currentDriveItems.push(newItem);
+                    sortAlphabetically(currentDriveItems); // Sắp xếp lại ngay lập tức thay vì đưa lên đầu (unshift)
+                    folderDataCache[currentFolderId] = currentDriveItems;
+                    window.renderItems(currentDriveItems);
+                } else if (subFolderCache[parentIdToUse]) {
+                    subFolderCache[parentIdToUse].push(newItem);
+                    sortAlphabetically(subFolderCache[parentIdToUse]); // Sắp xếp lại ngay lập tức
+                    if (typeof window.renderSubFolders === 'function') window.renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
+                }
+
+                showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
+
+                // B. ĐẨY LỆNH VÀO QUEUE CHO SERVER
+                addActionToQueue('createFolder', {
+                    name: val,
+                    folderId: parentIdToUse,
+                    tempId: tempId,
+                    description: targetDesc,
+                    isMegaRow: isMegaRow,       
+                    category: targetCategory    
+                });
+            }
+        };
+        document.getElementById('customModal').classList.remove('hidden'); document.getElementById('customModal').classList.add('flex');
+        setTimeout(() => document.getElementById('modalInput').focus(), 100);
+    };
+
+    console.log("✅ PATCH 37-38: Đã fix Menu Header bị cắt và Đồng bộ đúng thứ tự Alphabet khi tạo thư mục!");
+}, 21000); // Khởi chạy ở mốc 21s để đảm bảo đè thành công các bản cũ
