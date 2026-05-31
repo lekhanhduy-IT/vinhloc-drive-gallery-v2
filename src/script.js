@@ -4717,29 +4717,30 @@ setTimeout(() => {
     console.log("✅ PATCH 34: Đã fix triệt để lỗi click đường dẫn bị gom chung Tab!");
 }, 18500); // Khởi chạy sau cùng để đảm bảo bắt đè được các hàm gốc
 // ==============================================================
-// PATCH 35 (V2): NHÃN "NEW" NẰM BÊN TRÁI NÚT 3 CHẤM
+// PATCH 35 (V3): SỬA LỖI SPAM NHÃN "NEW" CHO CÁC FOLDER CŨ
 // ==============================================================
 setTimeout(() => {
     // 1. Khởi tạo danh sách "Đã Xem" từ Ổ cứng máy
     window.vinhloc_seen_megas = new Set(JSON.parse(localStorage.getItem('vinhloc_seen_megas') || '[]'));
+    
+    // Cờ kiểm tra: Đã từng chạy "Lệnh Ân Xá" cho thiết bị này chưa?
+    let isFirstTimeInit = !localStorage.getItem('vinhloc_megas_initialized');
 
-    // 2. CHỐT CHẶN KHỞI ĐỘNG (HOẶC TẢI NÃO NHỆN LẦN ĐẦU)
-    const originalInitDatabaseP35 = window.initDatabase;
-    window.initDatabase = async function() {
-        if (originalInitDatabaseP35) await originalInitDatabaseP35();
-        
-        // Đánh dấu tất cả Mega-row đang có sẵn là "Đã Xem" khi mở app lần đầu
-        if (folderDataCache[ROOT_FOLDER_ID]) {
-            folderDataCache[ROOT_FOLDER_ID].forEach(item => {
-                if (item.type === 'folder') window.vinhloc_seen_megas.add(item.id);
-            });
-            localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
-        }
-    };
-
-    // 3. CHỐT CHẶN RENDER: Vẽ nhãn New cho các Folder chưa xem
+    // 2. CHỐT CHẶN RENDER: Lọc thông minh, phân biệt cũ/mới
     const originalRenderItemsP35 = window.renderItems;
     window.renderItems = function(items, isSearchMode = false) {
+        
+        // [LỆNH ÂN XÁ TỰ ĐỘNG]: Nếu là lần tải dữ liệu đầu tiên, gạch tên toàn bộ folder cũ vào sổ Đã Xem!
+        if (isFirstTimeInit && folderStack.length === 1 && !isSearchMode && items) {
+            const folders = items.filter(i => i.type === 'folder');
+            if (folders.length > 0) {
+                folders.forEach(item => window.vinhloc_seen_megas.add(item.id));
+                localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
+                localStorage.setItem('vinhloc_megas_initialized', 'true');
+                isFirstTimeInit = false; // Tắt cờ ân xá vĩnh viễn cho các lần sau
+            }
+        }
+
         const result = originalRenderItemsP35(items, isSearchMode);
         
         if (folderStack.length === 1 && !isSearchMode && items) {
@@ -4752,18 +4753,14 @@ setTimeout(() => {
                 if (header && iconEl) {
                     const id = iconEl.id.replace('icon-', '');
                     
-                    // Nếu ID này KHÔNG nằm trong danh sách Đã Xem -> Gắn nhãn
+                    // Nếu ID này KHÔNG nằm trong danh sách Đã Xem -> Mới gắn nhãn NEW
                     if (!window.vinhloc_seen_megas.has(id)) {
                         if (!header.querySelector('.vinhloc-new-label')) {
-                            // Biến header thành hệ tọa độ để canh vị trí tuyệt đối
                             header.style.position = 'relative';
-                            
                             const img = document.createElement('img');
                             img.src = 'new_folder.png';
-                            
-                            // [ĐÃ SỬA]: right-[42px] để né nút 3 chấm. h-full = cao 100%. py-1 để cách viền trên/dưới một chút cho đẹp.
-                            img.className = 'vinhloc-new-label absolute top-0 right-[42px] h-full w-auto object-contain z-[5] pointer-events-none drop-shadow-sm animate-pulse transition-opacity duration-300 py-1';
-                            
+                            // Đặt bên phải, kế nút 3 chấm, thêm hiệu ứng chớp nháy
+                            img.className = 'vinhloc-new-label absolute top-0 right-[50px] h-full w-auto object-contain z-[5] pointer-events-none drop-shadow-sm animate-pulse transition-opacity duration-300 py-1';
                             header.appendChild(img);
                         }
                     }
@@ -4773,7 +4770,7 @@ setTimeout(() => {
         return result;
     };
 
-    // 4. CHỐT CHẶN CLICK: Xóa nhãn vĩnh viễn khi bấm mở Mega-row
+    // 3. CHỐT CHẶN CLICK: Xóa nhãn vĩnh viễn khi bấm mở Mega-row
     const originalToggleAccordionP35 = window.toggleAccordion;
     window.toggleAccordion = function(id, forceOpen = false) {
         if (window.vinhloc_seen_megas && !window.vinhloc_seen_megas.has(id)) {
@@ -4788,7 +4785,7 @@ setTimeout(() => {
                     if (label) {
                         label.classList.remove('animate-pulse');
                         label.style.opacity = '0';
-                        setTimeout(() => label.remove(), 300); 
+                        setTimeout(() => label.remove(), 300); // Đợi hiệu ứng mờ 0.3s rồi mới gỡ thẻ HTML
                     }
                 }
             }
@@ -4796,7 +4793,7 @@ setTimeout(() => {
         if (originalToggleAccordionP35) originalToggleAccordionP35(id, forceOpen);
     };
 
-    // 5. CHỐT CHẶN ĐỔI ID: Bảo toàn trạng thái "Đã Xem" khi Drive nhả ID thật
+    // 4. CHỐT CHẶN ĐỔI ID: Giữ nguyên trạng thái nếu lỡ tay click lúc mạng lag đang tải
     const originalReplaceTempIdP35 = window.replaceTempId;
     window.replaceTempId = function(tempId, realId) {
         if (window.vinhloc_seen_megas && window.vinhloc_seen_megas.has(tempId)) {
@@ -4807,5 +4804,5 @@ setTimeout(() => {
         if (originalReplaceTempIdP35) originalReplaceTempIdP35(tempId, realId);
     };
 
-    console.log("✅ PATCH 35 (V2): Đã dời nhãn NEW sang phải, kế bên nút 3 chấm!");
+    console.log("✅ PATCH 35 (V3): Đã dọn dẹp sạch sẽ nhãn NEW cho các folder cũ!");
 }, 19000);
