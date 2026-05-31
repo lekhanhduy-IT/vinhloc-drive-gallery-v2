@@ -4607,3 +4607,57 @@ setTimeout(() => {
 
     console.log("✅ PATCH 32: Đã kích hoạt Trạm Phát Sóng Não Nhện!");
 }, 17000);
+// ==============================================================
+// PATCH 33: GẮN ẢNH DECOR VÀO HEADER VÀ ĐÁY SIDEBAR
+// ==============================================================
+setTimeout(() => {
+    // ---------------------------------------------------------
+    // 1. GẮN ẢNH VÀO CẠNH PHẢI HEADER
+    // ---------------------------------------------------------
+    const header = document.querySelector('header');
+    if (header) {
+        // Cấu hình header để chứa ảnh dạng nền absolute
+        header.style.position = 'relative';
+        header.style.overflow = 'hidden'; 
+
+        const rightHeaderImg = document.createElement('img');
+        rightHeaderImg.src = 'vl_right_header.png';
+        rightHeaderImg.alt = 'Header Decor';
+        // h-full = cao 100%, right-0 = ép sát phải.
+        // pointer-events-none = Ảnh trong suốt với con chuột (không cản click)
+        rightHeaderImg.className = 'absolute right-0 top-0 h-full w-auto object-contain pointer-events-none z-[0]';
+
+        // Ép tất cả các nút bấm/tiêu đề hiện tại của Header nổi lên trên lớp ảnh
+        Array.from(header.children).forEach(child => {
+            if (child.style) {
+                child.style.position = 'relative';
+                child.style.zIndex = '10';
+            }
+        });
+
+        // Chèn ảnh vào lớp dưới cùng của Header
+        header.insertBefore(rightHeaderImg, header.firstChild);
+    }
+
+    // ---------------------------------------------------------
+    // 2. GẮN ẢNH VÀO CẠNH DƯỚI (ĐÁY) SIDEBAR
+    // ---------------------------------------------------------
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        const footerImgWrapper = document.createElement('div');
+        // mt-auto: "Phép thuật" của flexbox giúp đẩy thẻ div này xuống tận cùng đáy Sidebar
+        // shrink-0: Chống bị bóp méo khi menu bên trên quá dài
+        footerImgWrapper.className = 'w-full mt-auto shrink-0 pb-2'; // Thêm chút padding bottom cho đẹp
+
+        const footerImg = document.createElement('img');
+        footerImg.src = 'vl_foot_slidebar.png';
+        footerImg.alt = 'Sidebar Footer';
+        // Ép rộng 100% Sidebar
+        footerImg.className = 'w-full h-auto object-contain block';
+
+        footerImgWrapper.appendChild(footerImg);
+        sidebar.appendChild(footerImgWrapper);
+    }
+    
+    console.log("✅ PATCH 33: Đã gắn ảnh trang trí vào Header và Sidebar thành công!");
+}, 800); // Chạy rất sớm để giao diện kịp nạp cùng lúc với App
