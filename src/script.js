@@ -19,22 +19,55 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// 2. Xử lý giải mã và lưu trữ sau khi Google Login thành công
-window.handleCredentialResponse = function(response) {
+// Phải khai báo originalFetch trước để dùng trong lúc gọi hỏi Server
+const originalFetch = window.fetch;
+
+// 2. Xử lý giải mã và HỎI SERVER sau khi Google Login thành công
+window.handleCredentialResponse = async function(response) {
     const responsePayload = decodeJwtResponse(response.credential);
-    currentUserEmail = responsePayload.email;
+    const tempEmail = responsePayload.email;
     
-    // Lưu tạm email vào máy
-    localStorage.setItem('vinhloc_user_email', currentUserEmail);
+    // Đừng mở cửa vội! Hiện thông báo đang đem thẻ tên đi hỏi bảo vệ
+    showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang kiểm tra quyền của ${tempEmail}...`);
     
-    // Ẩn màn hình đăng nhập
-    const loginScreen = document.getElementById('vinhloc-login-screen');
-    if (loginScreen) loginScreen.style.display = 'none';
-    
-    showToast(`<i class="fas fa-check-circle mr-2 text-green-400"></i> Đã xác thực: ${currentUserEmail}`);
-    
-    // Khởi động lại hệ thống dữ liệu
-    if (typeof initDatabase === 'function') initDatabase();
+    try {
+        // GỌI THẲNG LÊN CODE.GS ĐỂ HỎI XEM EMAIL NÀY CÓ ĐƯỢC VÀO KHÔNG
+        const res = await originalFetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'getMeta', email: tempEmail }) // Mượn lệnh getMeta để check chốt chặn
+        });
+        
+        const data = await res.json();
+        
+        if (data.needLogin) {
+            // ĐÂY RỒI! BÁC BẢO VỆ SERVER TRẢ LỜI: "TỪ CHỐI"
+            showToast(`<i class="fas fa-times-circle mr-2"></i> Truy cập bị từ chối: ${tempEmail} không có quyền!`, true);
+            
+            // Xóa bộ nhớ form chọn tài khoản của Google để bắt người ta chọn lại
+            if (window.google && window.google.accounts) google.accounts.id.disableAutoSelect();
+            
+            // KẾT THÚC SỚM TẠI ĐÂY, KHÔNG CHO TẮT MÀN HÌNH ĐĂNG NHẬP
+            return; 
+        }
+        
+        // --- NẾU SERVER KHÔNG TRẢ VỀ NEEDLOGIN TỨC LÀ CHO QUA ---
+        currentUserEmail = tempEmail;
+        
+        // Lưu email vào máy
+        localStorage.setItem('vinhloc_user_email', currentUserEmail);
+        
+        // ĐƯỢC CHO PHÉP THÌ BÂY GIỜ MỚI ẨN MÀN HÌNH ĐĂNG NHẬP NÈ
+        const loginScreen = document.getElementById('vinhloc-login-screen');
+        if (loginScreen) loginScreen.style.display = 'none';
+        
+        showToast(`<i class="fas fa-check-circle mr-2 text-green-400"></i> Đã cấp quyền: ${currentUserEmail}`);
+        
+        // Khởi động lại hệ thống dữ liệu
+        if (typeof initDatabase === 'function') initDatabase();
+        
+    } catch (error) {
+        showToast("Lỗi kết nối máy chủ khi xác thực!", true);
+    }
 };
 
 function decodeJwtResponse(token) {
@@ -47,13 +80,11 @@ function decodeJwtResponse(token) {
 }
 
 // 3. THE ULTIMATE INTERCEPTOR: Chặn mọi gói tin Fetch để nhét Email vào
-const originalFetch = window.fetch;
 window.fetch = async function() {
-    // Nếu request gửi lên đúng Server Apps Script của bạn
     if (arguments[0] === SCRIPT_URL && arguments[1] && arguments[1].body) {
         try {
             let payload = JSON.parse(arguments[1].body);
-            // Kẹp thêm email vào payload
+            // Kẹp email vào gói dữ liệu gửi đi (nếu đã được phép vào)
             if (currentUserEmail) {
                 payload.email = currentUserEmail; 
                 arguments[1].body = JSON.stringify(payload);
@@ -61,26 +92,23 @@ window.fetch = async function() {
         } catch(e) {}
     }
     
-    // Thực thi lệnh fetch gốc
     const response = await originalFetch.apply(this, arguments);
     
-    // Kiểm tra xem Server Apps Script có báo "Truy cập bị từ chối" không
+    // Chặn bắt lỗi ngầm nếu lỡ đang chạy app mà tài khoản bị thu hồi quyền trên Drive
     const clonedRes = response.clone();
     try {
         const data = await clonedRes.json();
         if (data && data.needLogin) {
-            // Xóa phiên cũ, bật lại màn hình ép đăng nhập
             localStorage.removeItem('vinhloc_user_email');
             currentUserEmail = null;
             const loginScreen = document.getElementById('vinhloc-login-screen');
             if (loginScreen) loginScreen.style.display = 'flex';
-            showToast("Tài khoản Gmail này không có quyền truy cập Drive!", true);
+            showToast("Tài khoản đã bị thu hồi quyền trên Google Drive!", true);
         }
     } catch(e) {}
     
     return response;
 };
-// ==============================================================
 // ==============================================================
 // Kết thúc patch 0
 // ==============================================================
