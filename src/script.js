@@ -4081,10 +4081,9 @@ setTimeout(() => {
     console.log("✅ PATCH 27 V3: Quy chuẩn hóa hoàn toàn quá trình tạo Thư mục, 100% ID thật!");
 }, 12500);
 // ==============================================================
-// PATCH 28 (ULTIMATE): TRỰC TIẾP UPLOAD BẰNG TOKEN & TRÌNH PHÁT MP4
+// PATCH 28 (ANTI-FREEZE): UPLOAD TOKEN TRỰC TIẾP & CHỐNG TREO UI
 // ==============================================================
 setTimeout(() => {
-    // 1. CƠ CHẾ UPLOAD TRỰC TIẾP LÊN MÁY CHỦ GOOGLE (BYPASS APP SCRIPT)
     window.handleMultipleFileUpload = async function(event) {
         if (typeof closeFab === 'function') closeFab(); 
         const files = event.target.files; 
@@ -4098,7 +4097,7 @@ setTimeout(() => {
         syncQueueCount++; updateSyncIndicator(); 
         let uploadQueue = [];
         
-        // Hiện khung "Đang Up..." lên giao diện
+        // 1. Hiện khung "Đang Up..." lên giao diện
         for (let i = 0; i < files.length; i++) {
             let file = files[i]; 
             let fakeId = 'temp_file_' + Date.now() + '_' + i; 
@@ -4110,25 +4109,33 @@ setTimeout(() => {
         folderDataCache[currentFolderId] = currentDriveItems; 
         window.renderItems(currentDriveItems);
         
-        // XIN THẺ BÀI (TOKEN) TỪ SERVER APP SCRIPT
+        // 2. XIN THẺ BÀI (TOKEN) TỪ SERVER APP SCRIPT
         let token = null;
         try {
             let tokenRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getToken' }) }).then(r => r.json());
             if (tokenRes && tokenRes.success) token = tokenRes.token;
-        } catch(e) {}
-
-        if (!token) {
-            showToast("Không lấy được khóa Upload. Hãy thử lại!", true);
-            syncQueueCount--; updateSyncIndicator();
-            return;
+            else console.error("Lỗi từ server khi xin Token:", tokenRes);
+        } catch(e) {
+            console.error("Mất kết nối khi xin Token:", e);
         }
 
-        // BƠM FILE TRỰC TIẾP VÀO GOOGLE DRIVE
+        // ĐÁNH CHẶN: Nếu không lấy được Token -> Xóa sạch khung chờ, không để treo UI!
+        if (!token) {
+            showToast("Lỗi: Không lấy được quyền Upload từ máy chủ. Hãy thử lại!", true);
+            for (let obj of uploadQueue) {
+                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id);
+            }
+            folderDataCache[currentFolderId] = currentDriveItems;
+            window.renderItems(currentDriveItems);
+            syncQueueCount--; updateSyncIndicator();
+            event.target.value = ''; return;
+        }
+
+        // 3. BƠM FILE TRỰC TIẾP VÀO GOOGLE DRIVE BẰNG ĐƯỜNG HẦM RESUMABLE
         for (let obj of uploadQueue) {
             try {
                 let realId = null;
 
-                // Xin Google cấp 1 đường hầm Resumable
                 let initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -4138,7 +4145,6 @@ setTimeout(() => {
                 let uploadUrl = initRes.headers.get('Location');
                 if (!uploadUrl) throw new Error("Trình duyệt chặn kết nối Drive API");
 
-                // Đẩy dữ liệu File nguyên bản thẳng lên Google
                 let uploadRes = await fetch(uploadUrl, { method: 'PUT', body: obj.file });
                 let uploadedData = await uploadRes.json();
 
@@ -4148,8 +4154,7 @@ setTimeout(() => {
                 // Gắn ID thật vào giao diện và tắt hiệu ứng mờ
                 let uploadedItem = currentDriveItems.find(i => i.id === obj.id);
                 if (uploadedItem && realId) {
-                    uploadedItem.id = realId;
-                    delete uploadedItem.isPending; delete uploadedItem.tempUrl;
+                    uploadedItem.id = realId; delete uploadedItem.isPending; delete uploadedItem.tempUrl;
                 }
                 if (folderDataCache[currentFolderId]) {
                     let cacheItem = folderDataCache[currentFolderId].find(i => i.id === obj.id);
@@ -4159,7 +4164,8 @@ setTimeout(() => {
                 window.renderItems(currentDriveItems); 
                 URL.revokeObjectURL(obj.itemRef.tempUrl); 
             } catch(err) { 
-                showToast(`Lỗi: ${err.message}`, true); 
+                showToast(`Lỗi đẩy file: ${err.message}`, true); 
+                // Xóa UI file bị lỗi để chống treo
                 currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
                 folderDataCache[currentFolderId] = currentDriveItems;
                 window.renderItems(currentDriveItems);
@@ -4167,101 +4173,4 @@ setTimeout(() => {
         }
         syncQueueCount--; updateSyncIndicator(); event.target.value = ''; 
     };
-
-    // 2. NÂNG CẤP TRÌNH PHÁT MP4
-    window.openMedia = function(id, mimeType, name, tempUrlFull = null) {
-        window.isMediaViewerActive = true;
-        window.ignoreNextPopState = false; 
-        history.pushState({ mediaViewer: true }, '', ''); 
-        if (typeof folderStack !== 'undefined' && folderStack.length > 0) {
-            const currentFolder = folderStack[folderStack.length - 1];
-            if (!currentFolder.isMediaDummy) {
-                folderStack.push({ ...currentFolder, isMediaDummy: true });
-                localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
-            }
-        }
-
-        if (typeof closeFab === 'function') closeFab(); 
-        document.getElementById('mediaTitle').textContent = name;
-        curMediaIdForDownload = id; curMediaNameForDownload = name;
-        
-        const viewer = document.getElementById('mediaViewer');
-        viewer.classList.remove('hidden'); viewer.classList.add('flex');
-        const content = document.getElementById('mediaContent');
-
-        if (mimeType.includes('image')) {
-            let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
-            content.innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`;
-        } else if (mimeType.includes('video')) {
-            if (tempUrlFull && tempUrlFull.startsWith('blob:')) {
-                content.innerHTML = `<video controls autoplay class="max-w-full max-h-full rounded-lg shadow-2xl" src="${tempUrlFull}"></video>`;
-            } else {
-                content.innerHTML = `<iframe src="https://drive.google.com/file/d/${id}/preview" width="100%" height="100%" allow="autoplay" frameborder="0" class="rounded-lg shadow-2xl bg-black"></iframe>`;
-            }
-        } else {
-            content.innerHTML = `<div class="text-white flex flex-col items-center"><i class="fas fa-file text-6xl mb-4"></i><p>Tệp này cần tải về để xem.</p></div>`;
-        }
-    };
-
-    // 3. HIỆN THUMBNAIL CHO VIDEO MP4 TRÊN LƯỚI
-    const originalRenderItemsForVideo = window.renderItems;
-    window.renderItems = function(items, isSearchMode = false) {
-        const tempSmooth = window.smoothUpdateUI; window.smoothUpdateUI = function(){};
-        
-        try {
-            originalRenderItemsForVideo(items, isSearchMode); 
-            
-            const files = items.filter(i => i.type !== 'folder');
-            const fileListEl = document.getElementById('fileList');
-            const escapeHTML = (str) => { return str ? String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;') : ''; };
-
-            if (files.length > 0 && fileListEl && (folderStack.length > 1 || isSearchMode)) {
-                fileListEl.innerHTML = files.map(item => {
-                    let isImage = item.mimeType.includes('image'); 
-                    let isVideo = item.mimeType.includes('video'); 
-                    let isSelected = window.multiSelectState && window.multiSelectState.selectedIds.has(item.id);
-                    
-                    let imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`; 
-                    let fullImgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
-                    
-                    let visualEl = '';
-                    if (isImage || isVideo) {
-                        visualEl = `<img src="${imgUrl}" data-url="${fullImgUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy">`;
-                        if (isVideo) visualEl += `<div class="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none"><i class="fas fa-play-circle text-white text-4xl opacity-90 drop-shadow-lg"></i></div>`;
-                    } else {
-                        visualEl = `<div class="w-full h-full flex items-center justify-center bg-gray-50"><i class="fas fa-file-alt text-gray-400 text-4xl"></i></div>`;
-                    }
-                    
-                    let isTemp = item.tempUrl ? `<div class="absolute inset-0 bg-white/60 flex flex-col items-center justify-center backdrop-blur-[2px] z-10 rounded-2xl"><div class="loader mb-2 border-blue-600"></div><span class="text-[10px] font-bold text-blue-600">Đang Up...</span></div>` : '';
-                    let checkUi = isSelected ? `<div class="absolute top-2 left-2 z-20 bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"><i class="fas fa-check text-xs"></i></div>` : '';
-                    let borderClass = isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:bg-gray-50';
-                    const safeName = escapeHTML(item.name); 
-
-                    const fileClickAction = isSearchMode ? `window.openSearchResult('${item.id}', '${safeName}', 'file', '${item.mimeType}', '${fullImgUrl}')` : `window.openMedia('${item.id}', '${item.mimeType}', '${safeName}', '${fullImgUrl}')`;
-
-                    return `
-                    <div class="p-2.5 rounded-2xl shadow-sm border flex flex-col relative transition group ${borderClass}">
-                        ${checkUi} ${isTemp}
-                        <div class="absolute top-2 right-2 z-30">
-                            <button onclick="window.toggleItemMenu('${item.id}', event)" class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-blue-600 bg-white/90 backdrop-blur-md rounded-full shadow-sm"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="menu-${item.id}" class="hidden absolute right-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 z-[500] py-1 text-sm item-action-menu overflow-hidden">
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.shareItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-share-nodes mr-3 text-green-500 w-4"></i>Chia sẻ</div>
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold flex items-center" onclick="window.downloadItem('${item.id}', '${item.type}', '${safeName}', event)"><i class="fas fa-download mr-3 text-blue-500 w-4"></i>Tải xuống</div>
-                                <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-700 font-semibold border-t flex items-center" onclick="window.openInfo('${item.id}', '${safeName}', '${item.type}', 'file', event)"><i class="fas fa-pen mr-3 text-blue-500 w-4"></i>Sửa</div>
-                                <div class="px-4 py-3 hover:bg-red-50 cursor-pointer text-red-600 font-semibold border-t flex items-center" onclick="window.handleDelete('${item.id}', '${item.type}', event)"><i class="fas fa-trash mr-3 w-4"></i>Xóa</div>
-                            </div>
-                        </div>
-                        <div class="w-full h-32 flex items-center justify-center bg-gray-100 rounded-xl overflow-hidden cursor-pointer mb-3 relative" onclick="${fileClickAction}">${visualEl}</div>
-                        <div class="px-1 flex flex-col justify-center flex-1 cursor-pointer" onclick="window.toggleFileSelection ? window.toggleFileSelection('${item.id}', event) : null">
-                            <span class="text-[13px] font-bold ${isSelected ? 'text-blue-700' : 'text-gray-800'} line-clamp-2 leading-tight drive-img-name item-name-${item.id}" title="${item.name}">${item.name}</span>
-                            <span class="text-[10px] text-gray-400 mt-1 uppercase font-semibold">${item.mimeType.split('/')[1] || 'FILE'}</span>
-                        </div>
-                    </div>`;
-                }).join('');
-            }
-        } catch(err) {} finally {
-            window.smoothUpdateUI = tempSmooth; if(window.smoothUpdateUI) window.smoothUpdateUI(appMeta);
-        }
-    };
-    if (currentDriveItems && currentDriveItems.length > 0 && window.renderItems) window.renderItems(currentDriveItems);
 }, 13000);
