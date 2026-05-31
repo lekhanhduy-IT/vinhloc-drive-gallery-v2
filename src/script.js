@@ -1,7 +1,89 @@
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
+// ==============================================================
+// PATCH 0: xử lý sau khi đăng nhập thành công và giải mã Email:
+// ==============================================================
+// ==============================================================
+// PATCH 39 (FIXED): QUẢN LÝ ĐĂNG NHẬP VÀ TỰ ĐỘNG TIÊM EMAIL
+// ==============================================================
+let currentUserEmail = localStorage.getItem('vinhloc_user_email') || null;
 
+// 1. Kiểm tra trạng thái đăng nhập khi vừa mở web
+document.addEventListener("DOMContentLoaded", () => {
+    const loginScreen = document.getElementById('vinhloc-login-screen');
+    if (currentUserEmail) {
+        if (loginScreen) loginScreen.style.display = 'none';
+    } else {
+        if (loginScreen) loginScreen.style.display = 'flex';
+    }
+});
+
+// 2. Xử lý giải mã và lưu trữ sau khi Google Login thành công
+window.handleCredentialResponse = function(response) {
+    const responsePayload = decodeJwtResponse(response.credential);
+    currentUserEmail = responsePayload.email;
+    
+    // Lưu tạm email vào máy
+    localStorage.setItem('vinhloc_user_email', currentUserEmail);
+    
+    // Ẩn màn hình đăng nhập
+    const loginScreen = document.getElementById('vinhloc-login-screen');
+    if (loginScreen) loginScreen.style.display = 'none';
+    
+    showToast(`<i class="fas fa-check-circle mr-2 text-green-400"></i> Đã xác thực: ${currentUserEmail}`);
+    
+    // Khởi động lại hệ thống dữ liệu
+    if (typeof initDatabase === 'function') initDatabase();
+};
+
+function decodeJwtResponse(token) {
+    let base64Url = token.split('.')[1];
+    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+}
+
+// 3. THE ULTIMATE INTERCEPTOR: Chặn mọi gói tin Fetch để nhét Email vào
+const originalFetch = window.fetch;
+window.fetch = async function() {
+    // Nếu request gửi lên đúng Server Apps Script của bạn
+    if (arguments[0] === SCRIPT_URL && arguments[1] && arguments[1].body) {
+        try {
+            let payload = JSON.parse(arguments[1].body);
+            // Kẹp thêm email vào payload
+            if (currentUserEmail) {
+                payload.email = currentUserEmail; 
+                arguments[1].body = JSON.stringify(payload);
+            }
+        } catch(e) {}
+    }
+    
+    // Thực thi lệnh fetch gốc
+    const response = await originalFetch.apply(this, arguments);
+    
+    // Kiểm tra xem Server Apps Script có báo "Truy cập bị từ chối" không
+    const clonedRes = response.clone();
+    try {
+        const data = await clonedRes.json();
+        if (data && data.needLogin) {
+            // Xóa phiên cũ, bật lại màn hình ép đăng nhập
+            localStorage.removeItem('vinhloc_user_email');
+            currentUserEmail = null;
+            const loginScreen = document.getElementById('vinhloc-login-screen');
+            if (loginScreen) loginScreen.style.display = 'flex';
+            showToast("Tài khoản Gmail này không có quyền truy cập Drive!", true);
+        }
+    } catch(e) {}
+    
+    return response;
+};
+// ==============================================================
+// ==============================================================
+// Kết thúc patch 0
+// ==============================================================
 // Bỏ đọc từ localStorage để luôn làm mới stack mỗi khi mở app
 localStorage.removeItem('appFolderStack'); 
 let folderStack = [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }];
@@ -4947,39 +5029,4 @@ setTimeout(() => {
 
     console.log("✅ PATCH 37-38: Đã fix Menu Header bị cắt và Đồng bộ đúng thứ tự Alphabet khi tạo thư mục!");
 }, 21000); // Khởi chạy ở mốc 21s để đảm bảo đè thành công các bản cũ
-// ==============================================================
-// PATCH 39: xử lý sau khi đăng nhập thành công và giải mã Email:
-// ==============================================================
-// Biến lưu trữ email sau khi đăng nhập
-let currentUserEmail = localStorage.getItem('userEmail') || null;
 
-// Nếu đã có email thì ẩn màn hình đăng nhập
-if (currentUserEmail) {
-    document.getElementById('login-screen').style.display = 'none';
-}
-
-function handleCredentialResponse(response) {
-    // Giải mã JWT token trả về từ Google để lấy thông tin user
-    const responsePayload = decodeJwtResponse(response.credential);
-    currentUserEmail = responsePayload.email;
-    
-    // Lưu vào cache
-    localStorage.setItem('userEmail', currentUserEmail);
-    
-    // Ẩn màn hình đăng nhập và tải dữ liệu
-    document.getElementById('login-screen').style.display = 'none';
-    showToast("Đăng nhập thành công: " + currentUserEmail);
-    
-    // Gọi hàm load dữ liệu ban đầu của bạn (ví dụ initDatabase hoặc fetchList)
-    // initDatabase(); 
-}
-
-// Hàm giải mã JWT
-function decodeJwtResponse(token) {
-    let base64Url = token.split('.')[1];
-    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-}
