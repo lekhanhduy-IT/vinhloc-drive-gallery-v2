@@ -4717,142 +4717,126 @@ setTimeout(() => {
     console.log("✅ PATCH 34: Đã fix triệt để lỗi click đường dẫn bị gom chung Tab!");
 }, 18500); // Khởi chạy sau cùng để đảm bảo bắt đè được các hàm gốc
 // ==============================================================
-// PATCH 35 (BẢN CHUẨN PWA): HỆ THỐNG NHÃN "NEW" CHẠY TỨC THÌ
+// PATCH 36: TẠO NHÃN "NEW_FOLDER.PNG" CHO MEGA-ROW (ĐỒNG BỘ ĐA THIẾT BỊ)
 // ==============================================================
-(function() {
-    // 1. Khởi tạo danh sách "Đã Xem" tức thì (Không cần đợi)
-    window.vinhloc_seen_megas = new Set(JSON.parse(localStorage.getItem('vinhloc_seen_megas') || '[]'));
-    
-    // 2. CHỐT CHẶN KHỞI ĐỘNG (Lệnh Ân Xá Tức Thì)
-    const originalInitDatabaseP35 = window.initDatabase;
-    window.initDatabase = async function() {
-        if (originalInitDatabaseP35) await originalInitDatabaseP35();
-        
-        // Chỉ ân xá 1 lần duy nhất khi máy tải dữ liệu lần đầu
-        if (!localStorage.getItem('vinhloc_megas_initialized')) {
-            if (typeof folderDataCache !== 'undefined' && folderDataCache[ROOT_FOLDER_ID]) {
-                folderDataCache[ROOT_FOLDER_ID].forEach(item => {
-                    // Ân xá đồ cũ (Tuyệt đối không ân xá thư mục mới tạo có chữ temp_)
-                    if (item.type === 'folder' && !String(item.id).startsWith('temp_')) {
-                        window.vinhloc_seen_megas.add(item.id);
-                    }
-                });
-                localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
-                localStorage.setItem('vinhloc_megas_initialized', 'true');
-            }
+setTimeout(() => {
+    // 1. CHÈN CSS GIAO DIỆN CHO NHÃN NEW
+    const styleEl = document.createElement('style');
+    styleEl.innerHTML = `
+        .mega-new-label-img {
+            position: absolute;
+            right: 52px; /* Đẩy sang trái để nằm chính xác bên trái nút 3 chấm */
+            top: 0;
+            height: 100%; /* Bằng đúng 100% chiều cao của thẻ cha mega-row item */
+            width: auto;
+            object-fit: contain;
+            padding: 8px 0; /* Padding nhẹ để ảnh không dính sát viền trên dưới */
+            z-index: 10;
+            pointer-events: none; /* Tránh cản trở thao tác click mở folder */
+            animation: pulse-new-label 2s infinite ease-in-out;
         }
-    };
+        
+        @keyframes pulse-new-label {
+            0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 2px 4px rgba(239,68,68,0.3)); }
+            50% { transform: scale(1.08); opacity: 0.85; filter: drop-shadow(0 4px 8px rgba(239,68,68,0.5)); }
+        }
+    `;
+    document.head.appendChild(styleEl);
 
-    // 3. CHỐT CHẶN RENDER: Dùng CSS cứng để trị lỗi tàng hình trên PWA
-    const hookRenderItems = () => {
-        if (window.renderItems && !window.renderItems.isNewBadgeHooked) {
-            const originalRenderItemsP35 = window.renderItems;
-            window.renderItems = function(items, isSearchMode = false) {
-                const result = originalRenderItemsP35(items, isSearchMode);
-                
-                if (typeof folderStack !== 'undefined' && folderStack.length === 1 && !isSearchMode && items) {
-                    const megaRows = document.querySelectorAll('.mega-row');
-                    megaRows.forEach(row => {
-                        const header = row.querySelector('.mega-header');
-                        const iconEl = row.querySelector('[id^="icon-"]');
-                        if (header && iconEl) {
-                            const id = iconEl.id.replace('icon-', '');
-                            
-                            if (!window.vinhloc_seen_megas.has(id)) {
-                                if (!header.querySelector('.vinhloc-new-label')) {
-                                    header.style.position = 'relative';
-                                    const img = document.createElement('img');
-                                    img.src = 'new_folder.png';
+    // 2. KHỞI TẠO BỘ NHỚ LƯU TRỮ TRẠNG THÁI "ĐÃ XEM"
+    let knownMegas = JSON.parse(localStorage.getItem('vinhloc_known_megas')) || [];
+    let isLegacyCleared = localStorage.getItem('vinhloc_legacy_megas_cleared') === 'true';
+
+    // 3. THIẾT LẬP MỐC DỮ LIỆU BAN ĐẦU (CHẶN ĐÁNH DẤU NEW CHO DỮ LIỆU TỪ NÃO NHỆN)
+    const legacyCheckInterval = setInterval(() => {
+        if (!isLegacyCleared && typeof folderDataCache !== 'undefined' && folderDataCache[ROOT_FOLDER_ID] && folderDataCache[ROOT_FOLDER_ID].length > 0) {
+            // Lấy toàn bộ thư mục từ mẻ đồng bộ đầu tiên đưa vào danh sách "Đã Biết"
+            folderDataCache[ROOT_FOLDER_ID].forEach(item => {
+                if (item.type === 'folder' && !knownMegas.includes(item.id)) {
+                    knownMegas.push(item.id);
+                }
+            });
+            localStorage.setItem('vinhloc_known_megas', JSON.stringify(knownMegas));
+            localStorage.setItem('vinhloc_legacy_megas_cleared', 'true');
+            isLegacyCleared = true;
+            
+            clearInterval(legacyCheckInterval);
+            console.log("🕷️ [Nhãn New] Đã thiết lập mốc dữ liệu Não Nhện. Các thư mục mới từ nay về sau sẽ có nhãn New.");
+        }
+    }, 2000);
+
+    // 4. GHI ĐÈ HÀM RENDER ĐỂ GẮN NHÃN
+    if (window.renderItems && !window.renderItems.isNewLabelPatched) {
+        const originalRenderItems = window.renderItems;
+        
+        window.renderItems = function(items, isSearchMode = false) {
+            // 4.1 Chạy hàm render gốc để HTML được sinh ra
+            originalRenderItems(items, isSearchMode);
+
+            // 4.2 Tìm các Mega-row để gắn nhãn (Chỉ gắn khi không ở chế độ tìm kiếm và đang ở trang chủ)
+            if (isLegacyCleared && typeof folderStack !== 'undefined' && folderStack.length === 1 && !isSearchMode) {
+                items.forEach(item => {
+                    if (item.type === 'folder' && !knownMegas.includes(item.id)) {
+                        // Xác minh đây thực sự là Mega-row gốc (nằm trong ROOT_FOLDER_ID)
+                        const isMega = folderDataCache[ROOT_FOLDER_ID] && folderDataCache[ROOT_FOLDER_ID].some(i => i.id === item.id);
+                        
+                        if (isMega) {
+                            const headerIcon = document.getElementById(`icon-${item.id}`);
+                            if (headerIcon) {
+                                const megaHeader = headerIcon.closest('.mega-header');
+                                if (megaHeader) {
+                                    // Bắt buộc set relative để ảnh con có thể position absolute theo thẻ này
+                                    megaHeader.style.position = 'relative';
                                     
-                                    // Loại bỏ các class Tailwind phức tạp
-                                    img.className = 'vinhloc-new-label absolute top-0 h-full w-auto object-contain z-[5] pointer-events-none drop-shadow-sm animate-pulse transition-opacity duration-300';
-                                    
-                                    // [QUAN TRỌNG]: Đóng đinh CSS thẳng vào lõi để Mobile/PWA không thể từ chối hiển thị
-                                    img.style.right = '50px';
-                                    img.style.paddingTop = '4px';
-                                    img.style.paddingBottom = '4px';
-                                    
-                                    header.appendChild(img);
+                                    if (!document.getElementById(`new-label-${item.id}`)) {
+                                        const newLabel = document.createElement('img');
+                                        newLabel.id = `new-label-${item.id}`;
+                                        newLabel.src = 'new_folder.png'; // File ảnh nhãn New
+                                        newLabel.className = 'mega-new-label-img';
+                                        
+                                        // Gắn vào trong mega-header
+                                        megaHeader.appendChild(newLabel);
+                                    }
                                 }
                             }
                         }
-                    });
-                }
-                return result;
-            };
-            window.renderItems.isNewBadgeHooked = true;
-        }
-    };
-
-    // 4. CHỐT CHẶN CLICK: Xóa nhãn
-    const hookToggleAccordion = () => {
-        if (window.toggleAccordion && !window.toggleAccordion.isNewBadgeHooked) {
-            const originalToggleAccordionP35 = window.toggleAccordion;
-            window.toggleAccordion = function(id, forceOpen = false) {
-                if (window.vinhloc_seen_megas && !window.vinhloc_seen_megas.has(id)) {
-                    window.vinhloc_seen_megas.add(id);
-                    localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
-                    
-                    const iconEl = document.getElementById(`icon-${id}`);
-                    if (iconEl) {
-                        const header = iconEl.closest('.mega-header');
-                        if (header) {
-                            const label = header.querySelector('.vinhloc-new-label');
-                            if (label) {
-                                label.classList.remove('animate-pulse');
-                                label.style.opacity = '0';
-                                setTimeout(() => label.remove(), 300);
-                            }
-                        }
                     }
-                }
-                if (originalToggleAccordionP35) originalToggleAccordionP35(id, forceOpen);
-            };
-            window.toggleAccordion.isNewBadgeHooked = true;
-        }
-    };
-
-    // 5. CHỐT CHẶN ĐỔI ID: Bảo vệ nhãn khi đồng bộ mây
-    const hookReplaceTempId = () => {
-        if (window.replaceTempId && !window.replaceTempId.isNewBadgeHooked) {
-            const originalReplaceTempIdP35 = window.replaceTempId;
-            window.replaceTempId = function(tempId, realId) {
-                if (window.vinhloc_seen_megas && window.vinhloc_seen_megas.has(tempId)) {
-                    window.vinhloc_seen_megas.delete(tempId);
-                    window.vinhloc_seen_megas.add(realId);
-                    localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
-                }
-                if (originalReplaceTempIdP35) originalReplaceTempIdP35(tempId, realId);
-            };
-            window.replaceTempId.isNewBadgeHooked = true;
-        }
-    };
-
-    // QUÉT VÀ KHÓA HÀM LIÊN TỤC TRONG 2 GIÂY ĐẦU (Không dùng setTimeout dài nữa)
-    const applyAllHooks = () => { hookRenderItems(); hookToggleAccordion(); hookReplaceTempId(); };
-    applyAllHooks();
-    let hookAttempts = 0;
-    const intervalHook = setInterval(() => {
-        applyAllHooks();
-        hookAttempts++;
-        if (hookAttempts > 40) clearInterval(intervalHook); // Dừng sau 2 giây
-    }, 50);
-
-    console.log("✅ PATCH 35: Đã fix tương thích 100% cho PWA và Mobile!");
-})();
-// ==============================================================
-// PATCH 36: FIX LỖI MEGA-ROW ĐÈ MENU HEADER (Z-INDEX CẤP CAO)
-// ==============================================================
-setTimeout(() => {
-    const header = document.querySelector('header');
-    if (header) {
-        // 1. Phá bỏ lệnh "nhốt" của Patch 33, cho phép menu 3 chấm thả xuống tự do
-        header.style.overflow = 'visible';
-        
-        // 2. Nâng quyền ưu tiên của thanh Header lên cấp cao nhất (9999)
-        // Đảm bảo không có bất kỳ Mega-row hay hình ảnh nào cuộn lên đè được nó
-        header.style.zIndex = '9999';
+                });
+            }
+        };
+        window.renderItems.isNewLabelPatched = true;
     }
-    
-    console.log("✅ PATCH 36: Đã giải cứu thành công Menu 3 chấm trên Header!");
-}, 1500); // Chạy sau Patch 33 một chút để ghi đè lệnh thành công
+
+    // 5. GHI ĐÈ HÀM CLICK MỞ FOLDER (TẮT NHÃN NEW)
+    if (window.toggleAccordion && !window.toggleAccordion.isNewLabelPatched) {
+        const originalToggleAccordion = window.toggleAccordion;
+        
+        window.toggleAccordion = async function (id, forceOpen = false) {
+            // Đánh dấu Mega-row này là đã xem
+            if (!knownMegas.includes(id)) {
+                knownMegas.push(id);
+                localStorage.setItem('vinhloc_known_megas', JSON.stringify(knownMegas));
+                
+                // Tạo hiệu ứng mờ dần và xóa nhãn khỏi UI
+                const label = document.getElementById(`new-label-${id}`);
+                if (label) {
+                    label.style.transition = 'all 0.3s ease';
+                    label.style.opacity = '0';
+                    label.style.transform = 'scale(0.5)';
+                    setTimeout(() => label.remove(), 300);
+                }
+            }
+            
+            // Gọi hàm mở gốc
+            return originalToggleAccordion(id, forceOpen);
+        };
+        window.toggleAccordion.isNewLabelPatched = true;
+    }
+
+    // Tự động làm mới UI 1 lần nếu đã có dữ liệu hiển thị sẵn trên màn hình
+    if (typeof currentDriveItems !== 'undefined' && currentDriveItems.length > 0) {
+        window.renderItems(currentDriveItems);
+    }
+
+    console.log("✅ PATCH 36: Đã kích hoạt hệ thống Nhãn New Folder thông minh cho Mega-row!");
+}, 19500); // Chạy trễ nhất để bao bọc các bản vá cũ
