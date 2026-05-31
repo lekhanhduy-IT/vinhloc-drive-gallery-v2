@@ -3908,14 +3908,62 @@ setTimeout(() => {
     }
 })();
 // ==============================================================
-// PATCH 27: TRỊ DỨT ĐIỂM BỆNH NHÂN ĐÔI FOLDER & MẤT TAB TRONG PWA
+// PATCH 27: TẠO MEGA-ROW CHUẨN CATEGORY, CHỐNG NHÂN BẢN & ĐỒNG BỘ REAL-TIME
 // ==============================================================
 setTimeout(() => {
-    // 1. KHO LƯU TRỮ TẠM THỜI THÔNG TIN TAB CHO MEGA-ROW MỚI
-    window.vinhloc_pending_metas = window.vinhloc_pending_metas || {};
+    // 1. NÂNG CẤP HÀM ĐỔI ID ẢO (CHỐNG TRÙNG LẶP MEGA-ROW & FOLDER CON)
+    const originalReplaceTempId = window.replaceTempId || function(){};
+    window.replaceTempId = function(tempId, realId) {
+        // KIỂM TRA ĐÁNH CHẶN: Nếu Mây đã tải về ID thật này trước khi Queue kịp đổi tên
+        const existsInCurrent = currentDriveItems.some(i => i.id === realId && !i.isPending);
+        
+        if (existsInCurrent) {
+            // Xóa sổ ngay thư mục giả mạo để không sinh ra 2 thư mục giống nhau trên UI
+            if (window.purgeDeletedItem) window.purgeDeletedItem(tempId);
+            return;
+        }
+        
+        // Luân chuyển Meta từ ID ảo sang ID thật
+        if (appMeta[tempId]) {
+            appMeta[realId] = appMeta[tempId];
+            delete appMeta[tempId];
+            localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
+        }
 
-    // 2. GHI ĐÈ HÀM TẠO FOLDER: Chặn lỗi mất Tab & Kích đồng bộ
-    const originalUiPromptFolder = window.uiPromptFolder;
+        // Cập nhật mảng đang hiển thị
+        let itemIdx = currentDriveItems.findIndex(i => i.id === tempId);
+        if (itemIdx > -1) { 
+            currentDriveItems[itemIdx].id = realId; 
+            delete currentDriveItems[itemIdx].isPending; 
+        }
+
+        // Cập nhật kho Cache
+        for (let fId in folderDataCache) {
+            let idx = folderDataCache[fId].findIndex(i => i.id === tempId);
+            if (idx > -1) { folderDataCache[fId][idx].id = realId; delete folderDataCache[fId][idx].isPending; }
+        }
+
+        for (let mId in subFolderCache) {
+            let idx = subFolderCache[mId].findIndex(i => i.id === tempId);
+            if (idx > -1) { subFolderCache[mId][idx].id = realId; delete subFolderCache[mId][idx].isPending; }
+        }
+
+        // Sửa đường dẫn hiện tại nếu đang đứng ngay bên trong thư mục vừa tạo
+        if (currentFolderId === tempId) currentFolderId = realId;
+        
+        let stackChanged = false;
+        folderStack.forEach(f => {
+            if (f.id === tempId) { f.id = realId; stackChanged = true; }
+        });
+        if (stackChanged) localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+
+        // Vẽ lại cục bộ
+        if (currentDriveItems.some(i => i.id === realId) || currentFolderId === realId) {
+            if(window.renderItems) window.renderItems(currentDriveItems);
+        }
+    };
+
+    // 2. VIẾT LẠI HÀM TẠO FOLDER ĐỂ LƯU ĐÚNG CHUẨN CHO SHEET & DRIVE
     window.uiPromptFolder = function (targetParentId = null, e = null) {
         if (e) { e.stopPropagation(); document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden')); }
         if (typeof closeFab === 'function') closeFab();
@@ -3927,124 +3975,132 @@ setTimeout(() => {
         document.getElementById('modalInput').placeholder = "Nhập tên thư mục...";
 
         const btn = document.getElementById('modalConfirmBtn');
-        btn.textContent = 'Tạo'; btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
+        btn.textContent = 'Tạo'; 
+        btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
 
         btn.onclick = () => {
             const val = document.getElementById('modalInput').value.trim();
             if (val) {
                 const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
-                if(typeof closeModal === 'function') closeModal();
+                closeModal();
 
+                // NHẬN DIỆN: Có phải đang tạo ở Màn hình chính (Mega-row) không?
+                const isMegaRow = (parentIdToUse === ROOT_FOLDER_ID);
+                
                 const tempId = 'temp_folder_' + Date.now();
                 const newItem = { id: tempId, name: val, type: 'folder', isPending: true };
 
-                // [QUAN TRỌNG NHẤT]: Lưu lại thông tin Tab (Ý tưởng/Triển khai)
-                if (parentIdToUse === ROOT_FOLDER_ID) {
-                    window.vinhloc_pending_metas[tempId] = { type: currentCategory, desc: '', cover: '', name: val };
-                    appMeta[tempId] = window.vinhloc_pending_metas[tempId]; // Ép UI hiển thị đúng loại Tab ngay lập tức
+                let targetCategory = "Triển khai"; 
+                let targetDesc = ""; // Thư mục con thì mô tả Drive để trống
+
+                // NẾU LÀ MEGA-ROW: Áp dụng đóng dấu loại và mô tả chi tiết
+                if (isMegaRow) {
+                    targetCategory = window.currentCategory || "Triển khai";
+                    targetDesc = `[${targetCategory}]\n`; // Đóng dấu lên Drive
+                    
+                    // Nạp ngay vào Meta cục bộ để hiển thị mượt mà không cần load lại
+                    appMeta[tempId] = { type: targetCategory, desc: '', cover: '', name: val };
                     localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
                 }
 
+                // CẬP NHẬT GIAO DIỆN TỨC THÌ TRƯỚC KHI ĐẨY LÊN MẠNG
                 if (parentIdToUse === currentFolderId) {
                     currentDriveItems.unshift(newItem);
                     folderDataCache[currentFolderId] = currentDriveItems;
-                    if(window.renderItems) window.renderItems(currentDriveItems);
+                    window.renderItems(currentDriveItems);
                 } else if (subFolderCache[parentIdToUse]) {
                     subFolderCache[parentIdToUse].unshift(newItem);
-                    if(typeof renderSubFolders === 'function') renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
+                    if (typeof renderSubFolders === 'function') renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
                 }
 
-                if(typeof showToast === 'function') showToast(`<i class="fas fa-check mr-2"></i> Đang tạo mục "${val}"...`);
+                showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
 
-                // ĐẨY LỆNH LÊN DRIVE NGẦM (CHƯA ĐẨY LÊN SHEETS VỘI)
-                addActionToQueue('createFolder', { name: val, folderId: parentIdToUse, tempId: tempId });
+                // ĐẨY LỆNH VÀO QUEUE ĐỂ TẠO FOLDER DRIVE
+                addActionToQueue('createFolder', {
+                    name: val,
+                    folderId: parentIdToUse,
+                    tempId: tempId,
+                    description: targetDesc // Ép GAS ghi xuống Folder Details
+                });
 
-                // [FIX PWA]: Sau khi gửi lệnh, ép cỗ máy đồng bộ đánh thức PWA dậy để lấy ID nhanh nhất
-                setTimeout(() => {
-                    if (window.masterSync && !window.isQueueProcessing) window.masterSync();
-                }, 2000);
+                // ĐẨY LỆNH LƯU SHEETS NGAY PHÍA SAU (Chỉ dành cho Mega-row)
+                if (isMegaRow) {
+                    addActionToQueue('updateSingleMeta', { 
+                        meta: { id: tempId, name: val, type: targetCategory, desc: '', cover: '' },
+                        isPendingTempId: true // Cắm cờ để Queue biết ID này là ảo, cần đợi đổi thành thật
+                    });
+                }
             }
         };
         document.getElementById('customModal').classList.remove('hidden'); document.getElementById('customModal').classList.add('flex');
         setTimeout(() => document.getElementById('modalInput').focus(), 100);
-    };
+    }
 
-    // 3. GHI ĐÈ HÀM ĐỔI ID: Diệt lỗi nhân đôi & Gửi Meta lên Sheets
-    window.replaceTempId = function(tempId, realId) {
-        // A. CẬP NHẬT SHEETS VÀ XÓA DỮ LIỆU TẠM
-        if (window.vinhloc_pending_metas[tempId]) {
-            const pMeta = window.vinhloc_pending_metas[tempId];
-            appMeta[realId] = { ...pMeta, id: realId };
-            delete appMeta[tempId]; 
-            delete window.vinhloc_pending_metas[tempId];
-            localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
-            
-            // CÓ ID THẬT RỒI MỚI GỬI LÊN SHEETS ĐỂ KHÔNG BỊ MẤT DẤU
-            addActionToQueue('updateSingleMeta', { 
-                meta: { id: realId, name: pMeta.name, type: pMeta.type, desc: pMeta.desc, cover: pMeta.cover } 
-            });
-        }
+    // 3. ĐỘ BỘ NÃI CHO QUEUE: TỰ ĐỘNG MAP ID ẢO -> THẬT KHI LƯU SHEETS
+    if(window.processActionQueue && !window.processActionQueue.isWrappedForMegaRows) {
+        const originalProcessActionQueue = window.processActionQueue;
+        
+        window.processActionQueue = async function() {
+            if (isQueueProcessing) return;
+            isQueueProcessing = true;
 
-        // B. LỌC BỎ FOLDER NHÂN ĐÔI DO PWA LAG
-        const cleanDuplicate = (arr) => {
-            if (!arr) return;
-            let tempIdx = arr.findIndex(i => i.id === tempId);
-            if (tempIdx > -1) {
-                let realIdx = arr.findIndex(i => i.id === realId);
-                // Nếu Drive đã tải về cái folder thật rồi, xóa thẳng tay cái folder ảo đi
-                if (realIdx > -1 && realIdx !== tempIdx) {
-                    arr.splice(tempIdx, 1);
-                } else {
-                    // Nếu chưa có thư mục thật, thì thay áo (đổi ID ảo thành thật)
-                    arr[tempIdx].id = realId;
-                    delete arr[tempIdx].isPending;
+            try {
+                let queue = await localforage.getItem('vinhloc_action_queue') || [];
+
+                while (queue.length > 0) {
+                    let currentTask = queue[0];
+                    try {
+                        syncQueueCount++; updateSyncIndicator();
+
+                        // KỸ THUẬT WAIT-FOR-ID: Trì hoãn lệnh lưu Sheets nếu Drive chưa nhả ID thật
+                        if (currentTask.action === 'updateSingleMeta' && currentTask.payload && currentTask.payload.isPendingTempId) {
+                            const currentMetaId = currentTask.payload.meta.id;
+                            if (String(currentMetaId).startsWith('temp_')) {
+                                break; // Nhường luồng, chờ lệnh createFolder chạy xong trước
+                            }
+                        }
+
+                        let response = await fetch(SCRIPT_URL, {
+                            method: 'POST',
+                            body: JSON.stringify({ action: currentTask.action, ...currentTask.payload })
+                        });
+                        let data = await response.json();
+
+                        if (data.success || data.id || data.url) {
+                            
+                            // NẾU TẠO FOLDER XONG: Đổi tên cho tất cả các lệnh đang xếp hàng phía sau!
+                            if (currentTask.action === 'createFolder' && data.tempId && data.id) {
+                                window.replaceTempId(data.tempId, data.id);
+                                
+                                for(let i=1; i<queue.length; i++) {
+                                    if (queue[i].action === 'updateSingleMeta' && queue[i].payload.meta.id === data.tempId) {
+                                        queue[i].payload.meta.id = data.id; // Thay ID ảo bằng thật
+                                        delete queue[i].payload.isPendingTempId; // Gỡ cờ trì hoãn
+                                    }
+                                }
+                            }
+                            
+                            queue.shift(); 
+                            await localforage.setItem('vinhloc_action_queue', queue);
+                        } else {
+                            console.error("Lỗi từ server GAS:", data.message);
+                            break;
+                        }
+                    } catch (networkError) {
+                        console.warn("Mất mạng, dừng Queue...");
+                        break;
+                    } finally {
+                        syncQueueCount--; updateSyncIndicator();
+                    }
                 }
+            } catch (err) {
+                console.error("Lỗi Queue:", err);
+            } finally {
+                isQueueProcessing = false;
             }
         };
+        window.processActionQueue.isWrappedForMegaRows = true;
+    }
 
-        cleanDuplicate(currentDriveItems);
-        for (let fId in folderDataCache) cleanDuplicate(folderDataCache[fId]);
-        for (let mId in subFolderCache) cleanDuplicate(subFolderCache[mId]);
-
-        if (currentFolderId === tempId) currentFolderId = realId;
-
-        let stackChanged = false;
-        folderStack.forEach(f => { if (f.id === tempId) { f.id = realId; stackChanged = true; } });
-        if (stackChanged) localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
-
-        if (currentDriveItems.some(i => i.id === realId) || currentFolderId === realId) {
-            if(window.renderItems) window.renderItems(currentDriveItems);
-            if(window.smoothUpdateUI) window.smoothUpdateUI(appMeta);
-        }
-    };
-
-    // 4. CHỈNH SỬA LÁ CHẮN TRONG MASTER SYNC: Quét và diệt thư mục ảo trùng tên
-    const originalMasterSync = window.masterSync;
-    window.masterSync = async function() {
-        await originalMasterSync(); // Cho cỗ máy cũ chạy bình thường
-
-        // Sau khi hàm cũ chạy xong và lỡ chèn dư Thư mục ảo, ta quét màn hình và gỡ ra
-        if (currentDriveItems) {
-            let hasDuplicates = false;
-            let finalItems = [];
-            // Lấy danh sách tên của các Thư mục/File "Thật"
-            let realNames = currentDriveItems.filter(i => !i.isPending).map(i => i.name);
-            
-            for (let item of currentDriveItems) {
-                // Phát hiện đồ "Ảo" trùng tên với đồ "Thật" -> Bỏ qua không cho lên hình
-                if (item.isPending && realNames.includes(item.name)) {
-                    hasDuplicates = true; 
-                } else {
-                    finalItems.push(item);
-                }
-            }
-            if (hasDuplicates) {
-                currentDriveItems = finalItems;
-                if(folderDataCache[currentFolderId]) folderDataCache[currentFolderId] = finalItems;
-                window.renderItems(currentDriveItems);
-            }
-        }
-    };
-
-    console.log("✅ PATCH 27: Trị dứt điểm bệnh Nhân đôi thư mục & Cứu sống Meta Tab!");
-}, 13000);
+    console.log("✅ PATCH 27: Đã cập nhật tạo Mega-row chuẩn category, chống nhân bản & đồng bộ thời gian thực!");
+}, 12000);
