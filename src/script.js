@@ -4840,3 +4840,31 @@ setTimeout(() => {
 
     console.log("✅ PATCH 36: Đã kích hoạt hệ thống Nhãn New Folder thông minh cho Mega-row!");
 }, 19500); // Chạy trễ nhất để bao bọc các bản vá cũ
+// ==============================================================
+// PATCH 37: FIX LỖI DANH SÁCH ĐÈ LÊN MENU 3 CHẤM CỦA HEADER
+// ==============================================================
+setTimeout(() => {
+    // 1. Tìm các phần tử của Menu Header
+    const headerDropdownContainer = document.getElementById('headerDropdownContainer');
+    const headerDropdown = document.getElementById('headerDropdown');
+    const header = document.querySelector('header');
+
+    // 2. Ép Z-index lên mức tối thượng (đè bẹp mức 10000 của Mega-row)
+    if (headerDropdownContainer) {
+        // Vùng chứa menu
+        headerDropdownContainer.style.zIndex = '9999999';
+    }
+    
+    if (headerDropdown) {
+        // Khung menu thả xuống (Ghi đè class z-[9999] của Tailwind)
+        headerDropdown.style.zIndex = '9999999';
+    }
+    
+    // 3. Nâng luôn Header tổng lên để an toàn tuyệt đối
+    if (header) {
+        header.style.position = 'relative'; // Bắt buộc phải có position mới ăn z-index
+        header.style.zIndex = '999999';
+    }
+    
+    console.log("✅ PATCH 37: Đã nâng cấp Z-index cho Menu Header, giải quyết triệt để lỗi bị đè!");
+}, 1500); // Trễ 1.5s để đảm bảo HTML của header đã được render xong
