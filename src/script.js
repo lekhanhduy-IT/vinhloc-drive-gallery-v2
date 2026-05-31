@@ -4081,7 +4081,7 @@ setTimeout(() => {
     console.log("✅ PATCH 27 V3: Quy chuẩn hóa hoàn toàn quá trình tạo Thư mục, 100% ID thật!");
 }, 12500);
 // ==============================================================
-// PATCH 28 (ANTI-FREEZE): UPLOAD TOKEN TRỰC TIẾP & CHỐNG TREO UI
+// PATCH 28 (V4 PRO): UPLOAD CHIA NHỎ (CHUNKING) TRỊ DỨT ĐIỂM FILE KHỦNG
 // ==============================================================
 setTimeout(() => {
     window.handleMultipleFileUpload = async function(event) {
@@ -4097,7 +4097,7 @@ setTimeout(() => {
         syncQueueCount++; updateSyncIndicator(); 
         let uploadQueue = [];
         
-        // 1. Hiện khung "Đang Up..." lên giao diện
+        // 1. Dàn file lên giao diện với trạng thái "Đang Up..."
         for (let i = 0; i < files.length; i++) {
             let file = files[i]; 
             let fakeId = 'temp_file_' + Date.now() + '_' + i; 
@@ -4109,49 +4109,77 @@ setTimeout(() => {
         folderDataCache[currentFolderId] = currentDriveItems; 
         window.renderItems(currentDriveItems);
         
-        // 2. XIN THẺ BÀI (TOKEN) TỪ SERVER APP SCRIPT
+        // 2. Lấy Thẻ bài (Token)
         let token = null;
         try {
             let tokenRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getToken' }) }).then(r => r.json());
             if (tokenRes && tokenRes.success) token = tokenRes.token;
-            else console.error("Lỗi từ server khi xin Token:", tokenRes);
-        } catch(e) {
-            console.error("Mất kết nối khi xin Token:", e);
-        }
+        } catch(e) {}
 
-        // ĐÁNH CHẶN: Nếu không lấy được Token -> Xóa sạch khung chờ, không để treo UI!
         if (!token) {
-            showToast("Lỗi: Không lấy được quyền Upload từ máy chủ. Hãy thử lại!", true);
-            for (let obj of uploadQueue) {
-                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id);
-            }
-            folderDataCache[currentFolderId] = currentDriveItems;
-            window.renderItems(currentDriveItems);
-            syncQueueCount--; updateSyncIndicator();
-            event.target.value = ''; return;
+            showToast("Lỗi: Không lấy được quyền Upload. Hãy thử lại!", true);
+            for (let obj of uploadQueue) currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id);
+            folderDataCache[currentFolderId] = currentDriveItems; window.renderItems(currentDriveItems);
+            syncQueueCount--; updateSyncIndicator(); event.target.value = ''; return;
         }
 
-        // 3. BƠM FILE TRỰC TIẾP VÀO GOOGLE DRIVE BẰNG ĐƯỜNG HẦM RESUMABLE
+        // 3. THUẬT TOÁN BĂM NHỎ (CHUNKING) ĐỂ UP FILE KHỦNG
         for (let obj of uploadQueue) {
             try {
+                if (obj.file.size === 0) throw new Error("File bị rỗng (0 KB)");
                 let realId = null;
 
+                // Xin Google tạo một phiên Upload (Khai báo trước dung lượng)
                 let initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
                     method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Authorization': 'Bearer ' + token, 
+                        'Content-Type': 'application/json',
+                        'X-Upload-Content-Type': obj.file.type || 'application/octet-stream',
+                        'X-Upload-Content-Length': obj.file.size.toString()
+                    },
                     body: JSON.stringify({ name: obj.file.name, parents: [currentFolderId] })
                 });
 
                 let uploadUrl = initRes.headers.get('Location');
-                if (!uploadUrl) throw new Error("Trình duyệt chặn kết nối Drive API");
+                if (!uploadUrl) {
+                    let errText = await initRes.text();
+                    throw new Error(`Bị chặn khởi tạo: ${errText}`);
+                }
 
-                let uploadRes = await fetch(uploadUrl, { method: 'PUT', body: obj.file });
-                let uploadedData = await uploadRes.json();
+                // Cắt file thành nhiều khúc 5MB (Bắt buộc phải là bội số của 256KB)
+                const CHUNK_SIZE = 5242880; 
+                let start = 0;
+                let uploadedData = null;
+
+                // Vòng lặp bơm từng đoạn 5MB lên Google
+                while (start < obj.file.size) {
+                    let end = Math.min(start + CHUNK_SIZE, obj.file.size);
+                    let chunk = obj.file.slice(start, end);
+                    
+                    let chunkRes = await fetch(uploadUrl, {
+                        method: 'PUT',
+                        headers: { 'Content-Range': `bytes ${start}-${end - 1}/${obj.file.size}` },
+                        body: chunk
+                    });
+
+                    if (chunkRes.status === 308) {
+                        // Google báo: "Chưa xong, bơm tiếp đi" -> Cập nhật mốc mới
+                        start = end;
+                    } else if (chunkRes.ok) {
+                        // Google báo: "Đã nhận đủ 100%"
+                        uploadedData = await chunkRes.json();
+                        break;
+                    } else {
+                        let errText = await chunkRes.text();
+                        throw new Error(`Đứt gãy mạng ở đoạn ${start}-${end}: ${errText}`);
+                    }
+                }
 
                 if (uploadedData && uploadedData.id) realId = uploadedData.id;
-                else throw new Error("Mất kết nối khi đẩy file");
+                else throw new Error("Google không trả về ID file.");
                 
-                // Gắn ID thật vào giao diện và tắt hiệu ứng mờ
+                // Gắn ID thật vào UI
                 let uploadedItem = currentDriveItems.find(i => i.id === obj.id);
                 if (uploadedItem && realId) {
                     uploadedItem.id = realId; delete uploadedItem.isPending; delete uploadedItem.tempUrl;
@@ -4164,8 +4192,7 @@ setTimeout(() => {
                 window.renderItems(currentDriveItems); 
                 URL.revokeObjectURL(obj.itemRef.tempUrl); 
             } catch(err) { 
-                showToast(`Lỗi đẩy file: ${err.message}`, true); 
-                // Xóa UI file bị lỗi để chống treo
+                showToast(`Lỗi ${obj.file.name}: ${err.message}`, true); 
                 currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
                 folderDataCache[currentFolderId] = currentDriveItems;
                 window.renderItems(currentDriveItems);
@@ -4173,4 +4200,26 @@ setTimeout(() => {
         }
         syncQueueCount--; updateSyncIndicator(); event.target.value = ''; 
     };
-}, 13000);
+
+    // (Giữ lại Trình phát Video MP4)
+    window.openMedia = function(id, mimeType, name, tempUrlFull = null) {
+        window.isMediaViewerActive = true; window.ignoreNextPopState = false; history.pushState({ mediaViewer: true }, '', ''); 
+        if (typeof folderStack !== 'undefined' && folderStack.length > 0) {
+            const currentFolder = folderStack[folderStack.length - 1];
+            if (!currentFolder.isMediaDummy) { folderStack.push({ ...currentFolder, isMediaDummy: true }); localStorage.setItem('appFolderStack', JSON.stringify(folderStack)); }
+        }
+        if (typeof closeFab === 'function') closeFab(); 
+        document.getElementById('mediaTitle').textContent = name; curMediaIdForDownload = id; curMediaNameForDownload = name;
+        const viewer = document.getElementById('mediaViewer'); viewer.classList.remove('hidden'); viewer.classList.add('flex');
+        const content = document.getElementById('mediaContent');
+        if (mimeType.includes('image')) {
+            let srcToUse = tempUrlFull && !tempUrlFull.includes('undefined') ? tempUrlFull : `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
+            content.innerHTML = `<img src="${srcToUse}" class="max-w-full max-h-full object-contain">`;
+        } else if (mimeType.includes('video')) {
+            if (tempUrlFull && tempUrlFull.startsWith('blob:')) content.innerHTML = `<video controls autoplay class="max-w-full max-h-full rounded-lg shadow-2xl" src="${tempUrlFull}"></video>`;
+            else content.innerHTML = `<iframe src="https://drive.google.com/file/d/${id}/preview" width="100%" height="100%" allow="autoplay" frameborder="0" class="rounded-lg shadow-2xl bg-black"></iframe>`;
+        } else {
+            content.innerHTML = `<div class="text-white flex flex-col items-center"><i class="fas fa-file text-6xl mb-4"></i><p>Tệp này cần tải về để xem.</p></div>`;
+        }
+    };
+}, 14000); // 14s để chắc chắn đè bẹp bản Patch 12 cũ!
