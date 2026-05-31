@@ -4536,3 +4536,96 @@ setTimeout(() => {
     
     console.log("✅ PATCH 31: Đã nâng cấp Upload Video, Thumbnail Drive & Trình phát iframe!");
 }, 16000);
+// ==============================================================
+// PATCH 32: MẠNG LƯỚI "NÃO NHỆN" TOÀN CẦU (SWARM CACHE SYNC)
+// ==============================================================
+setTimeout(() => {
+    // Biến cờ: Chỉ thiết bị nào ĐANG làm thay đổi dữ liệu mới được phép upload Não
+    window.vinhloc_cache_modified = false;
+
+    // 1. TẢI "NÃO NHỆN" KHI MỞ APP (HOẶC BẤM LINK CHIA SẺ)
+    const originalInitDatabaseP32 = window.initDatabase;
+    window.initDatabase = async function() {
+        // Chạy hàm khởi tạo gốc trước
+        if (originalInitDatabaseP32) await originalInitDatabaseP32();
+
+        // Nếu máy này là máy mới tinh, ổ cứng (folderDataCache) đang trống không
+        const isCacheEmpty = Object.keys(folderDataCache).length <= 1; // Chỉ có mỗi gốc hoặc trống
+        
+        if (isCacheEmpty) {
+            try {
+                // Hiển thị thông báo đang đồng bộ từ máy chủ
+                const folderListEl = document.getElementById('folderList');
+                if (folderListEl) {
+                    folderListEl.innerHTML = '<div class="text-center text-blue-600 mt-12 w-full"><div class="loader mx-auto mb-4 border-blue-600"></div><span class="font-bold animate-pulse">Đang đồng bộ Não Nhện từ mạng lưới...</span></div>';
+                }
+
+                const res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'loadGlobalCache' })
+                }).then(r => r.json());
+
+                // Nếu có Não Nhện từ máy khác truyền về
+                if (res && res.success && res.data) {
+                    // Cấy ghép ngay lập tức vào RAM
+                    folderDataCache = res.data.folderData || {};
+                    subFolderCache = res.data.subData || {};
+                    
+                    // Lưu thẳng vào Ổ cứng
+                    await localforage.setItem('vinhloc_folder_cache', folderDataCache);
+                    await localforage.setItem('vinhloc_subfolder_cache', subFolderCache);
+                    
+                    console.log("🕷️ Đã cấy ghép Não Nhện thành công! Dữ liệu đã sẵn sàng.");
+
+                    // Phục hồi giao diện tùy theo việc đang mở Link Chia sẻ hay mở App bình thường
+                    const sId = window.vinhloc_share_params ? window.vinhloc_share_params.get('shareId') : null;
+                    if (sId) {
+                        if(window.loadFolder) window.loadFolder(sId, window.vinhloc_share_params.get('shareName') || "Thư mục chia sẻ", false, false);
+                    } else {
+                        if(window.loadFolder) window.loadFolder(ROOT_FOLDER_ID, window.currentCategory || "Triển khai", false, false);
+                    }
+                }
+            } catch(e) { console.error("Lỗi cấy ghép Não Nhện:", e); }
+        }
+    };
+
+    // Bắt tín hiệu mỗi khi giao diện cập nhật -> Đánh dấu là có dữ liệu mới cần gửi
+    if (window.renderItems) {
+        const originalRenderItemsP32 = window.renderItems;
+        window.renderItems = function(items, isSearchMode = false) {
+            if (!isSearchMode) window.vinhloc_cache_modified = true;
+            return originalRenderItemsP32(items, isSearchMode);
+        };
+    }
+
+    // 2. TRẠM PHÁT SÓNG "NÃO NHỆN" (CHẠY NGẦM)
+    // Cứ mỗi 3 phút, nếu thiết bị này có lướt và thu thập thêm data, nó sẽ tải bộ nhớ lên mây
+    setInterval(async () => {
+        // Chỉ upload nếu có thay đổi và bộ nhớ đã có dữ liệu đủ lớn
+        if (window.vinhloc_cache_modified && Object.keys(folderDataCache).length > 0) {
+            try {
+                // Tắt cờ để tránh upload liên tục không cần thiết
+                window.vinhloc_cache_modified = false; 
+                
+                const payload = {
+                    action: 'saveGlobalCache',
+                    cacheData: JSON.stringify({
+                        folderData: folderDataCache,
+                        subData: subFolderCache
+                    })
+                };
+                
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                console.log("📡 Đã phát sóng Não Nhện lên Drive cho các thiết bị khác!");
+            } catch(e) {
+                // Nếu lỗi, bật cờ lại để lần sau thử gửi tiếp
+                window.vinhloc_cache_modified = true; 
+            }
+        }
+    }, 180000); // 180,000 mili-giây = 3 phút
+
+    console.log("✅ PATCH 32: Đã kích hoạt mạng lưới chia sẻ Não Nhện đa thiết bị!");
+}, 17000);
