@@ -3908,96 +3908,93 @@ setTimeout(() => {
     }
 })();
 // ==============================================================
-// PATCH 26: SỬA LỖI MEGA-ROW "HỒI SINH" SAU KHI XÓA (DANH SÁCH ĐEN)
+// PATCH 27: FIX LỖI TẠO MEGA-ROW SAI TAB VÀ LỖI ĐỒNG BỘ PWA
 // ==============================================================
 setTimeout(() => {
-    // 1. TẠO DANH SÁCH ĐEN: Chứa ID của các mục đã bị xóa
-    window.vinhloc_deleted_ids = window.vinhloc_deleted_ids || new Set();
+    // 1. SỬA HÀM TẠO THƯ MỤC: Gắn cứng "Tab hiện tại" vào Meta Data ngay khi tạo
+    const originalUiPromptFolder = window.uiPromptFolder;
+    window.uiPromptFolder = function (targetParentId = null, e = null) {
+        if (e) { e.stopPropagation(); document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden')); }
+        if (typeof closeFab === 'function') closeFab();
 
-    // 2. GHI ĐÈ HÀM DỌN RÁC: Đóng dấu "tử hình" vào Sổ đen
-    window.purgeDeletedItem = function(id) {
-        window.vinhloc_deleted_ids.add(id); // Cho vào danh sách đen
+        document.getElementById('modalTitle').textContent = 'Thư mục mới';
+        document.getElementById('modalDesc').classList.add('hidden');
+        document.getElementById('modalInput').classList.remove('hidden');
+        document.getElementById('modalInput').value = '';
+        document.getElementById('modalInput').placeholder = "Nhập tên thư mục...";
 
-        currentDriveItems = currentDriveItems.filter(i => i.id !== id);
-        
-        for (let fId in folderDataCache) { 
-            if(folderDataCache[fId]) folderDataCache[fId] = folderDataCache[fId].filter(i => i.id !== id); 
-        }
-        localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(()=>{});
-        
-        for (let mId in subFolderCache) { 
-            if(subFolderCache[mId]) subFolderCache[mId] = subFolderCache[mId].filter(i => i.id !== id); 
-        }
-        localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(()=>{});
-        
-        if (appMeta[id]) { delete appMeta[id]; localforage.setItem('vinhloc_meta', appMeta).catch(()=>{}); }
-    };
-
-    // 3. NÂNG CẤP HÀM XÓA ĐƠN: Phải đợi Server xóa xong mới quét màn hình
-    const originalHandleDelete = window.handleDelete;
-    window.handleDelete = function(id, type, e) {
-        if(originalHandleDelete) originalHandleDelete(id, type, e); 
         const btn = document.getElementById('modalConfirmBtn');
-        if(btn) {
-            const originalOnClick = btn.onclick; 
-            btn.onclick = async () => {
-                // CHỜ API GOOGLE DRIVE XÓA XONG 100%
-                if (originalOnClick) {
-                    const result = originalOnClick();
-                    if (result instanceof Promise) await result;
+        btn.textContent = 'Tạo'; btn.className = 'px-5 py-2 bg-blue-600 text-white font-bold rounded-xl';
+
+        btn.onclick = () => {
+            const val = document.getElementById('modalInput').value.trim();
+            if (val) {
+                const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
+                if(typeof closeModal === 'function') closeModal();
+
+                const tempId = 'temp_folder_' + Date.now();
+                const newItem = { id: tempId, name: val, type: 'folder', isPending: true };
+
+                // [BÍ QUYẾT SỬA LỖI MEGA-ROW]: Ép Tab hiện tại vào appMeta
+                if (parentIdToUse === ROOT_FOLDER_ID) {
+                    appMeta[tempId] = { type: currentCategory, desc: '', cover: '', name: val };
+                    localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
                 }
-                
-                window.purgeDeletedItem(id); 
-                
-                if (window.isSearching) {
-                    window.currentSearchResults = window.currentSearchResults.filter(i => i.id !== id);
-                    if(window.renderItems) window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
-                } else {
+
+                if (parentIdToUse === currentFolderId) {
+                    currentDriveItems.unshift(newItem);
+                    folderDataCache[currentFolderId] = currentDriveItems;
                     if(window.renderItems) window.renderItems(currentDriveItems);
+                } else if (subFolderCache[parentIdToUse]) {
+                    subFolderCache[parentIdToUse].unshift(newItem);
+                    if(typeof renderSubFolders === 'function') renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
                 }
-            };
-        }
+
+                if(typeof showToast === 'function') showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
+
+                // ĐẨY LỆNH VÀO QUEUE VÀ GHI NGAY LÊN SHEETS (ĐỐI VỚI MEGA-ROW)
+                addActionToQueue('createFolder', {
+                    name: val,
+                    folderId: parentIdToUse,
+                    tempId: tempId
+                });
+
+                // Nếu là Mega-row, đẩy luôn một lệnh cập nhật Meta để Sheets ghi nhận Tab
+                if (parentIdToUse === ROOT_FOLDER_ID) {
+                    addActionToQueue('updateSingleMeta', { 
+                        meta: { id: tempId, name: val, type: currentCategory, desc: '', cover: '' } 
+                    });
+                }
+                
+                // [FIX PWA]: Kích hoạt cỗ máy MasterSync ép đồng bộ ngay lập tức sau 2.5s
+                // Việc này giúp PWA nhận được ID thật nhanh nhất có thể
+                setTimeout(() => {
+                    if(window.masterSync && !window.isQueueProcessing) window.masterSync();
+                }, 2500);
+            }
+        };
+        document.getElementById('customModal').classList.remove('hidden'); document.getElementById('customModal').classList.add('flex');
+        setTimeout(() => document.getElementById('modalInput').focus(), 100);
     };
 
-    // 4. NÂNG CẤP HÀM XÓA HÀNG LOẠT
-    const originalDeleteSelected = window.deleteSelectedItems;
-    window.deleteSelectedItems = function() {
-        if(originalDeleteSelected) originalDeleteSelected();
-        const btn = document.getElementById('modalConfirmBtn');
-        if(btn) {
-            const originalOnClick = btn.onclick;
-            btn.onclick = async () => {
-                let idsToDelete = Array.from(window.multiSelectState.selectedIds);
-                // CHỜ API XÓA XONG 100%
-                if (originalOnClick) {
-                    const result = originalOnClick();
-                    if (result instanceof Promise) await result;
-                }
-                
-                idsToDelete.forEach(id => window.purgeDeletedItem(id));
-                
-                if (window.isSearching) {
-                    window.currentSearchResults = window.currentSearchResults.filter(i => !idsToDelete.includes(i.id));
-                    if(window.renderItems) window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
-                } else {
-                    if(window.renderItems) window.renderItems(currentDriveItems);
-                }
-            };
-        }
-    };
-
-    // 5. KHIÊN BẢO VỆ GIAO DIỆN: Đánh bật mọi Zombie khỏi màn hình
-    const originalRenderItemsForDelete = window.renderItems;
-    window.renderItems = function(items, isSearchMode = false) {
-        if (items && Array.isArray(items)) {
-            // Lọc vứt hết những ID nằm trong sổ đen trước khi vẽ ra màn hình
-            items = items.filter(item => !window.vinhloc_deleted_ids.has(item.id));
+    // 2. ÉP HÀM ĐỔI ID ẢO PHẢI CẬP NHẬT CẢ SHEET NẾU CÓ DỮ LIỆU ĐANG TREO
+    const originalReplaceTempId = window.replaceTempId;
+    window.replaceTempId = function(tempId, realId) {
+        // Nếu có Meta đang treo với ID ảo, khi có ID thật phải cập nhật lại Meta với ID thật
+        if (appMeta[tempId]) {
+            const pendingMeta = appMeta[tempId];
+            appMeta[realId] = { ...pendingMeta };
+            delete appMeta[tempId];
+            localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
             
-            // Đồng bộ lại mảng gốc để tránh lỗi lệch data
-            if (!isSearchMode) currentDriveItems = items;
+            // Gửi lệnh lên Sheets để cập nhật lại ID thật cho dòng Meta đó
+            addActionToQueue('updateSingleMeta', { 
+                meta: { id: realId, name: pendingMeta.name, type: pendingMeta.type, desc: pendingMeta.desc, cover: pendingMeta.cover } 
+            });
         }
-        return originalRenderItemsForDelete(items, isSearchMode);
+        
+        if(originalReplaceTempId) originalReplaceTempId(tempId, realId);
     };
 
-    console.log("✅ PATCH 26: Đã trang bị Sổ đen, cấm Mega-row sống lại sau khi xóa!");
-}, 12000);
+    console.log("✅ PATCH 27: Đã sửa lỗi tạo Mega-row mất Tab và Fix đồng bộ PWA!");
+}, 12500);
