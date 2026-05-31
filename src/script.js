@@ -4243,3 +4243,57 @@ setTimeout(() => {
         sidebarMenuContainer.appendChild(versionDiv);
     }
 }, 1500);
+// ==============================================================
+// SỬ DỤNG BÀN PHÍM (CTRL +/-) ĐỂ PHÓNG TO/THU NHỎ LƯỚI
+// ==============================================================
+setTimeout(() => {
+    // 1. Tạo hàm điều khiển số cột Grid toàn cục
+    window.changeGridCols = function(delta) {
+        // Lấy số lượng cột hiện tại từ bộ nhớ (hoặc mặc định là 2)
+        let currentCols = parseInt(localStorage.getItem('vinhloc_grid_cols')) || 2;
+        
+        // Tính toán số cột mới (bị kẹp giữa 2 và 6)
+        let newCols = Math.max(2, Math.min(currentCols + delta, 6));
+        
+        const fileList = document.getElementById('fileList');
+        // Bỏ qua nếu không tìm thấy khung hoặc đang ở chế độ xem List
+        if (!fileList || fileList.classList.contains('list-view')) return;
+        
+        // Áp dụng CSS thay đổi số cột
+        fileList.style.gridTemplateColumns = `repeat(${newCols}, minmax(0, 1fr))`;
+        
+        // Tính toán tỷ lệ kích thước (scale) để các thành phần bên trong co giãn tương ứng
+        const scaleFactor = (2 / newCols).toFixed(2);
+        fileList.style.setProperty('--col-scale', scaleFactor);
+        
+        // Lưu lại để lần sau mở web vẫn giữ nguyên mức thu phóng
+        localStorage.setItem('vinhloc_grid_cols', newCols);
+        
+        // Cập nhật biến cục bộ bên trong màn Design (nếu đang bật)
+        const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
+        if (btnDecrease) {
+            // Nháy nhẹ nút để báo hiệu (tùy chọn)
+            btnDecrease.style.transform = 'scale(0.9)';
+            setTimeout(() => btnDecrease.style.transform = 'scale(1)', 100);
+        }
+    };
+
+    // 2. Bắt sự kiện phím tắt từ bàn phím
+    document.addEventListener('keydown', function(e) {
+        // Kiểm tra phím Ctrl (trên Windows) hoặc phím Command (trên Mac)
+        if (e.ctrlKey || e.metaKey) {
+            // Nếu bấm phím Trừ (-) hoặc Shift + Trừ (_)
+            if (e.key === '-' || e.key === '_') {
+                e.preventDefault(); // Chặn trình duyệt thu nhỏ toàn bộ trang web
+                window.changeGridCols(1); // Tăng thêm 1 cột (Làm phần tử nhỏ đi)
+            } 
+            // Nếu bấm phím Cộng (+) hoặc Dấu Bằng (=)
+            else if (e.key === '=' || e.key === '+') {
+                e.preventDefault(); // Chặn trình duyệt phóng to toàn bộ trang web
+                window.changeGridCols(-1); // Giảm đi 1 cột (Làm phần tử to lên)
+            }
+        }
+    }, { passive: false }); // Cần passive: false để e.preventDefault() hoạt động
+
+    console.log("✅ PATCH 29: Đã kích hoạt Phím tắt Ctrl +/- để Phóng to/Thu nhỏ lưới!");
+}, 15000); // Khởi chạy trễ để đảm bảo fileList đã xuất hiện
