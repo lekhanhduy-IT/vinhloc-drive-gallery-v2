@@ -4662,3 +4662,57 @@ setTimeout(() => {
     
     console.log("✅ PATCH 33 (V2): Đã gắn ảnh Decor ép sát viền đáy 100%!");
 }, 800);
+// ==============================================================
+// PATCH 34: FIX LỖI CLICK ĐƯỜNG DẪN BỊ GOM CHUNG MEGA-ROW
+// ==============================================================
+setTimeout(() => {
+    // 1. Vá trực tiếp hàm goToFolder (Hàm chuyên xử lý click trên thanh đường dẫn)
+    if (window.goToFolder) {
+        const originalGoToFolder = window.goToFolder;
+        window.goToFolder = function(index) {
+            // Nếu click vào mục số 0 (Mục Gốc: Triển khai / Ý tưởng)
+            if (index === 0) {
+                const targetCategory = folderStack[0].name; 
+                
+                // Ép biến toàn cục về đúng loại Tab
+                window.currentCategory = targetCategory;
+                
+                // Tái cấu trúc lại bộ nhớ, cắt bỏ toàn bộ phần đuôi dư thừa
+                folderStack = [{ id: ROOT_FOLDER_ID, name: targetCategory, scrollTop: 0 }];
+                window.currentFolderId = ROOT_FOLDER_ID;
+                localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+                
+                // Gọi tải lại thư mục gốc
+                if (window.loadFolder) {
+                    window.loadFolder(ROOT_FOLDER_ID, targetCategory, false, false);
+                }
+                return; // Chặn đứng luồng code cũ gây lỗi
+            }
+            return originalGoToFolder(index);
+        };
+    }
+
+    // 2. Chốt chặn cuối cùng vào lõi loadFolder: Chống mọi nỗ lực đẩy sai Stack
+    if (window.loadFolder && !window.loadFolder.isBreadcrumbClamped) {
+        const cachedLoadF = window.loadFolder;
+        window.loadFolder = function(folderId, folderName, isNewNavigation, isPopState) {
+            // Nếu đích đến là Gốc (ROOT)
+            if (folderId === ROOT_FOLDER_ID) {
+                const targetCategory = folderName || window.currentCategory || "Triển khai";
+                window.currentCategory = targetCategory;
+                
+                // Khóa cứng Stack về 1 phần tử
+                folderStack = [{ id: ROOT_FOLDER_ID, name: targetCategory, scrollTop: 0 }];
+                window.currentFolderId = ROOT_FOLDER_ID;
+                localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+                
+                // Ép isNewNavigation = false để không bị đẩy thêm lớp ảo
+                return cachedLoadF(folderId, folderName, false, isPopState);
+            }
+            return cachedLoadF(folderId, folderName, isNewNavigation, isPopState);
+        };
+        window.loadFolder.isBreadcrumbClamped = true;
+    }
+
+    console.log("✅ PATCH 34: Đã fix triệt để lỗi click đường dẫn bị gom chung Tab!");
+}, 18500); // Khởi chạy sau cùng để đảm bảo bắt đè được các hàm gốc
