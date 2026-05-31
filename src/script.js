@@ -4297,3 +4297,30 @@ setTimeout(() => {
 
     console.log("✅ PATCH 29: Đã kích hoạt Phím tắt Ctrl +/- để Phóng to/Thu nhỏ lưới!");
 }, 15000); // Khởi chạy trễ để đảm bảo fileList đã xuất hiện
+// ==============================================================
+// ÉP CÁC Ô FILE THÀNH HÌNH VUÔNG CHUẨN (ASPECT RATIO 1:1)
+// ==============================================================
+setTimeout(() => {
+    // Tạo một thẻ <style> động để ghi đè giao diện
+    const styleEl = document.createElement('style');
+    styleEl.innerHTML = `
+        /* Tìm tất cả các khung chứa ảnh (đang bị khóa h-32) bên trong danh sách file */
+        #fileList .h-32 {
+            height: auto !important;         /* Xóa bỏ chiều cao cố định 128px */
+            aspect-ratio: 1 / 1 !important;  /* Ép tỷ lệ vuông 1:1 tuyệt đối */
+            width: 100% !important;          /* Rộng full viền thẻ cha */
+        }
+        
+        /* Hiệu ứng bo góc và đổ bóng nhẹ khi hover vào ảnh để trải nghiệm Desktop xịn hơn */
+        #fileList .drive-img-item {
+            transition: transform 0.3s ease;
+        }
+        #fileList .h-32:hover .drive-img-item {
+            transform: scale(1.05); /* Phóng to ảnh nhẹ nhàng khi rê chuột */
+        }
+    `;
+    // Gắn style này vào hệ thống
+    document.head.appendChild(styleEl);
+
+    console.log("✅ PATCH 30: Đã hô biến các file thành Ô Vuông 1:1 hoàn hảo!");
+}, 500); // Chạy rất sớm để không bị giật giao diện
