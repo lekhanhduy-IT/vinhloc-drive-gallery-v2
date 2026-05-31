@@ -4717,92 +4717,142 @@ setTimeout(() => {
     console.log("✅ PATCH 34: Đã fix triệt để lỗi click đường dẫn bị gom chung Tab!");
 }, 18500); // Khởi chạy sau cùng để đảm bảo bắt đè được các hàm gốc
 // ==============================================================
-// PATCH 35 (V3): SỬA LỖI SPAM NHÃN "NEW" CHO CÁC FOLDER CŨ
+// PATCH 35 (BẢN CHUẨN PWA): HỆ THỐNG NHÃN "NEW" CHẠY TỨC THÌ
 // ==============================================================
-setTimeout(() => {
-    // 1. Khởi tạo danh sách "Đã Xem" từ Ổ cứng máy
+(function() {
+    // 1. Khởi tạo danh sách "Đã Xem" tức thì (Không cần đợi)
     window.vinhloc_seen_megas = new Set(JSON.parse(localStorage.getItem('vinhloc_seen_megas') || '[]'));
     
-    // Cờ kiểm tra: Đã từng chạy "Lệnh Ân Xá" cho thiết bị này chưa?
-    let isFirstTimeInit = !localStorage.getItem('vinhloc_megas_initialized');
-
-    // 2. CHỐT CHẶN RENDER: Lọc thông minh, phân biệt cũ/mới
-    const originalRenderItemsP35 = window.renderItems;
-    window.renderItems = function(items, isSearchMode = false) {
+    // 2. CHỐT CHẶN KHỞI ĐỘNG (Lệnh Ân Xá Tức Thì)
+    const originalInitDatabaseP35 = window.initDatabase;
+    window.initDatabase = async function() {
+        if (originalInitDatabaseP35) await originalInitDatabaseP35();
         
-        // [LỆNH ÂN XÁ TỰ ĐỘNG]: Nếu là lần tải dữ liệu đầu tiên, gạch tên toàn bộ folder cũ vào sổ Đã Xem!
-        if (isFirstTimeInit && folderStack.length === 1 && !isSearchMode && items) {
-            const folders = items.filter(i => i.type === 'folder');
-            if (folders.length > 0) {
-                folders.forEach(item => window.vinhloc_seen_megas.add(item.id));
+        // Chỉ ân xá 1 lần duy nhất khi máy tải dữ liệu lần đầu
+        if (!localStorage.getItem('vinhloc_megas_initialized')) {
+            if (typeof folderDataCache !== 'undefined' && folderDataCache[ROOT_FOLDER_ID]) {
+                folderDataCache[ROOT_FOLDER_ID].forEach(item => {
+                    // Ân xá đồ cũ (Tuyệt đối không ân xá thư mục mới tạo có chữ temp_)
+                    if (item.type === 'folder' && !String(item.id).startsWith('temp_')) {
+                        window.vinhloc_seen_megas.add(item.id);
+                    }
+                });
                 localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
                 localStorage.setItem('vinhloc_megas_initialized', 'true');
-                isFirstTimeInit = false; // Tắt cờ ân xá vĩnh viễn cho các lần sau
             }
         }
+    };
 
-        const result = originalRenderItemsP35(items, isSearchMode);
-        
-        if (folderStack.length === 1 && !isSearchMode && items) {
-            const megaRows = document.querySelectorAll('.mega-row');
-            
-            megaRows.forEach(row => {
-                const header = row.querySelector('.mega-header');
-                const iconEl = row.querySelector('[id^="icon-"]');
+    // 3. CHỐT CHẶN RENDER: Dùng CSS cứng để trị lỗi tàng hình trên PWA
+    const hookRenderItems = () => {
+        if (window.renderItems && !window.renderItems.isNewBadgeHooked) {
+            const originalRenderItemsP35 = window.renderItems;
+            window.renderItems = function(items, isSearchMode = false) {
+                const result = originalRenderItemsP35(items, isSearchMode);
                 
-                if (header && iconEl) {
-                    const id = iconEl.id.replace('icon-', '');
+                if (typeof folderStack !== 'undefined' && folderStack.length === 1 && !isSearchMode && items) {
+                    const megaRows = document.querySelectorAll('.mega-row');
+                    megaRows.forEach(row => {
+                        const header = row.querySelector('.mega-header');
+                        const iconEl = row.querySelector('[id^="icon-"]');
+                        if (header && iconEl) {
+                            const id = iconEl.id.replace('icon-', '');
+                            
+                            if (!window.vinhloc_seen_megas.has(id)) {
+                                if (!header.querySelector('.vinhloc-new-label')) {
+                                    header.style.position = 'relative';
+                                    const img = document.createElement('img');
+                                    img.src = 'new_folder.png';
+                                    
+                                    // Loại bỏ các class Tailwind phức tạp
+                                    img.className = 'vinhloc-new-label absolute top-0 h-full w-auto object-contain z-[5] pointer-events-none drop-shadow-sm animate-pulse transition-opacity duration-300';
+                                    
+                                    // [QUAN TRỌNG]: Đóng đinh CSS thẳng vào lõi để Mobile/PWA không thể từ chối hiển thị
+                                    img.style.right = '50px';
+                                    img.style.paddingTop = '4px';
+                                    img.style.paddingBottom = '4px';
+                                    
+                                    header.appendChild(img);
+                                }
+                            }
+                        }
+                    });
+                }
+                return result;
+            };
+            window.renderItems.isNewBadgeHooked = true;
+        }
+    };
+
+    // 4. CHỐT CHẶN CLICK: Xóa nhãn
+    const hookToggleAccordion = () => {
+        if (window.toggleAccordion && !window.toggleAccordion.isNewBadgeHooked) {
+            const originalToggleAccordionP35 = window.toggleAccordion;
+            window.toggleAccordion = function(id, forceOpen = false) {
+                if (window.vinhloc_seen_megas && !window.vinhloc_seen_megas.has(id)) {
+                    window.vinhloc_seen_megas.add(id);
+                    localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
                     
-                    // Nếu ID này KHÔNG nằm trong danh sách Đã Xem -> Mới gắn nhãn NEW
-                    if (!window.vinhloc_seen_megas.has(id)) {
-                        if (!header.querySelector('.vinhloc-new-label')) {
-                            header.style.position = 'relative';
-                            const img = document.createElement('img');
-                            img.src = 'new_folder.png';
-                            // Đặt bên phải, kế nút 3 chấm, thêm hiệu ứng chớp nháy
-                            img.className = 'vinhloc-new-label absolute top-0 right-[50px] h-full w-auto object-contain z-[5] pointer-events-none drop-shadow-sm animate-pulse transition-opacity duration-300 py-1';
-                            header.appendChild(img);
+                    const iconEl = document.getElementById(`icon-${id}`);
+                    if (iconEl) {
+                        const header = iconEl.closest('.mega-header');
+                        if (header) {
+                            const label = header.querySelector('.vinhloc-new-label');
+                            if (label) {
+                                label.classList.remove('animate-pulse');
+                                label.style.opacity = '0';
+                                setTimeout(() => label.remove(), 300);
+                            }
                         }
                     }
                 }
-            });
+                if (originalToggleAccordionP35) originalToggleAccordionP35(id, forceOpen);
+            };
+            window.toggleAccordion.isNewBadgeHooked = true;
         }
-        return result;
     };
 
-    // 3. CHỐT CHẶN CLICK: Xóa nhãn vĩnh viễn khi bấm mở Mega-row
-    const originalToggleAccordionP35 = window.toggleAccordion;
-    window.toggleAccordion = function(id, forceOpen = false) {
-        if (window.vinhloc_seen_megas && !window.vinhloc_seen_megas.has(id)) {
-            window.vinhloc_seen_megas.add(id);
-            localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
-            
-            const iconEl = document.getElementById(`icon-${id}`);
-            if (iconEl) {
-                const header = iconEl.closest('.mega-header');
-                if (header) {
-                    const label = header.querySelector('.vinhloc-new-label');
-                    if (label) {
-                        label.classList.remove('animate-pulse');
-                        label.style.opacity = '0';
-                        setTimeout(() => label.remove(), 300); // Đợi hiệu ứng mờ 0.3s rồi mới gỡ thẻ HTML
-                    }
+    // 5. CHỐT CHẶN ĐỔI ID: Bảo vệ nhãn khi đồng bộ mây
+    const hookReplaceTempId = () => {
+        if (window.replaceTempId && !window.replaceTempId.isNewBadgeHooked) {
+            const originalReplaceTempIdP35 = window.replaceTempId;
+            window.replaceTempId = function(tempId, realId) {
+                if (window.vinhloc_seen_megas && window.vinhloc_seen_megas.has(tempId)) {
+                    window.vinhloc_seen_megas.delete(tempId);
+                    window.vinhloc_seen_megas.add(realId);
+                    localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
                 }
-            }
+                if (originalReplaceTempIdP35) originalReplaceTempIdP35(tempId, realId);
+            };
+            window.replaceTempId.isNewBadgeHooked = true;
         }
-        if (originalToggleAccordionP35) originalToggleAccordionP35(id, forceOpen);
     };
 
-    // 4. CHỐT CHẶN ĐỔI ID: Giữ nguyên trạng thái nếu lỡ tay click lúc mạng lag đang tải
-    const originalReplaceTempIdP35 = window.replaceTempId;
-    window.replaceTempId = function(tempId, realId) {
-        if (window.vinhloc_seen_megas && window.vinhloc_seen_megas.has(tempId)) {
-            window.vinhloc_seen_megas.delete(tempId);
-            window.vinhloc_seen_megas.add(realId);
-            localStorage.setItem('vinhloc_seen_megas', JSON.stringify(Array.from(window.vinhloc_seen_megas)));
-        }
-        if (originalReplaceTempIdP35) originalReplaceTempIdP35(tempId, realId);
-    };
+    // QUÉT VÀ KHÓA HÀM LIÊN TỤC TRONG 2 GIÂY ĐẦU (Không dùng setTimeout dài nữa)
+    const applyAllHooks = () => { hookRenderItems(); hookToggleAccordion(); hookReplaceTempId(); };
+    applyAllHooks();
+    let hookAttempts = 0;
+    const intervalHook = setInterval(() => {
+        applyAllHooks();
+        hookAttempts++;
+        if (hookAttempts > 40) clearInterval(intervalHook); // Dừng sau 2 giây
+    }, 50);
 
-    console.log("✅ PATCH 35 (V3): Đã dọn dẹp sạch sẽ nhãn NEW cho các folder cũ!");
-}, 19000);
+    console.log("✅ PATCH 35: Đã fix tương thích 100% cho PWA và Mobile!");
+})();
+// ==============================================================
+// PATCH 36: FIX LỖI MEGA-ROW ĐÈ MENU HEADER (Z-INDEX CẤP CAO)
+// ==============================================================
+setTimeout(() => {
+    const header = document.querySelector('header');
+    if (header) {
+        // 1. Phá bỏ lệnh "nhốt" của Patch 33, cho phép menu 3 chấm thả xuống tự do
+        header.style.overflow = 'visible';
+        
+        // 2. Nâng quyền ưu tiên của thanh Header lên cấp cao nhất (9999)
+        // Đảm bảo không có bất kỳ Mega-row hay hình ảnh nào cuộn lên đè được nó
+        header.style.zIndex = '9999';
+    }
+    
+    console.log("✅ PATCH 36: Đã giải cứu thành công Menu 3 chấm trên Header!");
+}, 1500); // Chạy sau Patch 33 một chút để ghi đè lệnh thành công
