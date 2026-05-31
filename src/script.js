@@ -4841,30 +4841,27 @@ setTimeout(() => {
     console.log("✅ PATCH 36: Đã kích hoạt hệ thống Nhãn New Folder thông minh cho Mega-row!");
 }, 19500); // Chạy trễ nhất để bao bọc các bản vá cũ
 // ==============================================================
-// PATCH 37: FIX LỖI DANH SÁCH ĐÈ LÊN MENU 3 CHẤM CỦA HEADER
+// PATCH 37: SỬA LỖI MENU HEADER BỊ CẮT XÉN DO OVERFLOW: HIDDEN
 // ==============================================================
 setTimeout(() => {
-    // 1. Tìm các phần tử của Menu Header
-    const headerDropdownContainer = document.getElementById('headerDropdownContainer');
-    const headerDropdown = document.getElementById('headerDropdown');
     const header = document.querySelector('header');
+    if (header) {
+        // Gỡ bỏ thuộc tính cắt xén, cho phép menu thả xuống tràn ra khỏi viền header
+        header.style.overflow = 'visible'; 
+    }
+    
+    // Đảm bảo ảnh decor góc phải không làm tràn chiều ngang màn hình khi gỡ overflow
+    const rightHeaderImg = document.querySelector('.vl-decor-header');
+    if (rightHeaderImg) {
+        rightHeaderImg.style.maxWidth = '100vw';
+        rightHeaderImg.style.clipPath = 'inset(0 0 0 0)'; // Cắt ảnh gọn gàng ngay tại viền, không ảnh hưởng menu thả xuống
+    }
 
-    // 2. Ép Z-index lên mức tối thượng (đè bẹp mức 10000 của Mega-row)
+    // Nâng Z-index của Container Menu lên tối thượng (Nếu Patch 37 chưa ăn)
+    const headerDropdownContainer = document.getElementById('headerDropdownContainer');
     if (headerDropdownContainer) {
-        // Vùng chứa menu
         headerDropdownContainer.style.zIndex = '9999999';
     }
-    
-    if (headerDropdown) {
-        // Khung menu thả xuống (Ghi đè class z-[9999] của Tailwind)
-        headerDropdown.style.zIndex = '9999999';
-    }
-    
-    // 3. Nâng luôn Header tổng lên để an toàn tuyệt đối
-    if (header) {
-        header.style.position = 'relative'; // Bắt buộc phải có position mới ăn z-index
-        header.style.zIndex = '999999';
-    }
-    
-    console.log("✅ PATCH 37: Đã nâng cấp Z-index cho Menu Header, giải quyết triệt để lỗi bị đè!");
-}, 1500); // Trễ 1.5s để đảm bảo HTML của header đã được render xong
+
+    console.log("✅ PATCH 37: Đã vô hiệu hóa overflow:hidden trên Header, Menu thả xuống hiển thị hoàn hảo!");
+}, 2000); // Khởi chạy sau cùng để đè các Patch cũ
