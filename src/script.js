@@ -3908,28 +3908,27 @@ setTimeout(() => {
     }
 })();
 // ==============================================================
-// PATCH 27: TẠO MEGA-ROW CHUẨN CATEGORY & MÔ TẢ DRIVE, CHỐNG NHÂN BẢN
+// PATCH 27 (V3): QUY TRÌNH CHUẨN TẠO MEGA-ROW, DRIVE DESCRIPTION & SHEET (ID THẬT)
 // ==============================================================
 setTimeout(() => {
-    // 1. NÂNG CẤP HÀM ĐỔI ID ẢO (CHỐNG TRÙNG LẶP DO NHỆN CRAWLER TẢI VỀ)
+    // 1. HÀM THAY ID ẢO THÀNH THẬT TRÊN GIAO DIỆN (SAU KHI SERVER CHẠY XONG)
     const originalReplaceTempId = window.replaceTempId || function(){};
     window.replaceTempId = function(tempId, realId) {
-        // KIỂM TRA ĐÁNH CHẶN: Nếu Nhện đã tải ID thật này về trước khi Queue xử lý xong
+        // Đánh chặn Crawler: Tránh nhân bản nếu mây đã tải về trước
         const existsInCurrent = currentDriveItems.some(i => i.id === realId && !i.isPending);
-        
         if (existsInCurrent) {
-            // Tiêu diệt ngay bản ảo để không bị nhân đôi thư mục trên giao diện
             if (window.purgeDeletedItem) window.purgeDeletedItem(tempId);
             return;
         }
         
-        // Chuyển giao Meta từ Ảo sang Thật
+        // Đổi key trong Meta từ ảo sang thật
         if (appMeta[tempId]) {
             appMeta[realId] = appMeta[tempId];
             delete appMeta[tempId];
             localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
         }
 
+        // Đổi ID trong các mảng dữ liệu đang hiển thị
         let itemIdx = currentDriveItems.findIndex(i => i.id === tempId);
         if (itemIdx > -1) { currentDriveItems[itemIdx].id = realId; delete currentDriveItems[itemIdx].isPending; }
 
@@ -3951,12 +3950,13 @@ setTimeout(() => {
         });
         if (stackChanged) localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
 
+        // Vẽ lại cục bộ ngay lập tức
         if (currentDriveItems.some(i => i.id === realId) || currentFolderId === realId) {
             if(window.renderItems) window.renderItems(currentDriveItems);
         }
     };
 
-    // 2. VIẾT LẠI HÀM TẠO FOLDER: GHI NHẬN ĐÚNG LOẠI CHO MEGA-ROW
+    // 2. HÀM TẠO FOLDER TRÊN GIAO DIỆN
     window.uiPromptFolder = function (targetParentId = null, e = null) {
         if (e) { e.stopPropagation(); document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden')); }
         if (typeof closeFab === 'function') closeFab();
@@ -3977,25 +3977,24 @@ setTimeout(() => {
                 const parentIdToUse = (targetParentId && typeof targetParentId === 'string') ? targetParentId : currentFolderId;
                 closeModal();
 
-                // Xác định: Đang tạo ở màn hình gốc (Mega-row) hay tạo trong thư mục con?
                 const isMegaRow = (parentIdToUse === ROOT_FOLDER_ID);
                 const tempId = 'temp_folder_' + Date.now();
                 const newItem = { id: tempId, name: val, type: 'folder', isPending: true };
 
                 let targetCategory = "Triển khai"; 
-                let targetDesc = ""; // Thư mục con thì mô tả để trống tinh tươm
+                let targetDesc = ""; 
 
-                // NẾU LÀ MEGA-ROW: Gắn mác theo Tab hiện tại đang đứng
+                // Nếu là Mega-row, thiết lập cấu trúc để gửi lên GAS
                 if (isMegaRow) {
                     targetCategory = window.currentCategory || "Triển khai";
-                    targetDesc = `[${targetCategory}]\n`; // Đóng dấu Loại gửi lên Drive
+                    targetDesc = `[${targetCategory}]\n`; // Đóng dấu Loại lên Description Drive
                     
-                    // Lưu luôn vào DB cục bộ để App hiển thị mượt mà
+                    // Lưu Meta nội bộ tạm thời để render mượt
                     appMeta[tempId] = { type: targetCategory, desc: '', cover: '', name: val };
                     localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
                 }
 
-                // HIỂN THỊ LÊN GIAO DIỆN TỨC THÌ (REAL-TIME UI)
+                // A. HIỂN THỊ TỨC THÌ LÊN GIAO DIỆN (CHƯA CẦN CHỜ MẠNG)
                 if (parentIdToUse === currentFolderId) {
                     currentDriveItems.unshift(newItem);
                     folderDataCache[currentFolderId] = currentDriveItems;
@@ -4007,29 +4006,23 @@ setTimeout(() => {
 
                 showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
 
-                // 1. ĐẨY LỆNH LÊN DRIVE KÈM MÔ TẢ
+                // B. ĐẨY LỆNH GỘP (CREATE DRIVE + SAVE SHEET) VÀO HÀNG ĐỢI
                 addActionToQueue('createFolder', {
                     name: val,
                     folderId: parentIdToUse,
                     tempId: tempId,
-                    description: targetDesc // Ép code.gs ghi thẳng vào ô Description của Drive
+                    description: targetDesc,
+                    isMegaRow: isMegaRow,       // Kích hoạt cờ này để GAS biết và lưu vào Sheet
+                    category: targetCategory    // Truyền Loại qua cho GAS ghi vào Sheet
                 });
-
-                // 2. ĐẨY LỆNH VÀO SHEETS (Chỉ thực hiện với Mega-Row)
-                if (isMegaRow) {
-                    addActionToQueue('updateSingleMeta', { 
-                        meta: { id: tempId, name: val, type: targetCategory, desc: '', cover: '' },
-                        isPendingTempId: true // Cắm cờ chờ Drive nhả ID thật
-                    });
-                }
             }
         };
         document.getElementById('customModal').classList.remove('hidden'); document.getElementById('customModal').classList.add('flex');
         setTimeout(() => document.getElementById('modalInput').focus(), 100);
     };
 
-    // 3. NÂNG CẤP HÀNG ĐỢI (QUEUE): CHỜ ID THẬT ĐỂ ĐỒNG BỘ VÀO SHEETS
-    if(window.processActionQueue && !window.processActionQueue.isWrappedForMegaRows) {
+    // 3. TỐI ƯU HÓA HÀNG ĐỢI QUEUE (GỌN GÀNG, KHÔNG CẦN CHỜ ĐỢI PHỨC TẠP)
+    if(window.processActionQueue && !window.processActionQueue.isV3) {
         const originalProcessActionQueue = window.processActionQueue;
         
         window.processActionQueue = async function() {
@@ -4044,13 +4037,6 @@ setTimeout(() => {
                     try {
                         syncQueueCount++; updateSyncIndicator();
 
-                        // Trì hoãn lệnh lưu Sheets nếu Drive chưa kịp nhả ID thật
-                        if (currentTask.action === 'updateSingleMeta' && currentTask.payload && currentTask.payload.isPendingTempId) {
-                            if (String(currentTask.payload.meta.id).startsWith('temp_')) {
-                                break; // Nhường luồng lại, chờ lệnh createFolder chạy xong trước
-                            }
-                        }
-
                         let response = await fetch(SCRIPT_URL, {
                             method: 'POST',
                             body: JSON.stringify({ action: currentTask.action, ...currentTask.payload })
@@ -4058,15 +4044,17 @@ setTimeout(() => {
                         let data = await response.json();
 
                         if (data.success || data.id || data.url) {
-                            
-                            // Ngay khi tạo Folder thành công, đổi tên ID cho các lệnh đang đợi
+                            // Khi tạo thư mục xong, Drive trả về ID thật -> Thay thế ngay trên UI
                             if (currentTask.action === 'createFolder' && data.tempId && data.id) {
                                 window.replaceTempId(data.tempId, data.id);
                                 
+                                // Nếu trong Queue đang có lệnh rename hoặc updateSingleMeta nào xài ID ảo, cập nhật luôn cho chúng
                                 for(let i=1; i<queue.length; i++) {
-                                    if (queue[i].action === 'updateSingleMeta' && queue[i].payload.meta.id === data.tempId) {
-                                        queue[i].payload.meta.id = data.id; // Lắp ID thật vào lệnh lưu Sheets
-                                        delete queue[i].payload.isPendingTempId; // Gỡ cờ trì hoãn
+                                    if (queue[i].payload && queue[i].payload.id === data.tempId) {
+                                        queue[i].payload.id = data.id; 
+                                    }
+                                    if (queue[i].payload && queue[i].payload.meta && queue[i].payload.meta.id === data.tempId) {
+                                        queue[i].payload.meta.id = data.id; 
                                     }
                                 }
                             }
@@ -4077,7 +4065,7 @@ setTimeout(() => {
                             break;
                         }
                     } catch (networkError) {
-                        break;
+                        break; // Mất mạng thì dừng, lát có mạng Queue chạy tiếp
                     } finally {
                         syncQueueCount--; updateSyncIndicator();
                     }
@@ -4087,8 +4075,8 @@ setTimeout(() => {
                 isQueueProcessing = false;
             }
         };
-        window.processActionQueue.isWrappedForMegaRows = true;
+        window.processActionQueue.isV3 = true;
     }
     
-    console.log("✅ PATCH 27: Hệ thống đã nạp Mô tả Drive chuẩn loại, Real-time đa thiết bị!");
-}, 12500); // Mức độ trễ 12.5s để đè bẹp hoàn toàn các hàm cũ
+    console.log("✅ PATCH 27 V3: Quy chuẩn hóa hoàn toàn quá trình tạo Thư mục, 100% ID thật!");
+}, 12500);
