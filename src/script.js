@@ -3907,3 +3907,97 @@ setTimeout(() => {
         }, 50);
     }
 })();
+// ==============================================================
+// PATCH 26: SỬA LỖI MEGA-ROW "HỒI SINH" SAU KHI XÓA (DANH SÁCH ĐEN)
+// ==============================================================
+setTimeout(() => {
+    // 1. TẠO DANH SÁCH ĐEN: Chứa ID của các mục đã bị xóa
+    window.vinhloc_deleted_ids = window.vinhloc_deleted_ids || new Set();
+
+    // 2. GHI ĐÈ HÀM DỌN RÁC: Đóng dấu "tử hình" vào Sổ đen
+    window.purgeDeletedItem = function(id) {
+        window.vinhloc_deleted_ids.add(id); // Cho vào danh sách đen
+
+        currentDriveItems = currentDriveItems.filter(i => i.id !== id);
+        
+        for (let fId in folderDataCache) { 
+            if(folderDataCache[fId]) folderDataCache[fId] = folderDataCache[fId].filter(i => i.id !== id); 
+        }
+        localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(()=>{});
+        
+        for (let mId in subFolderCache) { 
+            if(subFolderCache[mId]) subFolderCache[mId] = subFolderCache[mId].filter(i => i.id !== id); 
+        }
+        localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(()=>{});
+        
+        if (appMeta[id]) { delete appMeta[id]; localforage.setItem('vinhloc_meta', appMeta).catch(()=>{}); }
+    };
+
+    // 3. NÂNG CẤP HÀM XÓA ĐƠN: Phải đợi Server xóa xong mới quét màn hình
+    const originalHandleDelete = window.handleDelete;
+    window.handleDelete = function(id, type, e) {
+        if(originalHandleDelete) originalHandleDelete(id, type, e); 
+        const btn = document.getElementById('modalConfirmBtn');
+        if(btn) {
+            const originalOnClick = btn.onclick; 
+            btn.onclick = async () => {
+                // CHỜ API GOOGLE DRIVE XÓA XONG 100%
+                if (originalOnClick) {
+                    const result = originalOnClick();
+                    if (result instanceof Promise) await result;
+                }
+                
+                window.purgeDeletedItem(id); 
+                
+                if (window.isSearching) {
+                    window.currentSearchResults = window.currentSearchResults.filter(i => i.id !== id);
+                    if(window.renderItems) window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
+                } else {
+                    if(window.renderItems) window.renderItems(currentDriveItems);
+                }
+            };
+        }
+    };
+
+    // 4. NÂNG CẤP HÀM XÓA HÀNG LOẠT
+    const originalDeleteSelected = window.deleteSelectedItems;
+    window.deleteSelectedItems = function() {
+        if(originalDeleteSelected) originalDeleteSelected();
+        const btn = document.getElementById('modalConfirmBtn');
+        if(btn) {
+            const originalOnClick = btn.onclick;
+            btn.onclick = async () => {
+                let idsToDelete = Array.from(window.multiSelectState.selectedIds);
+                // CHỜ API XÓA XONG 100%
+                if (originalOnClick) {
+                    const result = originalOnClick();
+                    if (result instanceof Promise) await result;
+                }
+                
+                idsToDelete.forEach(id => window.purgeDeletedItem(id));
+                
+                if (window.isSearching) {
+                    window.currentSearchResults = window.currentSearchResults.filter(i => !idsToDelete.includes(i.id));
+                    if(window.renderItems) window.renderItems(window.currentSearchResults.slice(0, window.searchDisplayLimit), true);
+                } else {
+                    if(window.renderItems) window.renderItems(currentDriveItems);
+                }
+            };
+        }
+    };
+
+    // 5. KHIÊN BẢO VỆ GIAO DIỆN: Đánh bật mọi Zombie khỏi màn hình
+    const originalRenderItemsForDelete = window.renderItems;
+    window.renderItems = function(items, isSearchMode = false) {
+        if (items && Array.isArray(items)) {
+            // Lọc vứt hết những ID nằm trong sổ đen trước khi vẽ ra màn hình
+            items = items.filter(item => !window.vinhloc_deleted_ids.has(item.id));
+            
+            // Đồng bộ lại mảng gốc để tránh lỗi lệch data
+            if (!isSearchMode) currentDriveItems = items;
+        }
+        return originalRenderItemsForDelete(items, isSearchMode);
+    };
+
+    console.log("✅ PATCH 26: Đã trang bị Sổ đen, cấm Mega-row sống lại sau khi xóa!");
+}, 12000);
