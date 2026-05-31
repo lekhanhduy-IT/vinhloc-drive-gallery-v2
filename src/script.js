@@ -4244,7 +4244,7 @@ setTimeout(() => {
     }
 }, 1500);
 // ==============================================================
-// SỬ DỤNG BÀN PHÍM (CTRL +/-) ĐỂ PHÓNG TO/THU NHỎ LƯỚI
+// PATCH 29: SỬ DỤNG BÀN PHÍM (CTRL +/-) ĐỂ PHÓNG TO/THU NHỎ LƯỚI
 // ==============================================================
 setTimeout(() => {
     // 1. Tạo hàm điều khiển số cột Grid toàn cục
@@ -4298,7 +4298,7 @@ setTimeout(() => {
     console.log("✅ PATCH 29: Đã kích hoạt Phím tắt Ctrl +/- để Phóng to/Thu nhỏ lưới!");
 }, 15000); // Khởi chạy trễ để đảm bảo fileList đã xuất hiện
 // ==============================================================
-// ÉP CÁC Ô FILE THÀNH HÌNH VUÔNG CHUẨN (ASPECT RATIO 1:1)
+// PATCH 30: ÉP CÁC Ô FILE THÀNH HÌNH VUÔNG CHUẨN (ASPECT RATIO 1:1)
 // ==============================================================
 setTimeout(() => {
     // Tạo một thẻ <style> động để ghi đè giao diện
@@ -4324,3 +4324,215 @@ setTimeout(() => {
 
     console.log("✅ PATCH 30: Đã hô biến các file thành Ô Vuông 1:1 hoàn hảo!");
 }, 500); // Chạy rất sớm để không bị giật giao diện
+// ==============================================================
+// PATCH 31: FIX LỖI UPLOAD VIDEO (THUMBNAIL & DRIVE PLAYER)
+// ==============================================================
+setTimeout(() => {
+    // ---------------------------------------------------------
+    // 1. SỬA LỖI UPLOAD: BƠM "MIMETYPE" ĐỂ DRIVE XỬ LÝ VIDEO
+    // ---------------------------------------------------------
+    const fixedUploadLogic = async function(event) {
+        if (typeof closeFab === 'function') closeFab(); 
+        const files = event.target.files; 
+        if (!files || files.length === 0) return;
+        
+        if (currentFolderId && currentFolderId.startsWith('temp_folder_')) {
+            showToast("Vui lòng đợi thư mục tạo xong...", true);
+            event.target.value = ''; return;
+        }
+        
+        syncQueueCount++; updateSyncIndicator(); 
+        let uploadQueue = [];
+        
+        for (let i = 0; i < files.length; i++) {
+            let file = files[i]; 
+            let fakeId = 'temp_file_' + Date.now() + '_' + i; 
+            let tempUrl = URL.createObjectURL(file); 
+            let newItem = { id: fakeId, name: file.name, mimeType: file.type, type: 'file', tempUrl: tempUrl, isPending: true };
+            uploadQueue.push({ file: file, id: fakeId, itemRef: newItem }); 
+            currentDriveItems.unshift(newItem); 
+        }
+        folderDataCache[currentFolderId] = currentDriveItems; 
+        window.renderItems(currentDriveItems);
+        
+        let token = null;
+        try {
+            let tokenRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getToken' }) }).then(r => r.json());
+            if (tokenRes && tokenRes.success) token = tokenRes.token;
+        } catch(e) {}
+
+        if (!token) {
+            showToast("Lỗi: Không lấy được quyền Upload.", true);
+            for (let obj of uploadQueue) currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id);
+            folderDataCache[currentFolderId] = currentDriveItems; window.renderItems(currentDriveItems);
+            syncQueueCount--; updateSyncIndicator(); event.target.value = ''; return;
+        }
+
+        for (let obj of uploadQueue) {
+            try {
+                if (obj.file.size === 0) throw new Error("File rỗng");
+                let realId = null;
+
+                let initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true', {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': 'Bearer ' + token, 
+                        'Content-Type': 'application/json',
+                        'X-Upload-Content-Type': obj.file.type || 'application/octet-stream'
+                    },
+                    // [QUAN TRỌNG]: ÉP DRIVE HIỂU ĐÂY LÀ VIDEO THÔNG QUA MIMETYPE CỦA BODY
+                    body: JSON.stringify({ 
+                        name: obj.file.name, 
+                        mimeType: obj.file.type || 'application/octet-stream', 
+                        parents: [currentFolderId] 
+                    })
+                });
+
+                let uploadUrl = initRes.headers.get('Location') || initRes.headers.get('location');
+                if (!uploadUrl) throw new Error(`Google chặn khởi tạo Upload.`);
+
+                const CHUNK_SIZE = 5242880; 
+                let start = 0; let uploadedData = null;
+
+                while (start < obj.file.size) {
+                    let end = Math.min(start + CHUNK_SIZE, obj.file.size);
+                    let chunk = obj.file.slice(start, end);
+                    let chunkRes = await fetch(uploadUrl, {
+                        method: 'PUT',
+                        headers: { 'Content-Range': `bytes ${start}-${end - 1}/${obj.file.size}` },
+                        body: chunk
+                    });
+
+                    if (chunkRes.status === 308) start = end;
+                    else if (chunkRes.ok) { uploadedData = await chunkRes.json(); break; }
+                    else throw new Error(`Đứt mạng khi tải.`);
+                }
+
+                if (uploadedData && uploadedData.id) realId = uploadedData.id; else throw new Error("Không lấy được ID file.");
+                
+                let uploadedItem = currentDriveItems.find(i => i.id === obj.id);
+                if (uploadedItem && realId) { uploadedItem.id = realId; delete uploadedItem.isPending; delete uploadedItem.tempUrl; }
+                if (folderDataCache[currentFolderId]) {
+                    let cacheItem = folderDataCache[currentFolderId].find(i => i.id === obj.id);
+                    if (cacheItem && realId) { cacheItem.id = realId; delete cacheItem.isPending; delete cacheItem.tempUrl; }
+                }
+                window.renderItems(currentDriveItems); URL.revokeObjectURL(obj.itemRef.tempUrl); 
+
+            } catch(err) { 
+                showToast(`Lỗi ${obj.file.name}: ${err.message}`, true); 
+                currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id); 
+                folderDataCache[currentFolderId] = currentDriveItems; window.renderItems(currentDriveItems);
+            }
+        }
+        syncQueueCount--; updateSyncIndicator(); event.target.value = ''; 
+    };
+
+    // Hàm chọn nhiều file (Tái tạo lại để né Override)
+    async function pickLocalFilesMultipleFixed({ accept = 'image/*', callback }) {
+        try {
+            if(window.showOpenFilePicker) {
+                const pickerTypes = [];
+                if(accept.includes('image')) pickerTypes.push({ description: 'Images', accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif'] } });
+                if(accept.includes('video')) pickerTypes.push({ description: 'Videos', accept: { 'video/*': ['.mp4', '.mov', '.webm', '.mkv'] } });
+                const handles = await window.showOpenFilePicker({ multiple: true, excludeAcceptAllOption: true, types: pickerTypes });
+                const files = []; for(const handle of handles) files.push(await handle.getFile());
+                callback({ target: { files } }); return;
+            }
+        } catch(err) {}
+        const input = document.createElement('input'); input.type = 'file'; input.accept = accept; input.multiple = true; 
+        input.style.display = 'none'; document.body.appendChild(input); 
+        input.addEventListener('change', callback); input.click(); setTimeout(()=>{ input.remove(); }, 10000);
+    }
+
+    // Gắn logic Upload đúng chuẩn vào nút Up Ảnh / Up Video
+    const uploadImageLabel = document.querySelector('label:has(#uploadImage)');
+    if(uploadImageLabel) uploadImageLabel.onclick = async function(e){ e.preventDefault(); e.stopPropagation(); await pickLocalFilesMultipleFixed({ accept:'image/*', callback: fixedUploadLogic }); };
+
+    const uploadVideoLabel = document.querySelector('label:has(#uploadVideo)');
+    if(uploadVideoLabel) uploadVideoLabel.onclick = async function(e){ e.preventDefault(); e.stopPropagation(); await pickLocalFilesMultipleFixed({ accept:'video/*', callback: fixedUploadLogic }); };
+
+
+    // ---------------------------------------------------------
+    // 2. SỬA LỖI UI: BẬT HIỂN THỊ THUMBNAIL CHO VIDEO VÀ OVERLAY PLAY
+    // ---------------------------------------------------------
+    if (window.renderItems && !window.renderItems.isVideoPatched) {
+        const originalRenderItemsP31 = window.renderItems;
+        window.renderItems = function(items, isSearchMode = false) {
+            // Chạy hàm vẽ giao diện nguyên bản
+            originalRenderItemsP31(items, isSearchMode);
+            
+            // Can thiệp sửa ngay các khối hiển thị Video
+            const videoFiles = items.filter(i => i.type !== 'folder' && i.mimeType && i.mimeType.includes('video'));
+            
+            videoFiles.forEach(item => {
+                const nameEl = document.querySelector(`.item-name-${item.id}`);
+                if (nameEl) {
+                    const cardEl = nameEl.closest('.p-2\\.5');
+                    if (cardEl) {
+                        const visualContainer = cardEl.querySelector('.w-full.h-32');
+                        if (visualContainer) {
+                            if (item.tempUrl && item.tempUrl.startsWith('blob:')) {
+                                // Nếu đang up ngầm -> Phát video nội bộ
+                                visualContainer.innerHTML = `
+                                    <div class="relative w-full h-full bg-black rounded-xl overflow-hidden">
+                                        <video src="${item.tempUrl}" class="w-full h-full object-cover" muted autoplay playsinline loop></video>
+                                    </div>`;
+                            } else {
+                                // Nếu đã up lên mây -> Lấy Thumbnail từ Drive và gắn logo Play
+                                let thumbUrl = `https://drive.google.com/thumbnail?id=${item.id}&sz=w400`;
+                                visualContainer.innerHTML = `
+                                    <div class="relative w-full h-full bg-black rounded-xl overflow-hidden">
+                                        <img src="${thumbUrl}" class="w-full h-full object-cover drive-img-item" loading="lazy" onerror="this.src='https://via.placeholder.com/400/000000/FFFFFF?text=Processing...'">
+                                        <div class="absolute inset-0 flex items-center justify-center bg-black/30 transition hover:bg-black/50">
+                                            <i class="fas fa-play-circle text-white text-3xl opacity-90 drop-shadow-md"></i>
+                                        </div>
+                                    </div>`;
+                            }
+                        }
+                    }
+                }
+            });
+        };
+        window.renderItems.isVideoPatched = true;
+    }
+
+
+    // ---------------------------------------------------------
+    // 3. SỬA LỖI TRÌNH PHÁT MEDIA: NHÚNG BẰNG IFRAME CỦA GOOGLE DRIVE
+    // ---------------------------------------------------------
+    if (window.openMedia && !window.openMedia.isVideoPatched) {
+        const originalOpenMediaP31 = window.openMedia;
+        window.openMedia = function(id, mimeType, name, url) {
+            // Mở khung xem ảnh cơ bản
+            originalOpenMediaP31(id, mimeType, name, url);
+            
+            // Xử lý nạp ruột nếu là Video
+            if (mimeType && mimeType.includes('video')) {
+                const mediaContent = document.getElementById('mediaContent');
+                if (mediaContent) {
+                    // Nếu là File đang up trên máy
+                    if (url && url.startsWith('blob:')) {
+                        mediaContent.innerHTML = `
+                            <video controls class="max-w-full max-h-full rounded-lg" src="${url}" autoplay playsinline></video>
+                        `;
+                    } else {
+                        // Nếu là File đã có trên Drive -> Bắt buộc dùng Iframe Player của Google Drive
+                        mediaContent.innerHTML = `
+                            <iframe src="https://drive.google.com/file/d/${id}/preview" 
+                                    class="w-full h-full rounded-lg bg-black" 
+                                    frameborder="0" 
+                                    allow="autoplay; fullscreen">
+                            </iframe>
+                        `;
+                    }
+                }
+            }
+        };
+        window.openMedia.isVideoPatched = true;
+    }
+
+    // Refresh UI để hiển thị thumbnail Video ngay lập tức
+    if (currentDriveItems && currentDriveItems.length > 0) window.renderItems(currentDriveItems);
+    
+    console.log("✅ PATCH 31: Đã nâng cấp Upload Video, Thumbnail Drive & Trình phát iframe!");
+}, 16000);
