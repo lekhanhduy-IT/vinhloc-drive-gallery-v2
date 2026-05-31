@@ -203,6 +203,8 @@ async function bgApiCall(action, payload = {}) {
     syncQueueCount++; updateSyncIndicator();
     payload.action = action;
     if (!payload.folderId) payload.folderId = currentFolderId;
+    // THÊM DÒNG NÀY VÀO ĐÂY:
+    payload.email = currentUserEmail;
     return fetch(SCRIPT_URL, {
         method: 'POST', body: JSON.stringify(payload)
     }).then(res => res.json()).catch(err => ({ success: false })).finally(() => {
@@ -341,6 +343,8 @@ async function apiCall(action, payload = {}) {
     if (action !== 'getMeta') loading.classList.remove('hidden');
     payload.action = action;
     if (!payload.folderId) payload.folderId = currentFolderId;
+    // THÊM DÒNG NÀY VÀO ĐÂY:
+    payload.email = currentUserEmail;
     try {
         const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
         const data = await response.json();
@@ -4039,7 +4043,7 @@ setTimeout(() => {
 
                         let response = await fetch(SCRIPT_URL, {
                             method: 'POST',
-                            body: JSON.stringify({ action: currentTask.action, ...currentTask.payload })
+                            body: JSON.stringify({ action: currentTask.action, ...currentTask.payload, email: currentUserEmail })
                         });
                         let data = await response.json();
 
@@ -4943,3 +4947,39 @@ setTimeout(() => {
 
     console.log("✅ PATCH 37-38: Đã fix Menu Header bị cắt và Đồng bộ đúng thứ tự Alphabet khi tạo thư mục!");
 }, 21000); // Khởi chạy ở mốc 21s để đảm bảo đè thành công các bản cũ
+// ==============================================================
+// PATCH 39: xử lý sau khi đăng nhập thành công và giải mã Email:
+// ==============================================================
+// Biến lưu trữ email sau khi đăng nhập
+let currentUserEmail = localStorage.getItem('userEmail') || null;
+
+// Nếu đã có email thì ẩn màn hình đăng nhập
+if (currentUserEmail) {
+    document.getElementById('login-screen').style.display = 'none';
+}
+
+function handleCredentialResponse(response) {
+    // Giải mã JWT token trả về từ Google để lấy thông tin user
+    const responsePayload = decodeJwtResponse(response.credential);
+    currentUserEmail = responsePayload.email;
+    
+    // Lưu vào cache
+    localStorage.setItem('userEmail', currentUserEmail);
+    
+    // Ẩn màn hình đăng nhập và tải dữ liệu
+    document.getElementById('login-screen').style.display = 'none';
+    showToast("Đăng nhập thành công: " + currentUserEmail);
+    
+    // Gọi hàm load dữ liệu ban đầu của bạn (ví dụ initDatabase hoặc fetchList)
+    // initDatabase(); 
+}
+
+// Hàm giải mã JWT
+function decodeJwtResponse(token) {
+    let base64Url = token.split('.')[1];
+    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+}

@@ -1,5 +1,7 @@
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT"; 
 const SHEET_ID = "1rzm6zSX24UB03QOKRhR3O4BvGiQvnaOz6mhA6YL3GqA";
+// THÊM DÒNG NÀY (Thay bằng ID thư mục mới của bạn):
+const CACHE_FOLDER_ID = "1mneX5p8b4rIKNObOTxdn7yIDTlEscEZx"; 
 
 function doPost(e) {
   const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, GET, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
@@ -7,6 +9,7 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     const action = payload.action;
     const folderId = payload.folderId || ROOT_FOLDER_ID;
+    
     
     let currentFolder;
     if (folderId && action !== 'getMeta' && action !== 'updateSingleMeta' && action !== 'globalSearch' && action !== 'getFileBase64' && action !== 'makePublic') {
@@ -16,6 +19,34 @@ function doPost(e) {
     let result = { success: false, message: "Hành động không hợp lệ" };
 
     switch (action) {
+      case 'saveGlobalCache':
+        try {
+          const cacheName = "_vinhloc_global_cache.json";
+          let files = DriveApp.getFolderById(CACHE_FOLDER_ID).searchFiles("title = '" + cacheName + "' and trashed = false");
+          let cacheFile;
+          if (files.hasNext()) {
+            cacheFile = files.next();
+            cacheFile.setContent(payload.cacheData);
+          } else {
+            cacheFile = DriveApp.getFolderById(CACHE_FOLDER_ID).createFile(cacheName, payload.cacheData, "application/json");
+          }
+          result = { success: true, message: "Đã lưu Não Nhện" };
+        } catch(e) { result = { success: false, message: e.toString() }; }
+        break;
+
+      case 'loadGlobalCache':
+        try {
+          const cacheName = "_vinhloc_global_cache.json";
+          let files = DriveApp.getFolderById(CACHE_FOLDER_ID).searchFiles("title = '" + cacheName + "' and trashed = false");
+          if (files.hasNext()) {
+            let cacheFile = files.next();
+            let content = cacheFile.getBlob().getDataAsString();
+            result = { success: true, data: JSON.parse(content) };
+          } else {
+            result = { success: false, message: "Chưa có Não Nhện" };
+          }
+        } catch(e) { result = { success: false, message: e.toString() }; }
+        break;
       case 'list': result = getFolderContents(currentFolder); break;
       case 'createFolder':
         const newFolder = currentFolder.createFolder(payload.name);

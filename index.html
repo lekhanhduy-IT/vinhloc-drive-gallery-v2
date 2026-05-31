@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<div id="login-screen" class="fixed inset-0 bg-white z-[99999] flex flex-col items-center justify-center">
+    <h2 class="text-2xl font-bold mb-4">Đăng nhập để tiếp tục</h2>
+    <div id="g_id_onload"
+         data-client_id="1034177686409-1fhm0m0tqmf58qjj1p0r2ifo018eh8o2.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse">
+    </div>
+    <div class="g_id_signin" data-type="standard"></div>
+</div>
     <title>QL Ảnh</title>
     
     <link rel="manifest" href="manifest.json?v=2">
