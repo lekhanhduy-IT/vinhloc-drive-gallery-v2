@@ -3908,10 +3908,13 @@ setTimeout(() => {
     }
 })();
 // ==============================================================
-// PATCH 27: FIX LỖI TẠO MEGA-ROW SAI TAB VÀ LỖI ĐỒNG BỘ PWA
+// PATCH 27: TRỊ DỨT ĐIỂM BỆNH NHÂN ĐÔI FOLDER & MẤT TAB TRONG PWA
 // ==============================================================
 setTimeout(() => {
-    // 1. SỬA HÀM TẠO THƯ MỤC: Gắn cứng "Tab hiện tại" vào Meta Data ngay khi tạo
+    // 1. KHO LƯU TRỮ TẠM THỜI THÔNG TIN TAB CHO MEGA-ROW MỚI
+    window.vinhloc_pending_metas = window.vinhloc_pending_metas || {};
+
+    // 2. GHI ĐÈ HÀM TẠO FOLDER: Chặn lỗi mất Tab & Kích đồng bộ
     const originalUiPromptFolder = window.uiPromptFolder;
     window.uiPromptFolder = function (targetParentId = null, e = null) {
         if (e) { e.stopPropagation(); document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden')); }
@@ -3935,9 +3938,10 @@ setTimeout(() => {
                 const tempId = 'temp_folder_' + Date.now();
                 const newItem = { id: tempId, name: val, type: 'folder', isPending: true };
 
-                // [BÍ QUYẾT SỬA LỖI MEGA-ROW]: Ép Tab hiện tại vào appMeta
+                // [QUAN TRỌNG NHẤT]: Lưu lại thông tin Tab (Ý tưởng/Triển khai)
                 if (parentIdToUse === ROOT_FOLDER_ID) {
-                    appMeta[tempId] = { type: currentCategory, desc: '', cover: '', name: val };
+                    window.vinhloc_pending_metas[tempId] = { type: currentCategory, desc: '', cover: '', name: val };
+                    appMeta[tempId] = window.vinhloc_pending_metas[tempId]; // Ép UI hiển thị đúng loại Tab ngay lập tức
                     localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
                 }
 
@@ -3950,51 +3954,97 @@ setTimeout(() => {
                     if(typeof renderSubFolders === 'function') renderSubFolders(parentIdToUse, subFolderCache[parentIdToUse]);
                 }
 
-                if(typeof showToast === 'function') showToast(`<i class="fas fa-check mr-2"></i> Đã tạo mục "${val}"`);
+                if(typeof showToast === 'function') showToast(`<i class="fas fa-check mr-2"></i> Đang tạo mục "${val}"...`);
 
-                // ĐẨY LỆNH VÀO QUEUE VÀ GHI NGAY LÊN SHEETS (ĐỐI VỚI MEGA-ROW)
-                addActionToQueue('createFolder', {
-                    name: val,
-                    folderId: parentIdToUse,
-                    tempId: tempId
-                });
+                // ĐẨY LỆNH LÊN DRIVE NGẦM (CHƯA ĐẨY LÊN SHEETS VỘI)
+                addActionToQueue('createFolder', { name: val, folderId: parentIdToUse, tempId: tempId });
 
-                // Nếu là Mega-row, đẩy luôn một lệnh cập nhật Meta để Sheets ghi nhận Tab
-                if (parentIdToUse === ROOT_FOLDER_ID) {
-                    addActionToQueue('updateSingleMeta', { 
-                        meta: { id: tempId, name: val, type: currentCategory, desc: '', cover: '' } 
-                    });
-                }
-                
-                // [FIX PWA]: Kích hoạt cỗ máy MasterSync ép đồng bộ ngay lập tức sau 2.5s
-                // Việc này giúp PWA nhận được ID thật nhanh nhất có thể
+                // [FIX PWA]: Sau khi gửi lệnh, ép cỗ máy đồng bộ đánh thức PWA dậy để lấy ID nhanh nhất
                 setTimeout(() => {
-                    if(window.masterSync && !window.isQueueProcessing) window.masterSync();
-                }, 2500);
+                    if (window.masterSync && !window.isQueueProcessing) window.masterSync();
+                }, 2000);
             }
         };
         document.getElementById('customModal').classList.remove('hidden'); document.getElementById('customModal').classList.add('flex');
         setTimeout(() => document.getElementById('modalInput').focus(), 100);
     };
 
-    // 2. ÉP HÀM ĐỔI ID ẢO PHẢI CẬP NHẬT CẢ SHEET NẾU CÓ DỮ LIỆU ĐANG TREO
-    const originalReplaceTempId = window.replaceTempId;
+    // 3. GHI ĐÈ HÀM ĐỔI ID: Diệt lỗi nhân đôi & Gửi Meta lên Sheets
     window.replaceTempId = function(tempId, realId) {
-        // Nếu có Meta đang treo với ID ảo, khi có ID thật phải cập nhật lại Meta với ID thật
-        if (appMeta[tempId]) {
-            const pendingMeta = appMeta[tempId];
-            appMeta[realId] = { ...pendingMeta };
-            delete appMeta[tempId];
+        // A. CẬP NHẬT SHEETS VÀ XÓA DỮ LIỆU TẠM
+        if (window.vinhloc_pending_metas[tempId]) {
+            const pMeta = window.vinhloc_pending_metas[tempId];
+            appMeta[realId] = { ...pMeta, id: realId };
+            delete appMeta[tempId]; 
+            delete window.vinhloc_pending_metas[tempId];
             localforage.setItem('vinhloc_meta', appMeta).catch(()=>{});
             
-            // Gửi lệnh lên Sheets để cập nhật lại ID thật cho dòng Meta đó
+            // CÓ ID THẬT RỒI MỚI GỬI LÊN SHEETS ĐỂ KHÔNG BỊ MẤT DẤU
             addActionToQueue('updateSingleMeta', { 
-                meta: { id: realId, name: pendingMeta.name, type: pendingMeta.type, desc: pendingMeta.desc, cover: pendingMeta.cover } 
+                meta: { id: realId, name: pMeta.name, type: pMeta.type, desc: pMeta.desc, cover: pMeta.cover } 
             });
         }
-        
-        if(originalReplaceTempId) originalReplaceTempId(tempId, realId);
+
+        // B. LỌC BỎ FOLDER NHÂN ĐÔI DO PWA LAG
+        const cleanDuplicate = (arr) => {
+            if (!arr) return;
+            let tempIdx = arr.findIndex(i => i.id === tempId);
+            if (tempIdx > -1) {
+                let realIdx = arr.findIndex(i => i.id === realId);
+                // Nếu Drive đã tải về cái folder thật rồi, xóa thẳng tay cái folder ảo đi
+                if (realIdx > -1 && realIdx !== tempIdx) {
+                    arr.splice(tempIdx, 1);
+                } else {
+                    // Nếu chưa có thư mục thật, thì thay áo (đổi ID ảo thành thật)
+                    arr[tempIdx].id = realId;
+                    delete arr[tempIdx].isPending;
+                }
+            }
+        };
+
+        cleanDuplicate(currentDriveItems);
+        for (let fId in folderDataCache) cleanDuplicate(folderDataCache[fId]);
+        for (let mId in subFolderCache) cleanDuplicate(subFolderCache[mId]);
+
+        if (currentFolderId === tempId) currentFolderId = realId;
+
+        let stackChanged = false;
+        folderStack.forEach(f => { if (f.id === tempId) { f.id = realId; stackChanged = true; } });
+        if (stackChanged) localStorage.setItem('appFolderStack', JSON.stringify(folderStack));
+
+        if (currentDriveItems.some(i => i.id === realId) || currentFolderId === realId) {
+            if(window.renderItems) window.renderItems(currentDriveItems);
+            if(window.smoothUpdateUI) window.smoothUpdateUI(appMeta);
+        }
     };
 
-    console.log("✅ PATCH 27: Đã sửa lỗi tạo Mega-row mất Tab và Fix đồng bộ PWA!");
-}, 12500);
+    // 4. CHỈNH SỬA LÁ CHẮN TRONG MASTER SYNC: Quét và diệt thư mục ảo trùng tên
+    const originalMasterSync = window.masterSync;
+    window.masterSync = async function() {
+        await originalMasterSync(); // Cho cỗ máy cũ chạy bình thường
+
+        // Sau khi hàm cũ chạy xong và lỡ chèn dư Thư mục ảo, ta quét màn hình và gỡ ra
+        if (currentDriveItems) {
+            let hasDuplicates = false;
+            let finalItems = [];
+            // Lấy danh sách tên của các Thư mục/File "Thật"
+            let realNames = currentDriveItems.filter(i => !i.isPending).map(i => i.name);
+            
+            for (let item of currentDriveItems) {
+                // Phát hiện đồ "Ảo" trùng tên với đồ "Thật" -> Bỏ qua không cho lên hình
+                if (item.isPending && realNames.includes(item.name)) {
+                    hasDuplicates = true; 
+                } else {
+                    finalItems.push(item);
+                }
+            }
+            if (hasDuplicates) {
+                currentDriveItems = finalItems;
+                if(folderDataCache[currentFolderId]) folderDataCache[currentFolderId] = finalItems;
+                window.renderItems(currentDriveItems);
+            }
+        }
+    };
+
+    console.log("✅ PATCH 27: Trị dứt điểm bệnh Nhân đôi thư mục & Cứu sống Meta Tab!");
+}, 13000);
