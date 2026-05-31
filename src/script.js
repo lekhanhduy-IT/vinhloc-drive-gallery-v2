@@ -4081,7 +4081,7 @@ setTimeout(() => {
     console.log("✅ PATCH 27 V3: Quy chuẩn hóa hoàn toàn quá trình tạo Thư mục, 100% ID thật!");
 }, 12500);
 // ==============================================================
-// PATCH 28 (V4 PRO): UPLOAD CHIA NHỎ (CHUNKING) TRỊ DỨT ĐIỂM FILE KHỦNG
+// PATCH 28 (V5 PRO): UPLOAD CHUNKING & HỖ TRỢ SHARED DRIVE (TRỊ 404)
 // ==============================================================
 setTimeout(() => {
     window.handleMultipleFileUpload = async function(event) {
@@ -4097,7 +4097,6 @@ setTimeout(() => {
         syncQueueCount++; updateSyncIndicator(); 
         let uploadQueue = [];
         
-        // 1. Dàn file lên giao diện với trạng thái "Đang Up..."
         for (let i = 0; i < files.length; i++) {
             let file = files[i]; 
             let fakeId = 'temp_file_' + Date.now() + '_' + i; 
@@ -4109,7 +4108,6 @@ setTimeout(() => {
         folderDataCache[currentFolderId] = currentDriveItems; 
         window.renderItems(currentDriveItems);
         
-        // 2. Lấy Thẻ bài (Token)
         let token = null;
         try {
             let tokenRes = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'getToken' }) }).then(r => r.json());
@@ -4117,20 +4115,19 @@ setTimeout(() => {
         } catch(e) {}
 
         if (!token) {
-            showToast("Lỗi: Không lấy được quyền Upload. Hãy thử lại!", true);
+            showToast("Lỗi: Không lấy được quyền Upload.", true);
             for (let obj of uploadQueue) currentDriveItems = currentDriveItems.filter(i => i.id !== obj.id);
             folderDataCache[currentFolderId] = currentDriveItems; window.renderItems(currentDriveItems);
             syncQueueCount--; updateSyncIndicator(); event.target.value = ''; return;
         }
 
-        // 3. THUẬT TOÁN BĂM NHỎ (CHUNKING) ĐỂ UP FILE KHỦNG
         for (let obj of uploadQueue) {
             try {
                 if (obj.file.size === 0) throw new Error("File bị rỗng (0 KB)");
                 let realId = null;
 
-                // Xin Google tạo một phiên Upload (Khai báo trước dung lượng)
-                let initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+                // THÊM CỜ supportsAllDrives=true ĐỂ GOOGLE NHÌN THẤY THƯ MỤC CÔNG TY
+                let initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true', {
                     method: 'POST',
                     headers: { 
                         'Authorization': 'Bearer ' + token, 
@@ -4144,15 +4141,15 @@ setTimeout(() => {
                 let uploadUrl = initRes.headers.get('Location');
                 if (!uploadUrl) {
                     let errText = await initRes.text();
-                    throw new Error(`Bị chặn khởi tạo: ${errText}`);
+                    // Bọc lỗi cho đẹp, không hiện mã JSON loằng ngoằng ra màn hình nữa
+                    if(errText.includes('404')) throw new Error("Lỗi 404: Thư mục không tồn tại hoặc sai quyền.");
+                    throw new Error(`Bị chặn khởi tạo.`);
                 }
 
-                // Cắt file thành nhiều khúc 5MB (Bắt buộc phải là bội số của 256KB)
                 const CHUNK_SIZE = 5242880; 
                 let start = 0;
                 let uploadedData = null;
 
-                // Vòng lặp bơm từng đoạn 5MB lên Google
                 while (start < obj.file.size) {
                     let end = Math.min(start + CHUNK_SIZE, obj.file.size);
                     let chunk = obj.file.slice(start, end);
@@ -4164,22 +4161,18 @@ setTimeout(() => {
                     });
 
                     if (chunkRes.status === 308) {
-                        // Google báo: "Chưa xong, bơm tiếp đi" -> Cập nhật mốc mới
                         start = end;
                     } else if (chunkRes.ok) {
-                        // Google báo: "Đã nhận đủ 100%"
                         uploadedData = await chunkRes.json();
                         break;
                     } else {
-                        let errText = await chunkRes.text();
-                        throw new Error(`Đứt gãy mạng ở đoạn ${start}-${end}: ${errText}`);
+                        throw new Error(`Đứt gãy mạng khi tải.`);
                     }
                 }
 
                 if (uploadedData && uploadedData.id) realId = uploadedData.id;
                 else throw new Error("Google không trả về ID file.");
                 
-                // Gắn ID thật vào UI
                 let uploadedItem = currentDriveItems.find(i => i.id === obj.id);
                 if (uploadedItem && realId) {
                     uploadedItem.id = realId; delete uploadedItem.isPending; delete uploadedItem.tempUrl;
@@ -4201,7 +4194,7 @@ setTimeout(() => {
         syncQueueCount--; updateSyncIndicator(); event.target.value = ''; 
     };
 
-    // (Giữ lại Trình phát Video MP4)
+    // Giữ nguyên Trình phát MP4
     window.openMedia = function(id, mimeType, name, tempUrlFull = null) {
         window.isMediaViewerActive = true; window.ignoreNextPopState = false; history.pushState({ mediaViewer: true }, '', ''); 
         if (typeof folderStack !== 'undefined' && folderStack.length > 0) {
@@ -4222,4 +4215,4 @@ setTimeout(() => {
             content.innerHTML = `<div class="text-white flex flex-col items-center"><i class="fas fa-file text-6xl mb-4"></i><p>Tệp này cần tải về để xem.</p></div>`;
         }
     };
-}, 14000); // 14s để chắc chắn đè bẹp bản Patch 12 cũ!
+}, 14000);
