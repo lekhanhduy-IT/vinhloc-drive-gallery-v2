@@ -80,6 +80,7 @@ function decodeJwtResponse(token) {
 }
 
 // 3. THE ULTIMATE INTERCEPTOR: Chặn mọi gói tin Fetch để nhét Email vào
+// 3. THE ULTIMATE INTERCEPTOR: Chặn mọi gói tin Fetch để nhét Email vào
 window.fetch = async function() {
     if (arguments[0] === SCRIPT_URL && arguments[1] && arguments[1].body) {
         try {
@@ -93,22 +94,27 @@ window.fetch = async function() {
     }
     
     const response = await originalFetch.apply(this, arguments);
-    
-    // Chặn bắt lỗi ngầm nếu lỡ đang chạy app mà tài khoản bị thu hồi quyền trên Drive
     const clonedRes = response.clone();
+    
     try {
         const data = await clonedRes.json();
         if (data && data.needLogin) {
+            // SỬA LỖI Ở ĐÂY: Chỉ báo Toast đỏ nếu người dùng đã từng vào được app
+            // Tránh việc app vừa mở lên đang chờ đăng nhập đã báo lỗi loạn xạ
+            if (currentUserEmail) {
+                showToast("Tài khoản đã bị thu hồi quyền trên Google Drive!", true);
+            }
+            
             localStorage.removeItem('vinhloc_user_email');
             currentUserEmail = null;
             const loginScreen = document.getElementById('vinhloc-login-screen');
             if (loginScreen) loginScreen.style.display = 'flex';
-            showToast("Tài khoản đã bị thu hồi quyền trên Google Drive!", true);
         }
     } catch(e) {}
     
     return response;
 };
+// ==============================================================
 // ==============================================================
 // Kết thúc patch 0
 // ==============================================================
