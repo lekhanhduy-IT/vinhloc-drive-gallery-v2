@@ -97,13 +97,11 @@ async function handleCredentialResponse(response) {
 
             // Kích hoạt luồng đếm ngược nạp dữ liệu mạng lưới
             initSpiderLoaderFlow();
-        } else {
-            // Bị từ chối: Xuất cảnh báo lỗi lên màn hình đăng nhập
-            if (errorMsgEl) {
-                errorMsgEl.innerText = checkRes.message || "Tài khoản chưa được cấp quyền sử dụng!";
-                errorMsgEl.classList.remove("text-blue-600");
-                errorMsgEl.classList.add("text-red-500");
-            }
+} else {
+            // TỪ CHỐI ĐĂNG NHẬP: Ép hệ thống phải in ra đúng câu trả lời của App Script
+            errorMsgEl.innerText = checkRes.message || "Hệ thống không phản hồi!";
+            errorMsgEl.classList.remove("text-blue-600");
+            errorMsgEl.classList.add("text-red-500");
         }
     } catch (err) {
         if (errorMsgEl) {
