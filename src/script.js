@@ -5059,3 +5059,91 @@ setTimeout(() => {
 
     console.log("✅ PATCH 39: Đã trang bị Sổ Đen Blacklist! Quái vật Zombie sẽ không thể hồi sinh!");
 }, 22000); // Kích hoạt ở mốc 22s để bao trọn mọi chức năng của các Patch trước
+// ==============================================================
+// PATCH 40: ĐỒNG BỘ SỔ ĐEN TOÀN CẦU (DIỆT ZOMBIE ĐA THIẾT BỊ)
+// ==============================================================
+setTimeout(() => {
+    // 1. GHI ĐÈ FETCH: LUÔN ĐÍNH KÈM SỔ ĐEN MỖI KHI PHÁT SÓNG NÃO NHỆN
+    const originalFetch = window.fetch;
+    window.fetch = function() {
+        if (arguments[1] && typeof arguments[1].body === 'string') {
+            // Can thiệp vào lúc hệ thống gửi lệnh saveGlobalCache
+            if (arguments[1].body.includes('"action":"saveGlobalCache"')) {
+                try {
+                    let bodyObj = JSON.parse(arguments[1].body);
+                    let cacheObj = JSON.parse(bodyObj.cacheData);
+                    
+                    // Nhét thêm Sổ Đen hiện tại của máy này vào gói hàng
+                    cacheObj.blacklist = window.vinhloc_blacklist || [];
+                    
+                    bodyObj.cacheData = JSON.stringify(cacheObj);
+                    arguments[1].body = JSON.stringify(bodyObj);
+                } catch(e) {}
+            }
+        }
+        return originalFetch.apply(this, arguments);
+    };
+
+    // 2. ÉP PHÁT SÓNG LỆNH TRUY NÃ TỨC THÌ KHI BẤM XÓA
+    if (window.purgeDeletedItem && !window.purgeDeletedItem.isGlobalBlacklistHooked) {
+        const originalPurgeP40 = window.purgeDeletedItem;
+        window.purgeDeletedItem = function(id) {
+            // Chạy lệnh xóa và lưu Sổ Đen cục bộ (của Patch 39)
+            if (originalPurgeP40) originalPurgeP40(id);
+            
+            // Ép trạm phát sóng gửi Não Nhện (+ Sổ Đen) lên Mây NGAY TỨC KHẮC
+            if (typeof folderDataCache !== 'undefined' && Object.keys(folderDataCache).length > 0) {
+                const payload = {
+                    action: 'saveGlobalCache',
+                    cacheData: JSON.stringify({ 
+                        folderData: folderDataCache, 
+                        subData: subFolderCache, 
+                        blacklist: window.vinhloc_blacklist 
+                    })
+                };
+                originalFetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                }).then(() => console.log(`☠️ Đã phát lệnh truy nã toàn cầu cho ID: ${id}`)).catch(()=>{});
+            }
+        };
+        window.purgeDeletedItem.isGlobalBlacklistHooked = true;
+    }
+
+    // 3. RADAR QUÉT LỆNH TRUY NÃ LIÊN TỤC TRÊN CÁC MÁY KHÁC
+    setInterval(async () => {
+        try {
+            // Tải Não Nhện về chỉ để kiểm tra Sổ Đen
+            const res = await originalFetch(SCRIPT_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: 'loadGlobalCache' }) 
+            }).then(r => r.json());
+            
+            if (res && res.success && res.data && res.data.blacklist) {
+                const globalBlacklist = res.data.blacklist;
+                let hasNewZombie = false;
+                
+                // Đối chiếu Sổ Đen Mạng Lưới với Sổ Đen Cục Bộ
+                globalBlacklist.forEach(id => {
+                    if (!window.vinhloc_blacklist.includes(id)) {
+                        window.vinhloc_blacklist.push(id);
+                        hasNewZombie = true;
+                    }
+                });
+                
+                // Nếu phát hiện có kẻ vừa bị máy khác kết án tử hình
+                if (hasNewZombie) {
+                    localStorage.setItem('vinhloc_blacklist', JSON.stringify(window.vinhloc_blacklist));
+                    console.log("🛡️ Nhận lệnh truy nã từ Mạng Lưới! Đang thanh trừng Zombie...");
+                    
+                    // Vẽ lại màn hình. Lúc này Patch 39 sẽ tự động dò Sổ Đen và chém bay các thư mục rác đang hiển thị
+                    if (window.renderItems && typeof currentDriveItems !== 'undefined') {
+                        window.renderItems(currentDriveItems);
+                    }
+                }
+            }
+        } catch(e) {}
+    }, 30000); // Quét radar mỗi 30 giây để đảm bảo máy luôn sạch sẽ
+
+    console.log("✅ PATCH 40: Mạng lưới Sổ Đen Toàn Cầu đã kích hoạt! Zombie hết đường sống!");
+}, 25000); // Đợi 25s để bao trùm lên toàn bộ các hàm của Patch 39
