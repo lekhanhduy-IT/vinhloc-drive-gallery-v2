@@ -2,21 +2,30 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3Ly
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
-// --- PATCH: LOGIC NẠP BỘ NÃO NHỆN (HỖ TRỢ PWA) ---
+// --- PATCH: LOGIC NẠP BỘ NÃO NHỆN (HỖ TRỢ CÀI ĐẶT LẠI PWA) ---
+
+// 1. Lắng nghe lúc người dùng vừa bấm "Ghim ra màn hình chính" (Cài PWA)
+window.addEventListener('appinstalled', () => {
+    // Xóa cờ PWA đi, để khi mở app từ icon, nó bắt buộc nạp lại từ đầu
+    localStorage.removeItem("vinhloc_spider_pwa_loaded");
+    console.log("🕷️ Đã cài đặt PWA mới - Xóa trí nhớ cũ để nạp lại bộ não!");
+});
+
+// 2. Logic hiển thị khi mở App
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Nhận diện xem user đang mở bằng Trình duyệt hay mở từ Icon PWA (Màn hình chính)
+    // Nhận diện xem user đang mở bằng Trình duyệt hay mở từ Icon PWA (Màn hình chính)
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     
-    // 2. Kiểm tra cờ trong bộ nhớ
+    // Kiểm tra cờ trong bộ nhớ
     const pwaLoaded = localStorage.getItem("vinhloc_spider_pwa_loaded");
     const browserLoaded = localStorage.getItem("vinhloc_spider_browser_loaded");
     
     let shouldShowLoader = false;
     let storageKeyToSave = "";
 
-    // 3. Quyết định có hiển thị màn hình chờ hay không
+    // Quyết định có hiển thị màn hình chờ hay không
     if (isStandalone && !pwaLoaded) {
-        // Đang mở bằng Icon PWA và chưa nạp lần nào trên PWA
+        // Đang mở bằng Icon PWA và chưa nạp lần nào (hoặc vừa bị xóa cờ do mới cài lại)
         shouldShowLoader = true;
         storageKeyToSave = "vinhloc_spider_pwa_loaded";
     } else if (!isStandalone && !browserLoaded) {
@@ -28,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const loader = document.getElementById("spider-brain-loader");
     const textEl = document.getElementById("spider-brain-text");
 
-    // 4. Chạy màn hình chờ nếu thỏa mãn điều kiện
+    // Chạy màn hình chờ nếu thỏa mãn điều kiện
     if (shouldShowLoader && loader && textEl) {
         loader.style.display = "flex"; // Bật màn hình chờ
         let percent = 1;
@@ -44,7 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Kích hoạt hiệu ứng mờ dần
                 loader.classList.add("fade-out-spider");
                 
-                // Đánh dấu đã nạp thành công dựa trên môi trường (PWA hoặc Browser)
+                // Đánh dấu đã nạp thành công
                 localStorage.setItem(storageKeyToSave, "true");
                 
                 // Xóa khỏi luồng hiển thị
