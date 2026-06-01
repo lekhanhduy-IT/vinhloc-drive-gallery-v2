@@ -19,54 +19,29 @@
 
     originalSetTimeout.call(window, () => { window._isAppBooting = false; }, 2000); 
 
-    // 2. TỰ ĐỘNG BẮT PHIÊN BẢN MỚI & VƯỢT RÀO PWA CACHE
+    // 2. TỰ ĐỘNG BẮT PHIÊN BẢN MỚI NGAY TỪ GIÂY SỐ 0
     let currentVersion = "Không rõ";
-    document.querySelectorAll('script').forEach(s => {
+    const scripts = document.querySelectorAll('script');
+    scripts.forEach(s => {
         if (s.src && s.src.includes('script.js?v=')) {
             const match = s.src.match(/v=([0-9.]+)/);
             if (match && match[1]) currentVersion = match[1];
         }
     });
 
-    // Cập nhật chữ hiển thị lên giao diện
-    document.addEventListener("DOMContentLoaded", () => {
-        const subtitleEl = document.getElementById("version-subtitle");
-        if (subtitleEl && currentVersion !== "Không rõ") {
-            subtitleEl.innerText = "Phiên bản " + currentVersion;
+    if (currentVersion !== "Không rõ") {
+        // THÊM 2 DÒNG NÀY ĐỂ CẬP NHẬT CHỮ TRÊN GIAO DIỆN
+    const subtitleEl = document.getElementById("version-subtitle");
+    if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
+        const savedVersion = localStorage.getItem('vinhloc_app_version');
+        if (savedVersion && savedVersion !== currentVersion) {
+            console.log(`⚠️ Đã bắt được bản cập nhật: ${savedVersion} -> ${currentVersion}`);
+            // Dọn dẹp sạch sẽ bộ nhớ để ép bật lại màn hình 30s
+            localStorage.removeItem("vinhloc_loaded_accounts");
+            localStorage.removeItem("vinhloc_device_patched");
+            // Để nguyên phần sau cho Patch Check Version tự lo việc reload
         }
-    });
-
-    // Kẻ hủy diệt Cache: Chủ động fetch hỏi server
-    function checkServerForUpdate() {
-        // Dùng timestamp để lừa PWA tưởng đây là link mới hoàn toàn, bắt buộc tải từ Vercel
-        const noCacheUrl = window.location.pathname + '?t=' + new Date().getTime();
-        
-        fetch(noCacheUrl, {
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-        })
-        .then(response => response.text())
-        .then(html => {
-            // Lục tìm thẻ script trong file HTML mới nhất trên server
-            const match = html.match(/script\.js\?v=([0-9.]+)/);
-            if (match && match[1]) {
-                const serverVersion = match[1];
-                
-                // Nếu thấy bản mới trên server khác với bản đang chạy ở máy
-                if (currentVersion !== "Không rõ" && serverVersion !== currentVersion) {
-                    console.log(`🚀 Có bản cập nhật mới! Đang ép tải lại: ${currentVersion} -> ${serverVersion}`);
-                    
-                    // Ép chuyển link bằng cách gắn thêm version mới vào URL (để phá vỡ bộ nhớ PWA)
-                    const cleanPath = window.location.pathname;
-                    window.location.replace(`${cleanPath}?v=${serverVersion}`);
-                }
-            }
-        })
-        .catch(err => console.log("Lỗi check version ngầm:", err));
     }
-
-    // Kích hoạt ngay khi mở app
-    checkServerForUpdate();
 
     // 3. TÁI CẤU TRÚC LOGIC ĐĂNG NHẬP & MÀN HÌNH CHỜ
     window.initSpiderLoaderFlow = function() {
