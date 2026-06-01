@@ -5187,7 +5187,7 @@ setTimeout(() => {
     console.log("✅ PATCH 41: Lưới lọc Network đã giăng. Chặn đứng 100% tỷ lệ tái sinh của Zombie!");
 }, 26000);
 // ==============================================================
-// PATCH: HỆ THỐNG CLIPBOARD PRO & CHỈNH SỬA ẢNH ĐƠN TỐC ĐỘ CAO
+// PATCH: HỆ THỐNG CLIPBOARD PRO & CHỈNH SỬA ẢNH SIÊU TỐC (UPDATE)
 // ==============================================================
 
 window.vlClipboard = {
@@ -5203,7 +5203,7 @@ setInterval(() => {
     if(btn) { btn.classList.remove('hidden'); btn.style.display = 'flex'; }
 }, 500);
 
-// Hàm lục tìm thông tin file/folder gốc bất chấp đang ở chế độ nào (kể cả Search)
+// Hàm lục tìm thông tin file/folder gốc bất chấp đang ở chế độ nào
 function findItemGlobal(id) {
     if (typeof currentDriveItems !== 'undefined') {
         let found = currentDriveItems.find(i => i.id === id);
@@ -5221,32 +5221,31 @@ function findItemGlobal(id) {
             if (found) return found;
         }
     }
-    // Nếu là Mega-row lấy từ appMeta
     if (typeof appMeta !== 'undefined' && appMeta[id]) {
         return { id: id, name: appMeta[id].name, type: 'folder' };
     }
     return null;
 }
 
+// -------------------------------------------------------------
 // 1. ĐÁNH CHẶN HÀM MỞ MENU ĐỂ BƠM NÚT VÀO MỌI LÚC MỌI NƠI
+// -------------------------------------------------------------
 if (!window.toggleItemMenu.isClipboardHooked) {
     const originalToggleMenu = window.toggleItemMenu;
     
     window.toggleItemMenu = function(id, e) {
-        originalToggleMenu(id, e); // Chạy hàm gốc để mở menu
+        originalToggleMenu(id, e); 
         
         const menuObj = document.getElementById(`menu-${id}`);
         if (menuObj && !menuObj.classList.contains('hidden')) {
             const targetItem = findItemGlobal(id);
             window.vlClipboard.currentTarget = targetItem;
             
-            // Chỉ bơm thêm nút nếu menu này chưa được bơm (tránh bị nhân bản nút)
             if (!menuObj.hasAttribute('data-cb-injected')) {
                 const isImage = targetItem && targetItem.mimeType && targetItem.mimeType.includes('image');
                 
                 let html = `<div class="border-t border-gray-100 my-1"></div>`;
                 
-                // Bơm nút Chức năng Cơ bản
                 html += `
                 <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-blue-50 text-gray-700 cursor-pointer font-semibold" data-action="copy">
                     <i class="fa-regular fa-copy w-5 text-center text-blue-500 mr-2"></i><span>Sao chép</span>
@@ -5261,7 +5260,6 @@ if (!window.toggleItemMenu.isClipboardHooked) {
                     <i class="fa-solid fa-rotate-left w-5 text-center text-red-500 mr-2"></i><span>Hoàn tác</span>
                 </div>`;
                 
-                // Nếu là ẢNH -> Bơm thêm nút BIÊN TẬP
                 if (isImage) {
                     html += `<div class="border-t border-gray-100 my-1"></div>
                     <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-purple-50 text-purple-700 cursor-pointer font-bold" data-action="edit_single">
@@ -5277,7 +5275,9 @@ if (!window.toggleItemMenu.isClipboardHooked) {
     window.toggleItemMenu.isClipboardHooked = true;
 }
 
+// -------------------------------------------------------------
 // 2. BƠM NÚT VÀO MENU HEADER (Tổng)
+// -------------------------------------------------------------
 if (window.buildHeaderMenu && !window.buildHeaderMenu.isClipboardHooked) {
     const originalBuildHeaderMenu = window.buildHeaderMenu;
     window.buildHeaderMenu = function() {
@@ -5298,7 +5298,90 @@ if (window.buildHeaderMenu && !window.buildHeaderMenu.isClipboardHooked) {
     window.buildHeaderMenu.isClipboardHooked = true;
 }
 
-// 3. BẮT SỰ KIỆN CLICK CHO TOÀN BỘ HỆ THỐNG
+// -------------------------------------------------------------
+// 3. HÀM MỞ GIAO DIỆN CHỈNH SỬA CHUNG (TRÁNH VIẾT LẶP CODE)
+// -------------------------------------------------------------
+function launchDesignEditor(imagesToLoad, isSingleMode = false) {
+    if (typeof closeFab === 'function') closeFab();
+    
+    state.images = [];
+    state.layerOrder = [];
+    state.activeElementId = null;
+
+    imagesToLoad.forEach(item => {
+        const imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
+        const genId = typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9);
+        state.images.push({
+            id: genId, src: imgUrl,
+            ratio: 'auto', panX: 50, panY: 50, selected: false, customName: item.name || '', texts: [], wms: [],
+            filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
+        });
+    });
+
+    renderImages();
+    const overlayContainer = document.getElementById('watermark-overlay-container');
+    if (overlayContainer) overlayContainer.style.display = 'flex';
+    
+    // Lưu lịch sử để nút Back (Phím cứng điện thoại) có thể thoát Design an toàn
+    if (!window.isDesignOverlayActive) { 
+        window.isDesignOverlayActive = true; 
+        folderStack.push({ id: 'dummy_design_state', name: 'Design Mode', scrollTop: 0 }); 
+        history.pushState({ panel: 'design' }, '', ''); 
+    }
+
+    // Nếu chỉ có 1 ảnh, tự động click nút thu về 1 cột cho to rõ
+    if (isSingleMode) {
+        setTimeout(() => {
+            const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
+            if (btnDecrease) {
+                btnDecrease.click(); 
+                setTimeout(() => btnDecrease.click(), 50); 
+            }
+        }, 150);
+    }
+}
+
+// -------------------------------------------------------------
+// 4. [NEW] BẮT SỰ KIỆN CLICK NÚT CÂY BÚT (MỞ DESIGN)
+// -------------------------------------------------------------
+setTimeout(() => {
+    const btnOpenDesign = document.getElementById('btn-open-design');
+    if (btnOpenDesign) {
+        // Clone nút để xóa sạch các Event Listener cũ cản trở
+        const newBtnOpenDesign = btnOpenDesign.cloneNode(true);
+        btnOpenDesign.parentNode.replaceChild(newBtnOpenDesign, btnOpenDesign);
+
+        newBtnOpenDesign.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            const selectedIds = window.multiSelectState ? Array.from(window.multiSelectState.selectedIds) : [];
+            let imagesToLoad = [];
+
+            // A. NẾU CÓ CHỌN FILE (Dùng Checkbox)
+            if (selectedIds.length > 0) {
+                const selectedItems = selectedIds.map(id => findItemGlobal(id)).filter(Boolean);
+                imagesToLoad = selectedItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
+                
+                if (imagesToLoad.length === 0) return showToast("Không có ảnh nào trong số các mục được chọn!", true);
+                
+                // Mở biên tập. Nếu chọn đúng 1 ảnh thì kích hoạt chế độ Single (1 Cột)
+                launchDesignEditor(imagesToLoad, imagesToLoad.length === 1);
+            } 
+            // B. NẾU KHÔNG CHỌN FILE NÀO (Mặc định lấy tất cả ảnh trong thư mục)
+            else {
+                imagesToLoad = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
+                if (imagesToLoad.length === 0) return showToast("Thư mục này không có ảnh nào!", true);
+                
+                launchDesignEditor(imagesToLoad, false);
+            }
+        });
+    }
+}, 1000); // Đợi load giao diện xong mới gắn sự kiện
+
+
+// -------------------------------------------------------------
+// 5. BẮT SỰ KIỆN CLICK CHO MENU 3 CHẤM (CLIPBOARD & EDIT SINGLE)
+// -------------------------------------------------------------
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('.ctx-action-btn');
     if (!btn) return;
@@ -5307,39 +5390,12 @@ document.addEventListener('click', (e) => {
     const action = btn.getAttribute('data-action');
     const targetItem = window.vlClipboard.currentTarget;
 
-    // A. XỬ LÝ BIÊN TẬP ẢNH ĐƠN
+    // A. XỬ LÝ BIÊN TẬP ẢNH ĐƠN (Từ menu 3 chấm)
     if (action === 'edit_single') {
         if (!targetItem || !targetItem.mimeType.includes('image')) return;
-        
-        // Ẩn menu
         document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
-        if (typeof closeFab === 'function') closeFab();
-
-        const imgUrl = targetItem.tempUrl ? targetItem.tempUrl : `https://drive.google.com/thumbnail?id=${targetItem.id}&sz=w2000`;
-        const genId = typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9);
         
-        // Thiết lập giao diện Design chỉ với 1 ảnh
-        state.images = [{
-            id: genId,
-            src: imgUrl,
-            ratio: 'auto', panX: 50, panY: 50, selected: false, customName: targetItem.name, texts: [], wms: [],
-            filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
-        }];
-        state.layerOrder = [];
-        state.activeElementId = null;
-        
-        renderImages();
-        const overlayContainer = document.getElementById('watermark-overlay-container');
-        if (overlayContainer) overlayContainer.style.display = 'flex';
-        
-        // Tự động click ép về dạng 1 cột (Bấm 2 lần để chắc chắn kéo max xuống 1 cột)
-        setTimeout(() => {
-            const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
-            if (btnDecrease) {
-                btnDecrease.click(); 
-                setTimeout(() => btnDecrease.click(), 50); 
-            }
-        }, 150);
+        launchDesignEditor([targetItem], true);
         return;
     }
 
@@ -5363,12 +5419,9 @@ document.addEventListener('click', (e) => {
         let tFolderId = currentFolderId;
         let tReplaceId = null;
 
-        // Nếu dán thay thế đè lên 1 File cụ thể
         if (action === 'paste' && targetItem && targetItem.type === 'file') {
             tReplaceId = targetItem.id;
-        } 
-        // Nếu dán vào Mega Folder con
-        else if (action === 'paste' && targetItem && targetItem.type === 'folder') {
+        } else if (action === 'paste' && targetItem && targetItem.type === 'folder') {
             tFolderId = targetItem.id;  
         }
 
@@ -5386,12 +5439,8 @@ document.addEventListener('click', (e) => {
             if (res.success) {
                 showToast("✅ Dán hoàn tất!");
                 window.vlClipboard.undoStack = { undoType: window.vlClipboard.mode, items: res.processedItems };
-                
-                // Kết thúc dán -> Rút bộ nhớ tạm
                 window.vlClipboard.mode = null;
                 window.vlClipboard.items = [];
-                
-                // Gọi Trạm radar quét cập nhật thay đổi
                 if (typeof masterSync === 'function') masterSync();
             } else { showToast("Lỗi: " + res.message, true); }
         }).catch(()=> showToast("Lỗi mạng khi Dán!", true));
@@ -5424,8 +5473,8 @@ document.addEventListener('click', (e) => {
     const headerDropdown = document.getElementById('headerDropdown');
     if (headerDropdown) headerDropdown.classList.add('hidden');
 });
-// ==============================================================
-// PATCH 42: NÂNG CẤP CHIA SẺ (ÉP HIỂN THỊ ẢNH POST FACEBOOK & ZALO)
+/// ==============================================================
+// PATCH 42 (BẢN FIX TỐI ƯU): CHIA SẺ ẢNH LÊN FACEBOOK KHÔNG BỊ ĐƠ
 // ==============================================================
 setTimeout(() => {
     window.shareItem = async function (id, type, name, e) {
@@ -5435,7 +5484,6 @@ setTimeout(() => {
         let mimeTypeParam = '';
         let isImage = false;
 
-        // Kiểm tra xem mục đang share có phải là File Ảnh không
         if (type === 'file') {
             const fileObj = currentDriveItems.find(i => i.id === id);
             if (fileObj && fileObj.mimeType) {
@@ -5444,41 +5492,58 @@ setTimeout(() => {
             }
         }
 
-        // Link dẫn về PWA của bạn (Để dùng cho các app khác)
         const shareUrl = `${window.location.origin}${window.location.pathname}?shareId=${id}&shareType=${type}&shareName=${encodeURIComponent(name)}${mimeTypeParam}`;
         const shareText = `Mở xem chi tiết "${name}" trong ứng dụng:\n${shareUrl}`;
 
-        // CHIẾN THUẬT: NẾU LÀ ẢNH -> ÉP TRUYỀN FILE VẬT LÝ VÀO BẢNG SHARE HỆ ĐIỀU HÀNH
+        // NẾU LÀ ẢNH -> LẤY BLOB TRỰC TIẾP QUA PROXY (KHÔNG DÙNG BASE64 ĐỂ CHỐNG ĐƠ RAM)
         if (isImage && navigator.canShare) {
-            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang nạp ảnh gốc để chia sẻ...');
+            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang nạp ảnh chuẩn để Share...');
             try {
-                // Dùng hàm GAS có sẵn để kéo file base64 về (Vượt rào CORS của Google)
-                const b64Res = await apiCall('getFileBase64', { fileId: id });
+                // Dùng Thumbnail chất lượng cao (w2000) thay vì file gốc để tải siêu nhanh
+                const driveImgUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
                 
-                if (b64Res.success && b64Res.data && b64Res.mimeType) {
-                    // Dịch ngược Base64 thành File vật lý
-                    const byteCharacters = atob(b64Res.data);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    const blob = new Blob([new Uint8Array(byteNumbers)], { type: b64Res.mimeType });
-                    const fileObj = new File([blob], name, { type: b64Res.mimeType });
+                // Mạng lưới Proxy vượt rào CORS (Tận dụng lại mảng có sẵn trong code của bạn)
+                const urlsToTry = [
+                    "https://wsrv.nl/?url=" + encodeURIComponent(driveImgUrl),
+                    "https://corsproxy.io/?" + encodeURIComponent(driveImgUrl),
+                    "https://api.allorigins.win/raw?url=" + encodeURIComponent(driveImgUrl)
+                ];
 
-                    // Truyền cả File ảnh thật VÀ Link Web vào Bảng Share của Điện thoại
+                let blob = null;
+                for (let proxyUrl of urlsToTry) {
+                    try {
+                        const response = await fetch(proxyUrl);
+                        if (response.ok) {
+                            blob = await response.blob(); // Đổi thẳng dữ liệu thành File vật lý cực mượt
+                            break;
+                        }
+                    } catch (err) { 
+                        console.warn("Proxy bận, đang chuyển trạm...", err); 
+                    }
+                }
+
+                if (blob) {
+                    // Đóng gói Blob thành File thực thụ
+                    const fileObj = new File([blob], name, { type: blob.type || 'image/jpeg' });
+
+                    // Gửi File + Link vào Bảng Share của Hệ điều hành
                     if (navigator.canShare({ files: [fileObj] })) {
                         await navigator.share({ 
                             files: [fileObj], 
                             title: `Chia sẻ: ${name}`, 
-                            text: shareText // Link PWA sẽ nằm ở phần Caption (chú thích bài đăng FB)
+                            text: shareText // Link sẽ tự động thành Caption trên Facebook
                         });
-                        return; // Hoàn thành, thoát hàm
+                        return; // Xử lý xong, thoát hàm
                     }
+                } else {
+                    throw new Error("Không thể tải ảnh qua mạng lưới Proxy");
                 }
             } catch (err) {
-                console.warn("Lỗi nạp file vật lý, tự động lùi về chế độ share link thuần", err);
+                console.warn("Lỗi tạo file vật lý, tự động lùi về chế độ share link thuần", err);
             }
         }
 
-        // FALLBACK: Nếu là Thư mục, File tài liệu, hoặc trình duyệt cũ không hỗ trợ share File -> Trở về Share Link thuần túy
+        // FALLBACK: Trở về Share Link nếu thất bại hoặc mục đang chia sẻ là Thư mục / File văn bản
         if (navigator.share) {
             try { 
                 await navigator.share({ 
@@ -5492,5 +5557,5 @@ setTimeout(() => {
         }
     };
     
-    console.log("✅ PATCH 42: Đã nâng cấp Chia sẻ đa nền tảng (Ép hiển thị Post Ảnh trên Facebook)!");
-}, 28000); // Khởi chạy sau cùng để ghi đè các hàm cũ
+    console.log("✅ PATCH 42 (FIXED): Đã tối ưu thuật toán truyền File vào Facebook siêu tốc!");
+}, 28500); // Khởi chạy trễ nhất để chắc chắn đè bẹp bản Patch 42 bị lỗi
