@@ -2,21 +2,37 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3Ly
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
-// --- PATCH: LOGIC NẠP BỘ NÃO NHỆN 30 GIÂY ---
+// --- PATCH: LOGIC NẠP BỘ NÃO NHỆN (HỖ TRỢ PWA) ---
 document.addEventListener("DOMContentLoaded", () => {
-    // Dùng localStorage để nhận diện thiết bị mới
-    const isBrainLoaded = localStorage.getItem("vinhloc_spider_brain_loaded");
+    // 1. Nhận diện xem user đang mở bằng Trình duyệt hay mở từ Icon PWA (Màn hình chính)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    
+    // 2. Kiểm tra cờ trong bộ nhớ
+    const pwaLoaded = localStorage.getItem("vinhloc_spider_pwa_loaded");
+    const browserLoaded = localStorage.getItem("vinhloc_spider_browser_loaded");
+    
+    let shouldShowLoader = false;
+    let storageKeyToSave = "";
+
+    // 3. Quyết định có hiển thị màn hình chờ hay không
+    if (isStandalone && !pwaLoaded) {
+        // Đang mở bằng Icon PWA và chưa nạp lần nào trên PWA
+        shouldShowLoader = true;
+        storageKeyToSave = "vinhloc_spider_pwa_loaded";
+    } else if (!isStandalone && !browserLoaded) {
+        // Đang mở bằng Trình duyệt thông thường và chưa nạp lần nào
+        shouldShowLoader = true;
+        storageKeyToSave = "vinhloc_spider_browser_loaded";
+    }
+
     const loader = document.getElementById("spider-brain-loader");
     const textEl = document.getElementById("spider-brain-text");
 
-    // Nếu chưa từng nạp dữ liệu trên trình duyệt/thiết bị này
-    if (!isBrainLoaded && loader && textEl) {
+    // 4. Chạy màn hình chờ nếu thỏa mãn điều kiện
+    if (shouldShowLoader && loader && textEl) {
         loader.style.display = "flex"; // Bật màn hình chờ
         let percent = 1;
-        
-        // Cần chạy từ 1% đến 100% trong 30 giây (30000ms)
-        // Số bước là 100 => Mỗi bước cách nhau 300ms
-        const intervalTime = 300; 
+        const intervalTime = 300; // 300ms x 100 bước = ~30 giây
 
         const loadingInterval = setInterval(() => {
             percent++;
@@ -25,13 +41,13 @@ document.addEventListener("DOMContentLoaded", () => {
             if (percent >= 100) {
                 clearInterval(loadingInterval);
                 
-                // 1. Kích hoạt hiệu ứng mờ dần
+                // Kích hoạt hiệu ứng mờ dần
                 loader.classList.add("fade-out-spider");
                 
-                // 2. Đánh dấu thiết bị này đã nạp thành công bộ não
-                localStorage.setItem("vinhloc_spider_brain_loaded", "true");
+                // Đánh dấu đã nạp thành công dựa trên môi trường (PWA hoặc Browser)
+                localStorage.setItem(storageKeyToSave, "true");
                 
-                // 3. Xóa hoàn toàn khỏi luồng hiển thị sau khi mờ xong (1 giây)
+                // Xóa khỏi luồng hiển thị
                 setTimeout(() => {
                     loader.style.display = "none";
                 }, 1000);
