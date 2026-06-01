@@ -5639,20 +5639,79 @@ document.addEventListener('click', (e) => {
     if (headerDropdown) headerDropdown.classList.add('hidden');
 });
 // ==============================================================
-// PATCH 43: NÚT CÂY BÚT THÔNG MINH (CHỈ LẤY ẢNH ĐANG ACTIVE)
+// PATCH 43 (BẢN FIXED KHAI SÁNG): NÚT CÂY BÚT THÔNG MINH (CHỈ LẤY ẢNH ĐANG ACTIVE)
 // ==============================================================
 setTimeout(() => {
     const oldBtn = document.getElementById('btn-open-design');
     if (oldBtn) {
-        // Nhân bản nút để xóa bỏ mọi sự kiện rác cũ
+        // 1. Nhân bản nút để xóa bỏ mọi sự kiện rác cũ
         const newBtn = oldBtn.cloneNode(true);
         oldBtn.parentNode.replaceChild(newBtn, oldBtn);
 
+        // 2. TRỊ BỆNH TÀNG HÌNH & ÉP HIỂN THỊ THÔNG MINH
+        // Vô hiệu hóa tham chiếu const cũ bị gãy, trao quyền ẩn/hiện cho renderItems 
+        // để nó tự động quét xem trong thư mục CÓ ẢNH HAY KHÔNG.
+        if (window.renderItems && !window.renderItems.isSmartPenHooked) {
+            const originalRenderForPen = window.renderItems;
+            window.renderItems = function(items, isSearchMode = false) {
+                originalRenderForPen(items, isSearchMode);
+                
+                const penBtn = document.getElementById('btn-open-design');
+                if (penBtn) {
+                    // Quét tìm xem có tồn tại ít nhất 1 file định dạng hình ảnh không
+                    const hasImages = items.some(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
+                    
+                    // Chỉ hiện cây bút khi: Đang ở thư mục con (folderStack > 1) VÀ có chứa ảnh
+                    if (typeof folderStack !== 'undefined' && folderStack.length > 1 && hasImages) {
+                        penBtn.classList.remove('hidden');
+                    } else {
+                        penBtn.classList.add('hidden');
+                    }
+                }
+            };
+            window.renderItems.isSmartPenHooked = true;
+        }
+
+        // Bịt lại lỗ hổng của updateBreadcrumbs để nó không can thiệp sai vào nút Cây bút nữa
+        if (window.updateBreadcrumbs && !window.updateBreadcrumbs.isSmartPenHooked) {
+            const originalUpdateBreadcrumbs = window.updateBreadcrumbs;
+            window.updateBreadcrumbs = function() {
+                // Khôi phục logic gốc cho các nút Back và Menu
+                if (folderStack.length === 1) {
+                    if (typeof currentFolderName !== 'undefined') currentFolderName.innerHTML = currentCategory;
+                    const btnBack = document.getElementById('btnBack');
+                    const btnMenu = document.getElementById('btnMenu');
+                    if (btnBack) btnBack.classList.add('hidden'); 
+                    if (btnMenu) btnMenu.classList.remove('hidden'); 
+                    
+                    // Tuyệt đối ẩn cây bút khi ở trang chủ
+                    const penBtn = document.getElementById('btn-open-design');
+                    if (penBtn) penBtn.classList.add('hidden');
+                } else {
+                    if (typeof currentFolderName !== 'undefined') {
+                        currentFolderName.innerHTML = folderStack.map((f, i) => {
+                            if (i === folderStack.length - 1) return `<span class="font-bold">${f.name}</span>`;
+                            return `<span class="font-normal opacity-70 cursor-pointer" onclick="loadFolder('${f.id}','${f.name}')">${f.name}</span>`;
+                        }).join(' <i class="fas fa-chevron-right text-[10px] mx-1 opacity-50"></i> ');
+                    }
+                    const btnBack = document.getElementById('btnBack');
+                    const btnMenu = document.getElementById('btnMenu');
+                    if (btnBack) btnBack.classList.remove('hidden'); 
+                    if (btnMenu) btnMenu.classList.add('hidden'); 
+                    
+                    // Lưu ý: Không tháo class 'hidden' của cây bút ở đây nữa. 
+                    // RenderItems sẽ gánh vác trách nhiệm kiểm tra có ảnh hay không để mở!
+                }
+            };
+            window.updateBreadcrumbs.isSmartPenHooked = true;
+        }
+
+        // 3. LOGIC XỬ LÝ LẤY ẢNH VÀ MỞ GIAO DIỆN DESIGN
         newBtn.addEventListener('click', () => {
-            // 1. Lọc ra toàn bộ ảnh trong thư mục hiện tại
+            // Lọc ra toàn bộ ảnh trong thư mục hiện tại
             let targetItems = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
 
-            // 2. LOGIC LÕI: Nếu đang có ảnh được "Active" (Tick chọn) -> Chỉ lấy những ảnh đó
+            // Nếu đang có ảnh được "Active" (Tick chọn) -> Chỉ lấy những ảnh đó
             if (window.multiSelectState && window.multiSelectState.selectedIds.size > 0) {
                 targetItems = targetItems.filter(item => window.multiSelectState.selectedIds.has(item.id));
             }
@@ -5673,7 +5732,7 @@ setTimeout(() => {
             if (typeof closeFab === 'function') closeFab();
             document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
 
-            // 3. Làm sạch không gian làm việc và nạp ảnh vào Design
+            // Làm sạch không gian làm việc và nạp ảnh vào Design
             state.images = []; 
             state.layerOrder = []; 
             state.activeElementId = null;
@@ -5693,7 +5752,7 @@ setTimeout(() => {
             const overlayContainer = document.getElementById('watermark-overlay-container');
             if (overlayContainer) overlayContainer.style.display = 'flex';
 
-            // 4. TỰ ĐỘNG ZOOM TO: Nếu chỉ đưa vào 1 ảnh, ép lưới về 1 cột để dễ chỉnh sửa
+            // TỰ ĐỘNG ZOOM TO: Nếu chỉ đưa vào 1 ảnh, ép lưới về 1 cột để dễ chỉnh sửa
             if (driveImages.length === 1) {
                 setTimeout(() => {
                     const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
@@ -5704,7 +5763,7 @@ setTimeout(() => {
                 }, 150);
             }
 
-            // 5. Phục hồi lịch sử trình duyệt để sửa lỗi nút Back vật lý của điện thoại (Safe Mode V2)
+            // Phục hồi lịch sử trình duyệt để sửa lỗi nút Back vật lý của điện thoại (Safe Mode V2)
             setTimeout(() => {
                 if (overlayContainer && overlayContainer.style.display === 'flex') {
                     if (!window.isDesignOverlayActive) {
@@ -5716,7 +5775,7 @@ setTimeout(() => {
             }, 50);
         });
     }
-    console.log("✅ PATCH 43: Đã cập nhật Nút Cây Bút thông minh (Biết lấy ảnh đang chọn)!");
+    console.log("✅ PATCH 43 (FIXED): Nút Cây Bút đã hết ngốc, chỉ hiển thị quyền lực khi thư mục thực sự có ảnh!");
 }, 28000);
 // ==============================================================
 // PATCH 42 (BẢN FIX TỐI ƯU): CHIA SẺ ẢNH LÊN FACEBOOK KHÔNG BỊ ĐƠ
@@ -5852,43 +5911,3 @@ setTimeout(() => {
     
     console.log("✅ PATCH 44: Đã gắn Nút Đăng xuất vào Menu Header!");
 }, 29000); // Khởi chạy trễ ở giây 29 để chắc chắn nó luôn nằm dưới cùng
-// ==============================================================
-// PATCH FIX TẬN GỐC: CÂY BÚT BỊ TÀNG HÌNH DO NHÂN BẢN DOM (PATCH 43)
-// ==============================================================
-(function() {
-    // Ghi đè hàm điều hướng để ép nó quét lại DOM tìm chiếc nút thật
-    const originalUpdateBreadcrumbs = window.updateBreadcrumbs;
-    
-    window.updateBreadcrumbs = function() {
-        // Vẫn chạy hàm cũ để hiển thị đúng Tên đường dẫn
-        if (typeof originalUpdateBreadcrumbs === 'function') {
-            originalUpdateBreadcrumbs();
-        }
-        
-        // BÍ QUYẾT: Quét trực tiếp HTML để tìm nút Cây Bút mới nhất
-        const realPenBtn = document.getElementById('btn-open-design');
-        
-        if (realPenBtn) {
-            if (window.folderStack && window.folderStack.length > 1) {
-                // Nếu đang ở trong Thư mục -> ÉP HIỆN
-                realPenBtn.classList.remove('hidden');
-                realPenBtn.style.display = 'flex';
-            } else {
-                // Nếu đang ở Mega-row gốc -> ÉP ẨN
-                realPenBtn.classList.add('hidden');
-                realPenBtn.style.display = 'none';
-            }
-        }
-    };
-
-    // Tự động kích hoạt quét một lần ngay lập tức (phòng trường hợp bạn đang đứng sẵn trong thư mục)
-    setTimeout(() => {
-        if (window.folderStack && window.folderStack.length > 1) {
-            const currentPenBtn = document.getElementById('btn-open-design');
-            if (currentPenBtn) {
-                currentPenBtn.classList.remove('hidden');
-                currentPenBtn.style.display = 'flex';
-            }
-        }
-    }, 500);
-})();
