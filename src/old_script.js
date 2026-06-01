@@ -1,6 +1,100 @@
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
+// ==============================================================
+// SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN
+// ==============================================================
+
+(function() {
+    // 1. SỬA LỖI TÀNG HÌNH: Khắc phục Illegal Invocation của setTimeout
+    window._isAppBooting = true;
+    const originalSetTimeout = window.setTimeout;
+    
+    window.setTimeout = function(fn, delay, ...args) {
+        if (window._isAppBooting && localStorage.getItem('vinhloc_device_patched') === 'true') {
+            if (delay >= 500 && delay <= 35000) {
+                delay = delay / 100; 
+            }
+        }
+        // CHÚ Ý: Bắt buộc dùng .call(window) để không làm sập các hàm của trình duyệt
+        return originalSetTimeout.call(window, fn, delay, ...args);
+    };
+
+    originalSetTimeout.call(window, () => { window._isAppBooting = false; }, 2000); 
+
+    // 2. TỰ ĐỘNG BẮT PHIÊN BẢN MỚI NGAY TỪ GIÂY SỐ 0
+    let currentVersion = "Không rõ";
+    const scripts = document.querySelectorAll('script');
+    scripts.forEach(s => {
+        if (s.src && s.src.includes('script.js?v=')) {
+            const match = s.src.match(/v=([0-9.]+)/);
+            if (match && match[1]) currentVersion = match[1];
+        }
+    });
+
+    if (currentVersion !== "Không rõ") {
+        const savedVersion = localStorage.getItem('vinhloc_app_version');
+        if (savedVersion && savedVersion !== currentVersion) {
+            console.log(`⚠️ Đã bắt được bản cập nhật: ${savedVersion} -> ${currentVersion}`);
+            // Dọn dẹp sạch sẽ bộ nhớ để ép bật lại màn hình 30s
+            localStorage.removeItem("vinhloc_loaded_accounts");
+            localStorage.removeItem("vinhloc_device_patched");
+            // Để nguyên phần sau cho Patch Check Version tự lo việc reload
+        }
+    }
+
+    // 3. TÁI CẤU TRÚC LOGIC ĐĂNG NHẬP & MÀN HÌNH CHỜ
+    window.initSpiderLoaderFlow = function() {
+        const currentEmail = localStorage.getItem("vinhloc_authenticated_email");
+        if (!currentEmail) return;
+
+        localStorage.removeItem("vinhloc_spider_pwa_loaded");
+        localStorage.removeItem("vinhloc_spider_browser_loaded");
+
+        let loadedAccounts = JSON.parse(localStorage.getItem("vinhloc_loaded_accounts") || "[]");
+        const isAccountLoaded = loadedAccounts.includes(currentEmail);
+        
+        const loader = document.getElementById("spider-brain-loader");
+        const textEl = document.getElementById("spider-brain-text");
+
+        if (!isAccountLoaded && loader && textEl) {
+            loader.style.display = "flex";
+            loader.classList.remove("fade-out-spider");
+            let percent = 1;
+            const intervalTime = 300; 
+
+            const loadingInterval = setInterval(() => {
+                percent++;
+                textEl.innerText = `Đang nạp ${percent}%...`;
+
+                if (percent >= 100) {
+                    clearInterval(loadingInterval);
+                    loader.classList.add("fade-out-spider");
+                    
+                    loadedAccounts.push(currentEmail);
+                    localStorage.setItem("vinhloc_loaded_accounts", JSON.stringify(loadedAccounts));
+                    localStorage.setItem("vinhloc_device_patched", "true");
+
+                    originalSetTimeout.call(window, () => { loader.style.display = "none"; }, 1000);
+                }
+            }, intervalTime);
+        } else {
+            if (loader) loader.style.display = "none";
+            localStorage.setItem("vinhloc_device_patched", "true"); 
+        }
+    };
+
+    window.addEventListener('appinstalled', () => {
+        localStorage.removeItem("vinhloc_loaded_accounts");
+    });
+})();
+
+// ==============================================================
+// (MÃ CŨ CỦA BẠN BẮT ĐẦU TỪ ĐÂY)
+// const SCRIPT_URL = "https://script.google.com/...";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3xI-bNWfeffsEH-iIc0yYfF9bHYvAiKZKWIfco6j7Z7GOtOAv7Q8WE1_y9xjen7c/exec";
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
+
+// === CẤU HÌNH OAUTH CLIENT ID (Thay chuỗi dưới đây bằng Client ID của bạn trên Google Console) ===
+const GOOGLE_CLIENT_ID = "1034177686409-1fhm0m0tqmf58qjj1p0r2ifo018eh8o2.apps.googleusercontent.com";
 
 // --- PATCH: LOGIC NẠP BỘ NÃO NHỆN (HỖ TRỢ CÀI ĐẶT LẠI PWA) ---
 
@@ -8,28 +102,124 @@ const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 window.addEventListener('appinstalled', () => {
     // Xóa cờ PWA đi, để khi mở app từ icon, nó bắt buộc nạp lại từ đầu
     localStorage.removeItem("vinhloc_spider_pwa_loaded");
+    localStorage.removeItem("vinhloc_spider_browser_loaded");
     console.log("🕷️ Đã cài đặt PWA mới - Xóa trí nhớ cũ để nạp lại bộ não!");
 });
 
-// 2. Logic hiển thị khi mở App
+// 2. Logic kiểm tra phân quyền & Hiển thị giao diện khi mở App
 document.addEventListener("DOMContentLoaded", () => {
-    // Nhận diện xem user đang mở bằng Trình duyệt hay mở từ Icon PWA (Màn hình chính)
+    // Kiểm tra trạng thái đăng nhập được lưu từ trước
+    const loggedInUser = localStorage.getItem("vinhloc_authenticated_email");
+    
+    if (loggedInUser) {
+        // Trường hợp 1: Đã đăng nhập hợp lệ trước đó -> Ẩn màn hình đăng nhập, chạy thẳng vào luồng đếm loader
+        const authOverlay = document.getElementById("auth-overlay");
+        if (authOverlay) authOverlay.style.display = "none";
+        initSpiderLoaderFlow();
+    } else {
+        // Trường hợp 2: Chưa đăng nhập hoặc mới xóa cache -> Khởi tạo khung đăng nhập khóa ứng dụng
+        initGoogleAuth();
+    }
+});
+
+// Hàm khởi chạy và kết nối thư viện Google Sign-In định dạng nút bấm mặc định
+function initGoogleAuth() {
+    if (typeof google === 'undefined') {
+        // Nếu thư viện tải chậm do mạng, thử lại sau mỗi 500ms
+        setTimeout(initGoogleAuth, 500);
+        return;
+    }
+
+    google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse
+    });
+
+    const loginBtnEl = document.getElementById("google-login-btn");
+    if (loginBtnEl) {
+        google.accounts.id.renderButton(
+            loginBtnEl,
+            { theme: "outline", size: "large", width: "100%", text: "signin_with" }
+        );
+    }
+}
+
+// Xử lý thông tin Token mã hóa trả về từ Google sau khi chọn tài khoản email
+async function handleCredentialResponse(response) {
+    const errorMsgEl = document.getElementById("auth-error-msg");
+    if (errorMsgEl) errorMsgEl.classList.add("hidden");
+    
+    try {
+        // Giải mã nhanh phần thân (Payload) của JWT Token để bóc tách lấy Email
+        const base64Url = response.credential.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        const payloadObj = JSON.parse(jsonPayload);
+        const email = payloadObj.email;
+
+        // Cập nhật trạng thái đang đối chiếu hệ thống lên giao diện
+        if (errorMsgEl) {
+            errorMsgEl.innerText = "Đang xác thực quyền truy cập...";
+            errorMsgEl.classList.remove("text-red-500");
+            errorMsgEl.classList.add("text-blue-600");
+            errorMsgEl.classList.remove("hidden");
+        }
+
+        // Thực hiện gửi gói tin API verifyUser kiểm tra với danh sách Whitelist trong Sheet dữ liệu
+        const checkRes = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verifyUser', email: email })
+        }).then(r => r.json());
+
+        if (checkRes && checkRes.success) {
+            // Xác thực thành công: Cất email vào bộ nhớ máy để bỏ qua bước đăng nhập lần sau
+            localStorage.setItem("vinhloc_authenticated_email", email);
+            
+            // Thực hiện đóng màn hình đăng nhập bảo mật
+            const authOverlay = document.getElementById("auth-overlay");
+            if (authOverlay) authOverlay.style.display = "none";
+            
+            // Xóa triệt để các cờ lưu cũ để cưỡng bức màn hình nạp 30 giây kích hoạt ngay tại nhịp này
+            localStorage.removeItem("vinhloc_spider_pwa_loaded");
+            localStorage.removeItem("vinhloc_spider_browser_loaded");
+
+            // Kích hoạt luồng đếm ngược nạp dữ liệu mạng lưới
+            initSpiderLoaderFlow();
+} else {
+            // TỪ CHỐI ĐĂNG NHẬP: Ép hệ thống phải in ra đúng câu trả lời của App Script
+            errorMsgEl.innerText = checkRes.message || "Hệ thống không phản hồi!";
+            errorMsgEl.classList.remove("text-blue-600");
+            errorMsgEl.classList.add("text-red-500");
+        }
+    } catch (err) {
+        if (errorMsgEl) {
+            errorMsgEl.innerText = "Lỗi xử lý đăng nhập hệ thống!";
+            errorMsgEl.classList.remove("text-blue-600");
+            errorMsgEl.classList.add("text-red-500");
+        }
+        console.error("Lỗi Auth: ", err);
+    }
+}
+
+// Hàm quản lý độc lập luồng chạy màn hình chờ 30 giây (Chỉ chạy khi đã qua được lớp bảo mật)
+function initSpiderLoaderFlow() {
+    // Nhận diện xem user đang mở bằng Trình duyệt thông thường hay PWA độc lập từ màn hình chính
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     
-    // Kiểm tra cờ trong bộ nhớ
     const pwaLoaded = localStorage.getItem("vinhloc_spider_pwa_loaded");
     const browserLoaded = localStorage.getItem("vinhloc_spider_browser_loaded");
     
     let shouldShowLoader = false;
     let storageKeyToSave = "";
 
-    // Quyết định có hiển thị màn hình chờ hay không
+    // Phân tích trạng thái để quyết định có chạy màn đếm ngược hay không
     if (isStandalone && !pwaLoaded) {
-        // Đang mở bằng Icon PWA và chưa nạp lần nào (hoặc vừa bị xóa cờ do mới cài lại)
         shouldShowLoader = true;
         storageKeyToSave = "vinhloc_spider_pwa_loaded";
     } else if (!isStandalone && !browserLoaded) {
-        // Đang mở bằng Trình duyệt thông thường và chưa nạp lần nào
         shouldShowLoader = true;
         storageKeyToSave = "vinhloc_spider_browser_loaded";
     }
@@ -37,11 +227,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const loader = document.getElementById("spider-brain-loader");
     const textEl = document.getElementById("spider-brain-text");
 
-    // Chạy màn hình chờ nếu thỏa mãn điều kiện
+    // Tiến hành kích hoạt bộ đếm thời gian thực nếu đủ điều kiện tải lần đầu
     if (shouldShowLoader && loader && textEl) {
-        loader.style.display = "flex"; // Bật màn hình chờ
+        loader.style.display = "flex"; // Mở màn hình chờ
         let percent = 1;
-        const intervalTime = 300; // 300ms x 100 bước = ~30 giây
+        const intervalTime = 300; // 300ms x 100 bước = chính xác 30 giây
 
         const loadingInterval = setInterval(() => {
             percent++;
@@ -50,20 +240,23 @@ document.addEventListener("DOMContentLoaded", () => {
             if (percent >= 100) {
                 clearInterval(loadingInterval);
                 
-                // Kích hoạt hiệu ứng mờ dần
+                // Chạy hiệu ứng CSS mờ dần tấm màn chắn
                 loader.classList.add("fade-out-spider");
                 
-                // Đánh dấu đã nạp thành công
+                // Đánh dấu mốc thiết bị đã đồng bộ thành công vào ổ cứng
                 localStorage.setItem(storageKeyToSave, "true");
                 
-                // Xóa khỏi luồng hiển thị
+                // Gỡ bỏ hoàn toàn trạng thái hiển thị của tấm màn sau 1 giây hiệu ứng kết thúc
                 setTimeout(() => {
                     loader.style.display = "none";
                 }, 1000);
             }
         }, intervalTime);
+    } else if (loader) {
+        // Trong trường hợp thiết bị đã đồng bộ từ trước và không cần chạy lại loader, ẩn ngay lập tức để vào app
+        loader.style.display = "none";
     }
-});
+}
 
 // Bỏ đọc từ localStorage để luôn làm mới stack mỗi khi mở app
 localStorage.removeItem('appFolderStack'); 
@@ -4271,36 +4464,57 @@ try {
     window.handleMultipleFileUpload = newUploadLogic;
 }
 // ==============================================================
-// HIỂN THỊ SỐ PHIÊN BẢN NGAY DƯỚI CÁC MỤC TRONG SIDEBAR
+// HIỂN THỊ SỐ PHIÊN BẢN & ÉP ĐĂNG NHẬP LẠI KHI CÓ CẬP NHẬT MỚI
 // ==============================================================
 setTimeout(() => {
-    // Tìm thẳng vào vùng chứa danh sách mục menu
     const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
     
     if (sidebarMenuContainer) {
-        // 1. Tự động đi tìm số phiên bản đang chạy trong HTML
+        // 1. Đi tìm số phiên bản đang chạy
         let currentVersion = "Không rõ";
         const scripts = document.querySelectorAll('script');
         scripts.forEach(s => {
             if (s.src && s.src.includes('script.js?v=')) {
-                // Bóc tách lấy đúng con số sau chữ v=
                 const match = s.src.match(/v=([0-9.]+)/);
                 if (match && match[1]) currentVersion = match[1];
             }
         });
 
-        // 2. Xóa thẻ cũ (nếu có) để tránh bị nhân đôi khi lướt web
+        // 2. LOGIC BẢO MẬT: So sánh phiên bản và ép Đăng xuất nếu có bản mới
+        if (currentVersion !== "Không rõ") {
+            const savedVersion = localStorage.getItem('vinhloc_app_version');
+            
+            if (savedVersion && savedVersion !== currentVersion) {
+                console.log(`⚠️ Phát hiện bản cập nhật mới: ${savedVersion} -> ${currentVersion}`);
+                
+                // Lưu lại mốc phiên bản mới để không bị reload lặp vô hạn
+                localStorage.setItem('vinhloc_app_version', currentVersion);
+                
+                // Xóa toàn bộ thông tin đăng nhập và cờ màn hình chờ
+                localStorage.removeItem("vinhloc_authenticated_email");
+                localStorage.removeItem("vinhloc_spider_pwa_loaded");
+                localStorage.removeItem("vinhloc_spider_browser_loaded");
+                
+                // Dọn dẹp sạch sẽ bộ nhớ đệm của Nhện và tải lại trang để khóa hệ thống
+                if (window.localforage) {
+                    localforage.clear().then(() => window.location.reload());
+                } else {
+                    window.location.reload();
+                }
+                return; // Ngừng vẽ giao diện, nhường quyền cho tiến trình tải lại
+            } else if (!savedVersion) {
+                // Nếu vào lần đầu, ghi nhớ phiên bản hiện tại
+                localStorage.setItem('vinhloc_app_version', currentVersion);
+            }
+        }
+
+        // 3. Vẽ thông tin phiên bản ra giao diện
         const oldVerDiv = document.getElementById('app-version-display');
         if (oldVerDiv) oldVerDiv.remove();
 
-        // 3. Tạo thẻ hiển thị mới
         const versionDiv = document.createElement('div');
         versionDiv.id = 'app-version-display';
-        
-        // SỬA Ở ĐÂY: Dùng pl-[24px] để khớp chính xác 100% với (20px padding + 4px border) của menu
-        versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px]  text-red-400 tracking-widest opacity-80 cursor-default';
-        
-        // Icon được fix cứng độ rộng w-6 và căn giữa giống hệt menu
+        versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px] text-red-400 tracking-widest opacity-80 cursor-default';
         versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${currentVersion}`;
         
         sidebarMenuContainer.appendChild(versionDiv);
@@ -5265,7 +5479,7 @@ if (!window.toggleItemMenu.isClipboardHooked) {
                 if (isImage) {
                     html += `<div class="border-t border-gray-100 my-1"></div>
                     <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-purple-50 text-purple-700 cursor-pointer font-bold" data-action="edit_single">
-                        <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-purple-600 mr-2"></i><span>Biên tập ảnh này</span>
+                        <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-purple-600 mr-2"></i><span>Biên tập</span>
                     </div>`;
                 }
                 
@@ -5425,37 +5639,100 @@ document.addEventListener('click', (e) => {
     if (headerDropdown) headerDropdown.classList.add('hidden');
 });
 // ==============================================================
-// PATCH 43: NÚT CÂY BÚT CHỈ BIÊN TẬP CÁC ẢNH ĐƯỢC CHỌN (HOẶC TẤT CẢ)
+// PATCH 43 (BẢN FIXED KHAI SÁNG): NÚT CÂY BÚT THÔNG MINH (CHỈ LẤY ẢNH ĐANG ACTIVE)
 // ==============================================================
 setTimeout(() => {
     const oldBtn = document.getElementById('btn-open-design');
     if (oldBtn) {
-        // Nhân bản nút để xóa bỏ các Event Listener cũ bị chồng chéo
+        // 1. Nhân bản nút để xóa bỏ mọi sự kiện rác cũ
         const newBtn = oldBtn.cloneNode(true);
         oldBtn.parentNode.replaceChild(newBtn, oldBtn);
 
+        // 2. TRỊ BỆNH TÀNG HÌNH & ÉP HIỂN THỊ THÔNG MINH
+        // Vô hiệu hóa tham chiếu const cũ bị gãy, trao quyền ẩn/hiện cho renderItems 
+        // để nó tự động quét xem trong thư mục CÓ ẢNH HAY KHÔNG.
+        if (window.renderItems && !window.renderItems.isSmartPenHooked) {
+            const originalRenderForPen = window.renderItems;
+            window.renderItems = function(items, isSearchMode = false) {
+                originalRenderForPen(items, isSearchMode);
+                
+                const penBtn = document.getElementById('btn-open-design');
+                if (penBtn) {
+                    // Quét tìm xem có tồn tại ít nhất 1 file định dạng hình ảnh không
+                    const hasImages = items.some(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
+                    
+                    // Chỉ hiện cây bút khi: Đang ở thư mục con (folderStack > 1) VÀ có chứa ảnh
+                    if (typeof folderStack !== 'undefined' && folderStack.length > 1 && hasImages) {
+                        penBtn.classList.remove('hidden');
+                    } else {
+                        penBtn.classList.add('hidden');
+                    }
+                }
+            };
+            window.renderItems.isSmartPenHooked = true;
+        }
+
+        // Bịt lại lỗ hổng của updateBreadcrumbs để nó không can thiệp sai vào nút Cây bút nữa
+        if (window.updateBreadcrumbs && !window.updateBreadcrumbs.isSmartPenHooked) {
+            const originalUpdateBreadcrumbs = window.updateBreadcrumbs;
+            window.updateBreadcrumbs = function() {
+                // Khôi phục logic gốc cho các nút Back và Menu
+                if (folderStack.length === 1) {
+                    if (typeof currentFolderName !== 'undefined') currentFolderName.innerHTML = currentCategory;
+                    const btnBack = document.getElementById('btnBack');
+                    const btnMenu = document.getElementById('btnMenu');
+                    if (btnBack) btnBack.classList.add('hidden'); 
+                    if (btnMenu) btnMenu.classList.remove('hidden'); 
+                    
+                    // Tuyệt đối ẩn cây bút khi ở trang chủ
+                    const penBtn = document.getElementById('btn-open-design');
+                    if (penBtn) penBtn.classList.add('hidden');
+                } else {
+                    if (typeof currentFolderName !== 'undefined') {
+                        currentFolderName.innerHTML = folderStack.map((f, i) => {
+                            if (i === folderStack.length - 1) return `<span class="font-bold">${f.name}</span>`;
+                            return `<span class="font-normal opacity-70 cursor-pointer" onclick="loadFolder('${f.id}','${f.name}')">${f.name}</span>`;
+                        }).join(' <i class="fas fa-chevron-right text-[10px] mx-1 opacity-50"></i> ');
+                    }
+                    const btnBack = document.getElementById('btnBack');
+                    const btnMenu = document.getElementById('btnMenu');
+                    if (btnBack) btnBack.classList.remove('hidden'); 
+                    if (btnMenu) btnMenu.classList.add('hidden'); 
+                    
+                    // Lưu ý: Không tháo class 'hidden' của cây bút ở đây nữa. 
+                    // RenderItems sẽ gánh vác trách nhiệm kiểm tra có ảnh hay không để mở!
+                }
+            };
+            window.updateBreadcrumbs.isSmartPenHooked = true;
+        }
+
+        // 3. LOGIC XỬ LÝ LẤY ẢNH VÀ MỞ GIAO DIỆN DESIGN
         newBtn.addEventListener('click', () => {
             // Lọc ra toàn bộ ảnh trong thư mục hiện tại
             let targetItems = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
 
-            // Nếu người dùng đang tick chọn file, thì chỉ lấy các file được chọn đó
+            // Nếu đang có ảnh được "Active" (Tick chọn) -> Chỉ lấy những ảnh đó
             if (window.multiSelectState && window.multiSelectState.selectedIds.size > 0) {
                 targetItems = targetItems.filter(item => window.multiSelectState.selectedIds.has(item.id));
             }
 
             const driveImages = targetItems.map(item => ({
                 url: item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`,
-                name: item.name // Truyền tên gốc để làm tên file lúc tải về
+                name: item.name 
             }));
 
-            // Xử lý báo lỗi nếu thư mục trống hoặc các file được chọn không phải là ảnh
+            // Nếu không có ảnh nào hợp lệ
             if (driveImages.length === 0) {
                 if (typeof closeFab === 'function') closeFab();
-                showToast("Không có ảnh hợp lệ nào để biên tập!", true);
+                showToast("Không có ảnh nào để biên tập!", true);
                 return;
             }
 
-            // Làm sạch không gian làm việc và nạp ảnh vào
+            // Dọn dẹp UI trước khi mở
+            if (typeof closeFab === 'function') closeFab();
+            document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+
+            // Làm sạch không gian làm việc và nạp ảnh vào Design
             state.images = []; 
             state.layerOrder = []; 
             state.activeElementId = null;
@@ -5475,18 +5752,18 @@ setTimeout(() => {
             const overlayContainer = document.getElementById('watermark-overlay-container');
             if (overlayContainer) overlayContainer.style.display = 'flex';
 
-            // HIỆU ỨNG THÔNG MINH: Nếu chỉ có 1 ảnh được nạp, tự động ép khung lưới về 1 cột (Zoom to hết cỡ)
+            // TỰ ĐỘNG ZOOM TO: Nếu chỉ đưa vào 1 ảnh, ép lưới về 1 cột để dễ chỉnh sửa
             if (driveImages.length === 1) {
                 setTimeout(() => {
                     const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
                     if (btnDecrease) {
                         btnDecrease.click();
-                        setTimeout(() => btnDecrease.click(), 50);
+                        setTimeout(() => btnDecrease.click(), 50); // Bấm 2 nhịp để đưa về max 1 cột
                     }
                 }, 150);
             }
 
-            // Phục hồi lại Patch đẩy lịch sử trình duyệt để sửa lỗi bấm nút Back (Trở về) trên điện thoại
+            // Phục hồi lịch sử trình duyệt để sửa lỗi nút Back vật lý của điện thoại (Safe Mode V2)
             setTimeout(() => {
                 if (overlayContainer && overlayContainer.style.display === 'flex') {
                     if (!window.isDesignOverlayActive) {
@@ -5498,8 +5775,8 @@ setTimeout(() => {
             }, 50);
         });
     }
-    console.log("✅ PATCH 43: Đã cập nhật Nút Cây Bút thông minh (Biết lấy ảnh đang chọn)!");
-}, 28000); // Cài đặt độ trễ 28s để chắc chắn các code khởi tạo nút đã chạy xong trước khi ghi đè
+    console.log("✅ PATCH 43 (FIXED): Nút Cây Bút đã hết ngốc, chỉ hiển thị quyền lực khi thư mục thực sự có ảnh!");
+}, 28000);
 // ==============================================================
 // PATCH 42 (BẢN FIX TỐI ƯU): CHIA SẺ ẢNH LÊN FACEBOOK KHÔNG BỊ ĐƠ
 // ==============================================================
@@ -5586,3 +5863,88 @@ setTimeout(() => {
     
     console.log("✅ PATCH 42 (FIXED): Đã tối ưu thuật toán truyền File vào Facebook siêu tốc!");
 }, 28500); // Khởi chạy trễ nhất để chắc chắn đè bẹp bản Patch 42 bị lỗi
+// ==============================================================
+// PATCH 44 (BẢN DÙNG MODAL CSS): THÊM NÚT ĐĂNG XUẤT VÀO MENU HEADER
+// ==============================================================
+setTimeout(() => {
+    if (window.buildHeaderMenu && !window.buildHeaderMenu.isLogoutHooked) {
+        // Lưu lại hàm build menu gốc
+        const originalBuildHeaderMenuForLogout = window.buildHeaderMenu;
+        
+        window.buildHeaderMenu = function() {
+            originalBuildHeaderMenuForLogout();
+            
+            const headerDropdown = document.getElementById('headerDropdown');
+            if (headerDropdown) {
+                const logoutHtml = `
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <div class="px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center cursor-pointer transition" onclick="window.vinhlocForceLogout(event)">
+                        <i class="fa-solid fa-right-from-bracket w-5 text-center mr-2"></i><span>Đăng xuất</span>
+                    </div>
+                `;
+                headerDropdown.insertAdjacentHTML('beforeend', logoutHtml);
+            }
+        };
+        window.buildHeaderMenu.isLogoutHooked = true;
+    }
+
+    // HÀM XỬ LÝ SỰ KIỆN KHI BẤM ĐĂNG XUẤT
+    window.vinhlocForceLogout = function(e) {
+        if (e) e.stopPropagation();
+        
+        // 1. Đóng menu dropdown thả xuống cho gọn mắt
+        const headerDropdown = document.getElementById('headerDropdown');
+        if (headerDropdown) headerDropdown.classList.add('hidden');
+
+        // 2. Tận dụng Custom Modal có sẵn của hệ thống
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDesc = document.getElementById('modalDesc');
+        const modalInput = document.getElementById('modalInput');
+        const confirmBtn = document.getElementById('modalConfirmBtn');
+        const customModal = document.getElementById('customModal');
+
+        if (customModal && modalTitle && modalDesc && confirmBtn) {
+            // Thay đổi nội dung Modal
+            modalTitle.textContent = 'Xác nhận Đăng xuất';
+            modalDesc.textContent = 'Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?';
+            modalDesc.classList.remove('hidden');
+            if (modalInput) modalInput.classList.add('hidden');
+
+            // Đổi style nút bấm
+            confirmBtn.textContent = 'Đăng xuất';
+            confirmBtn.className = 'px-5 py-2 bg-red-600 text-white font-bold rounded-xl';
+
+            // Gắn lệnh thực thi khi user bấm Đồng ý
+            confirmBtn.onclick = () => {
+                if (typeof closeModal === 'function') closeModal();
+                
+                // Hủy phiên đăng nhập
+                localStorage.removeItem("vinhloc_authenticated_email");
+                localStorage.removeItem("vinhloc_spider_pwa_loaded");
+                localStorage.removeItem("vinhloc_spider_browser_loaded");
+                
+                // Quét sạch dữ liệu nội bộ và ép tải lại
+                if (window.localforage) {
+                    localforage.clear().then(() => window.location.reload());
+                } else {
+                    window.location.reload();
+                }
+            };
+
+            // Bật Modal lên
+            customModal.classList.remove('hidden');
+            customModal.classList.add('flex');
+        } else {
+            // Fallback an toàn phòng khi mất HTML gốc
+            if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?")) {
+                localStorage.removeItem("vinhloc_authenticated_email");
+                localStorage.removeItem("vinhloc_spider_pwa_loaded");
+                localStorage.removeItem("vinhloc_spider_browser_loaded");
+                if (window.localforage) localforage.clear().then(() => window.location.reload());
+                else window.location.reload();
+            }
+        }
+    };
+    
+    console.log("✅ PATCH 44: Đã gắn Nút Đăng xuất (Custom UI) vào Menu Header!");
+}, 29000);

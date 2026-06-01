@@ -30,6 +30,9 @@
     });
 
     if (currentVersion !== "Không rõ") {
+        // THÊM 2 DÒNG NÀY ĐỂ CẬP NHẬT CHỮ TRÊN GIAO DIỆN
+    const subtitleEl = document.getElementById("version-subtitle");
+    if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
         const savedVersion = localStorage.getItem('vinhloc_app_version');
         if (savedVersion && savedVersion !== currentVersion) {
             console.log(`⚠️ Đã bắt được bản cập nhật: ${savedVersion} -> ${currentVersion}`);
@@ -139,7 +142,7 @@ function initGoogleAuth() {
     if (loginBtnEl) {
         google.accounts.id.renderButton(
             loginBtnEl,
-            { theme: "outline", size: "large", width: "100%", text: "signin_with" }
+            { theme: "outline", size: "large", width: "100%", text: "signin_with", shape: "pill" }
         );
     }
 }
@@ -164,7 +167,7 @@ async function handleCredentialResponse(response) {
         if (errorMsgEl) {
             errorMsgEl.innerText = "Đang xác thực quyền truy cập...";
             errorMsgEl.classList.remove("text-red-500");
-            errorMsgEl.classList.add("text-blue-600");
+            errorMsgEl.classList.add("text-white");
             errorMsgEl.classList.remove("hidden");
         }
 
