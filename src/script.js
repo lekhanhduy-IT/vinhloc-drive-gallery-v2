@@ -180,14 +180,22 @@ async function handleCredentialResponse(response) {
     
     try {
         // Giải mã nhanh phần thân (Payload) của JWT Token để bóc tách lấy Email
+        const base64Url = response.credential.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        const payloadObj = JSON.parse(jsonPayload);
+        const email = payloadObj.email;
+
         // Cập nhật trạng thái đang đối chiếu hệ thống lên giao diện
         if (errorMsgEl) {
             errorMsgEl.innerText = "Đang xác thực quyền truy cập...";
-            // Xóa các class màu lỗi/màu xanh đi
-            errorMsgEl.classList.remove("text-red-500", "text-blue-600", "text-yellow-400");
-            // Thêm class màu trắng
-            errorMsgEl.classList.add("text-white");
-            errorMsgEl.classList.remove("hidden");
+errorMsgEl.classList.remove("text-red-500");
+errorMsgEl.classList.remove("text-blue-600");
+errorMsgEl.classList.add("text-white");
+errorMsgEl.classList.remove("hidden");
         }
 
         // Thực hiện gửi gói tin API verifyUser kiểm tra với danh sách Whitelist trong Sheet dữ liệu
@@ -210,16 +218,16 @@ async function handleCredentialResponse(response) {
 
             // Kích hoạt luồng đếm ngược nạp dữ liệu mạng lưới
             initSpiderLoaderFlow();
-        } else {
+} else {
             // TỪ CHỐI ĐĂNG NHẬP: Ép hệ thống phải in ra đúng câu trả lời của App Script
             errorMsgEl.innerText = checkRes.message || "Hệ thống không phản hồi!";
-            errorMsgEl.classList.remove("text-white", "text-blue-600", "text-yellow-400");
+            errorMsgEl.classList.remove("text-blue-600");
             errorMsgEl.classList.add("text-red-500");
         }
     } catch (err) {
         if (errorMsgEl) {
             errorMsgEl.innerText = "Lỗi xử lý đăng nhập hệ thống!";
-            errorMsgEl.classList.remove("text-white", "text-blue-600", "text-yellow-400");
+            errorMsgEl.classList.remove("text-blue-600");
             errorMsgEl.classList.add("text-red-500");
         }
         console.error("Lỗi Auth: ", err);
