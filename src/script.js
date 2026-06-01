@@ -5526,82 +5526,7 @@ document.addEventListener('click', (e) => {
     const headerDropdown = document.getElementById('headerDropdown');
     if (headerDropdown) headerDropdown.classList.add('hidden');
 });
-// ==============================================================
-// PATCH 43: NÚT CÂY BÚT CHỈ BIÊN TẬP CÁC ẢNH ĐƯỢC CHỌN (HOẶC TẤT CẢ)
-// ==============================================================
-setTimeout(() => {
-    const oldBtn = document.getElementById('btn-open-design');
-    if (oldBtn) {
-        // Nhân bản nút để xóa bỏ các Event Listener cũ bị chồng chéo
-        const newBtn = oldBtn.cloneNode(true);
-        oldBtn.parentNode.replaceChild(newBtn, oldBtn);
 
-        newBtn.addEventListener('click', () => {
-            // Lọc ra toàn bộ ảnh trong thư mục hiện tại
-            let targetItems = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
-
-            // Nếu người dùng đang tick chọn file, thì chỉ lấy các file được chọn đó
-            if (window.multiSelectState && window.multiSelectState.selectedIds.size > 0) {
-                targetItems = targetItems.filter(item => window.multiSelectState.selectedIds.has(item.id));
-            }
-
-            const driveImages = targetItems.map(item => ({
-                url: item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`,
-                name: item.name // Truyền tên gốc để làm tên file lúc tải về
-            }));
-
-            // Xử lý báo lỗi nếu thư mục trống hoặc các file được chọn không phải là ảnh
-            if (driveImages.length === 0) {
-                if (typeof closeFab === 'function') closeFab();
-                showToast("Không có ảnh hợp lệ nào để biên tập!", true);
-                return;
-            }
-
-            // Làm sạch không gian làm việc và nạp ảnh vào
-            state.images = []; 
-            state.layerOrder = []; 
-            state.activeElementId = null;
-            
-            driveImages.forEach(img => {
-                state.images.push({
-                    id: typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9),
-                    src: img.url, ratio: 'auto', panX: 50, panY: 50, selected: false,
-                    customName: img.name || '',
-                    texts: [], wms: [],
-                    filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
-                });
-            });
-
-            if (typeof renderImages === 'function') renderImages();
-            
-            const overlayContainer = document.getElementById('watermark-overlay-container');
-            if (overlayContainer) overlayContainer.style.display = 'flex';
-
-            // HIỆU ỨNG THÔNG MINH: Nếu chỉ có 1 ảnh được nạp, tự động ép khung lưới về 1 cột (Zoom to hết cỡ)
-            if (driveImages.length === 1) {
-                setTimeout(() => {
-                    const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
-                    if (btnDecrease) {
-                        btnDecrease.click();
-                        setTimeout(() => btnDecrease.click(), 50);
-                    }
-                }, 150);
-            }
-
-            // Phục hồi lại Patch đẩy lịch sử trình duyệt để sửa lỗi bấm nút Back (Trở về) trên điện thoại
-            setTimeout(() => {
-                if (overlayContainer && overlayContainer.style.display === 'flex') {
-                    if (!window.isDesignOverlayActive) {
-                        window.isDesignOverlayActive = true;
-                        folderStack.push({ id: 'dummy_design_state', name: 'Design Mode', scrollTop: 0 });
-                        history.pushState({ panel: 'design' }, '', '');
-                    }
-                }
-            }, 50);
-        });
-    }
-    console.log("✅ PATCH 43: Đã cập nhật Nút Cây Bút thông minh (Biết lấy ảnh đang chọn)!");
-}, 28000); // Cài đặt độ trễ 28s để chắc chắn các code khởi tạo nút đã chạy xong trước khi ghi đè
 // ==============================================================
 // PATCH 42 (BẢN FIX TỐI ƯU): CHIA SẺ ẢNH LÊN FACEBOOK KHÔNG BỊ ĐƠ
 // ==============================================================
@@ -5688,3 +5613,83 @@ setTimeout(() => {
     
     console.log("✅ PATCH 42 (FIXED): Đã tối ưu thuật toán truyền File vào Facebook siêu tốc!");
 }, 28500); // Khởi chạy trễ nhất để chắc chắn đè bẹp bản Patch 42 bị lỗi
+// ==============================================================
+// PATCH 43: NÚT CÂY BÚT THÔNG MINH (CHỈ LẤY ẢNH ĐANG ACTIVE)
+// ==============================================================
+setTimeout(() => {
+    const oldBtn = document.getElementById('btn-open-design');
+    if (oldBtn) {
+        // Nhân bản nút để xóa bỏ mọi sự kiện rác cũ
+        const newBtn = oldBtn.cloneNode(true);
+        oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+
+        newBtn.addEventListener('click', () => {
+            // 1. Lọc ra toàn bộ ảnh trong thư mục hiện tại
+            let targetItems = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
+
+            // 2. LOGIC LÕI: Nếu đang có ảnh được "Active" (Tick chọn) -> Chỉ lấy những ảnh đó
+            if (window.multiSelectState && window.multiSelectState.selectedIds.size > 0) {
+                targetItems = targetItems.filter(item => window.multiSelectState.selectedIds.has(item.id));
+            }
+
+            const driveImages = targetItems.map(item => ({
+                url: item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`,
+                name: item.name 
+            }));
+
+            // Nếu không có ảnh nào hợp lệ
+            if (driveImages.length === 0) {
+                if (typeof closeFab === 'function') closeFab();
+                showToast("Không có ảnh nào để biên tập!", true);
+                return;
+            }
+
+            // Dọn dẹp UI trước khi mở
+            if (typeof closeFab === 'function') closeFab();
+            document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+
+            // 3. Làm sạch không gian làm việc và nạp ảnh vào Design
+            state.images = []; 
+            state.layerOrder = []; 
+            state.activeElementId = null;
+            
+            driveImages.forEach(img => {
+                state.images.push({
+                    id: typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9),
+                    src: img.url, ratio: 'auto', panX: 50, panY: 50, selected: false,
+                    customName: img.name || '',
+                    texts: [], wms: [],
+                    filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
+                });
+            });
+
+            if (typeof renderImages === 'function') renderImages();
+            
+            const overlayContainer = document.getElementById('watermark-overlay-container');
+            if (overlayContainer) overlayContainer.style.display = 'flex';
+
+            // 4. TỰ ĐỘNG ZOOM TO: Nếu chỉ đưa vào 1 ảnh, ép lưới về 1 cột để dễ chỉnh sửa
+            if (driveImages.length === 1) {
+                setTimeout(() => {
+                    const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
+                    if (btnDecrease) {
+                        btnDecrease.click();
+                        setTimeout(() => btnDecrease.click(), 50); // Bấm 2 nhịp để đưa về max 1 cột
+                    }
+                }, 150);
+            }
+
+            // 5. Phục hồi lịch sử trình duyệt để sửa lỗi nút Back vật lý của điện thoại (Safe Mode V2)
+            setTimeout(() => {
+                if (overlayContainer && overlayContainer.style.display === 'flex') {
+                    if (!window.isDesignOverlayActive) {
+                        window.isDesignOverlayActive = true;
+                        folderStack.push({ id: 'dummy_design_state', name: 'Design Mode', scrollTop: 0 });
+                        history.pushState({ panel: 'design' }, '', '');
+                    }
+                }
+            }, 50);
+        });
+    }
+    console.log("✅ PATCH 43: Đã cập nhật Nút Cây Bút thông minh (Biết lấy ảnh đang chọn)!");
+}, 28000);
