@@ -130,37 +130,7 @@ function initGoogleAuth() {
         setTimeout(initGoogleAuth, 500);
         return;
     }
-function renderGoogleLoginButton() {
 
-    const wrapper = document.getElementById('google-login-wrapper');
-    const btn = document.getElementById('google-login-btn');
-
-    if (!wrapper || !btn) return;
-
-    wrapper.classList.remove('ready');
-    wrapper.classList.add('loading');
-
-    btn.innerHTML = '<div class="loader"></div>';
-
-    setTimeout(() => {
-
-        btn.innerHTML = '';
-
-        google.accounts.id.renderButton(
-            btn,
-            {
-                theme: 'outline',
-                size: 'large',
-                width: 280,
-                shape: 'pill'
-            }
-        );
-
-        wrapper.classList.remove('loading');
-        wrapper.classList.add('ready');
-
-    }, 150);
-}
     google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse
@@ -168,7 +138,10 @@ function renderGoogleLoginButton() {
 
     const loginBtnEl = document.getElementById("google-login-btn");
     if (loginBtnEl) {
-        renderGoogleLoginButton();
+        google.accounts.id.renderButton(
+            loginBtnEl,
+            { theme: "outline", size: "large", width: "100%", text: "signin_with" }
+        );
     }
 }
 
