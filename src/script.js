@@ -5186,3 +5186,241 @@ setTimeout(() => {
 
     console.log("✅ PATCH 41: Lưới lọc Network đã giăng. Chặn đứng 100% tỷ lệ tái sinh của Zombie!");
 }, 26000);
+// ==============================================================
+// PATCH: HỆ THỐNG CLIPBOARD PRO & CHỈNH SỬA ẢNH ĐƠN TỐC ĐỘ CAO
+// ==============================================================
+
+window.vlClipboard = {
+    mode: null,      
+    items: [],       
+    undoStack: null, 
+    currentTarget: null // Lưu vết đối tượng đang được mở menu
+};
+
+// Vô hiệu hóa độ trễ 10s của Menu Header 
+setInterval(() => {
+    const btn = document.getElementById('btn-header-menu');
+    if(btn) { btn.classList.remove('hidden'); btn.style.display = 'flex'; }
+}, 500);
+
+// Hàm lục tìm thông tin file/folder gốc bất chấp đang ở chế độ nào (kể cả Search)
+function findItemGlobal(id) {
+    if (typeof currentDriveItems !== 'undefined') {
+        let found = currentDriveItems.find(i => i.id === id);
+        if (found) return found;
+    }
+    if (typeof folderDataCache !== 'undefined') {
+        for (let fId in folderDataCache) {
+            let found = folderDataCache[fId].find(i => i.id === id);
+            if (found) return found;
+        }
+    }
+    if (typeof subFolderCache !== 'undefined') {
+        for (let mId in subFolderCache) {
+            let found = subFolderCache[mId].find(i => i.id === id);
+            if (found) return found;
+        }
+    }
+    // Nếu là Mega-row lấy từ appMeta
+    if (typeof appMeta !== 'undefined' && appMeta[id]) {
+        return { id: id, name: appMeta[id].name, type: 'folder' };
+    }
+    return null;
+}
+
+// 1. ĐÁNH CHẶN HÀM MỞ MENU ĐỂ BƠM NÚT VÀO MỌI LÚC MỌI NƠI
+if (!window.toggleItemMenu.isClipboardHooked) {
+    const originalToggleMenu = window.toggleItemMenu;
+    
+    window.toggleItemMenu = function(id, e) {
+        originalToggleMenu(id, e); // Chạy hàm gốc để mở menu
+        
+        const menuObj = document.getElementById(`menu-${id}`);
+        if (menuObj && !menuObj.classList.contains('hidden')) {
+            const targetItem = findItemGlobal(id);
+            window.vlClipboard.currentTarget = targetItem;
+            
+            // Chỉ bơm thêm nút nếu menu này chưa được bơm (tránh bị nhân bản nút)
+            if (!menuObj.hasAttribute('data-cb-injected')) {
+                const isImage = targetItem && targetItem.mimeType && targetItem.mimeType.includes('image');
+                
+                let html = `<div class="border-t border-gray-100 my-1"></div>`;
+                
+                // Bơm nút Chức năng Cơ bản
+                html += `
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-blue-50 text-gray-700 cursor-pointer font-semibold" data-action="copy">
+                    <i class="fa-regular fa-copy w-5 text-center text-blue-500 mr-2"></i><span>Sao chép</span>
+                </div>
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-orange-50 text-gray-700 cursor-pointer font-semibold" data-action="move">
+                    <i class="fa-solid fa-scissors w-5 text-center text-orange-500 mr-2"></i><span>Di chuyển</span>
+                </div>
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-green-50 text-gray-700 cursor-pointer font-semibold" data-action="paste">
+                    <i class="fa-solid fa-paste w-5 text-center text-green-500 mr-2"></i><span>Dán thay thế</span>
+                </div>
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-red-50 text-gray-700 cursor-pointer font-semibold" data-action="undo">
+                    <i class="fa-solid fa-rotate-left w-5 text-center text-red-500 mr-2"></i><span>Hoàn tác</span>
+                </div>`;
+                
+                // Nếu là ẢNH -> Bơm thêm nút BIÊN TẬP
+                if (isImage) {
+                    html += `<div class="border-t border-gray-100 my-1"></div>
+                    <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-purple-50 text-purple-700 cursor-pointer font-bold" data-action="edit_single">
+                        <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-purple-600 mr-2"></i><span>Biên tập ảnh này</span>
+                    </div>`;
+                }
+                
+                menuObj.insertAdjacentHTML('beforeend', html);
+                menuObj.setAttribute('data-cb-injected', 'true');
+            }
+        }
+    };
+    window.toggleItemMenu.isClipboardHooked = true;
+}
+
+// 2. BƠM NÚT VÀO MENU HEADER (Tổng)
+if (window.buildHeaderMenu && !window.buildHeaderMenu.isClipboardHooked) {
+    const originalBuildHeaderMenu = window.buildHeaderMenu;
+    window.buildHeaderMenu = function() {
+        originalBuildHeaderMenu();
+        const headerDropdown = document.getElementById('headerDropdown');
+        if (headerDropdown) {
+            let html = `
+            <div class="border-t border-gray-200 mt-1"></div>
+            <div class="px-5 py-3 hover:bg-blue-50 cursor-pointer text-gray-700 font-semibold flex items-center ctx-action-btn" data-action="paste_to_folder">
+                <i class="fa-solid fa-paste w-5 text-center text-green-500 mr-2"></i><span>Dán vào thư mục này</span>
+            </div>
+            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-gray-700 font-semibold flex items-center ctx-action-btn" data-action="undo">
+                <i class="fa-solid fa-rotate-left w-5 text-center text-red-500 mr-2"></i><span>Hoàn tác</span>
+            </div>`;
+            headerDropdown.insertAdjacentHTML('beforeend', html);
+        }
+    };
+    window.buildHeaderMenu.isClipboardHooked = true;
+}
+
+// 3. BẮT SỰ KIỆN CLICK CHO TOÀN BỘ HỆ THỐNG
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.ctx-action-btn');
+    if (!btn) return;
+    
+    e.stopPropagation();
+    const action = btn.getAttribute('data-action');
+    const targetItem = window.vlClipboard.currentTarget;
+
+    // A. XỬ LÝ BIÊN TẬP ẢNH ĐƠN
+    if (action === 'edit_single') {
+        if (!targetItem || !targetItem.mimeType.includes('image')) return;
+        
+        // Ẩn menu
+        document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+        if (typeof closeFab === 'function') closeFab();
+
+        const imgUrl = targetItem.tempUrl ? targetItem.tempUrl : `https://drive.google.com/thumbnail?id=${targetItem.id}&sz=w2000`;
+        const genId = typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9);
+        
+        // Thiết lập giao diện Design chỉ với 1 ảnh
+        state.images = [{
+            id: genId,
+            src: imgUrl,
+            ratio: 'auto', panX: 50, panY: 50, selected: false, customName: targetItem.name, texts: [], wms: [],
+            filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
+        }];
+        state.layerOrder = [];
+        state.activeElementId = null;
+        
+        renderImages();
+        const overlayContainer = document.getElementById('watermark-overlay-container');
+        if (overlayContainer) overlayContainer.style.display = 'flex';
+        
+        // Tự động click ép về dạng 1 cột (Bấm 2 lần để chắc chắn kéo max xuống 1 cột)
+        setTimeout(() => {
+            const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
+            if (btnDecrease) {
+                btnDecrease.click(); 
+                setTimeout(() => btnDecrease.click(), 50); 
+            }
+        }, 150);
+        return;
+    }
+
+    // B. XỬ LÝ COPY / MOVE
+    if (action === 'copy' || action === 'move') {
+        if (targetItem) {
+            window.vlClipboard.mode = action;
+            window.vlClipboard.items = [{ id: targetItem.id, type: targetItem.type }];
+            showToast(`Đã lưu [${targetItem.name}] để ${action === 'copy' ? 'Sao chép' : 'Di chuyển'}`);
+        } else {
+            showToast("Vui lòng chọn đối tượng cụ thể!");
+        }
+    } 
+    
+    // C. XỬ LÝ PASTE
+    else if (action === 'paste' || action === 'paste_to_folder') {
+        if (!window.vlClipboard.mode || window.vlClipboard.items.length === 0) {
+            return showToast("Bộ nhớ tạm đang trống!", true);
+        }
+
+        let tFolderId = currentFolderId;
+        let tReplaceId = null;
+
+        // Nếu dán thay thế đè lên 1 File cụ thể
+        if (action === 'paste' && targetItem && targetItem.type === 'file') {
+            tReplaceId = targetItem.id;
+        } 
+        // Nếu dán vào Mega Folder con
+        else if (action === 'paste' && targetItem && targetItem.type === 'folder') {
+            tFolderId = targetItem.id;  
+        }
+
+        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang xử lý dữ liệu dán...');
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'clipboardOps',
+                mode: window.vlClipboard.mode,
+                items: window.vlClipboard.items,
+                targetFolderId: tFolderId,
+                targetReplaceId: tReplaceId
+            })
+        }).then(r => r.json()).then(res => {
+            if (res.success) {
+                showToast("✅ Dán hoàn tất!");
+                window.vlClipboard.undoStack = { undoType: window.vlClipboard.mode, items: res.processedItems };
+                
+                // Kết thúc dán -> Rút bộ nhớ tạm
+                window.vlClipboard.mode = null;
+                window.vlClipboard.items = [];
+                
+                // Gọi Trạm radar quét cập nhật thay đổi
+                if (typeof masterSync === 'function') masterSync();
+            } else { showToast("Lỗi: " + res.message, true); }
+        }).catch(()=> showToast("Lỗi mạng khi Dán!", true));
+    }
+    
+    // D. XỬ LÝ HOÀN TÁC (UNDO)
+    else if (action === 'undo') {
+        if (!window.vlClipboard.undoStack) return showToast("Không có hành động nào để Hoàn tác!");
+        
+        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang thu hồi hành động...');
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'clipboardOps',
+                mode: 'undo',
+                undoType: window.vlClipboard.undoStack.undoType,
+                items: window.vlClipboard.undoStack.items
+            })
+        }).then(r => r.json()).then(res => {
+            if (res.success) {
+                showToast("🔄 Đã hoàn tác thành công!");
+                window.vlClipboard.undoStack = null;
+                if (typeof masterSync === 'function') masterSync();
+            }
+        }).catch(()=> showToast("Lỗi mạng khi Hoàn tác!", true));
+    }
+
+    // Đóng toàn bộ menu sau khi click xong
+    document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+    const headerDropdown = document.getElementById('headerDropdown');
+    if (headerDropdown) headerDropdown.classList.add('hidden');
+});

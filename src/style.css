@@ -157,3 +157,15 @@
     opacity: 0;
     pointer-events: none; /* Ngăn chặn click khi đang mờ dần */
 }
+/* --- PATCH: HIỂN THỊ MENU 3 CHẤM HEADER NGAY LẬP TỨC --- */
+#btn-header-menu, #header-more, .fa-ellipsis-vertical, .header-actions {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 9999999 !important;
+}
+
+/* Đảm bảo dropdown menu nổi đè lên trên tất cả */
+#headerDropdown, #contextMenu, .dropdown-menu {
+    z-index: 99999999 !important;
+}

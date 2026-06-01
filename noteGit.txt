@@ -1,3 +1,5 @@
+sửa ảnh riêng
+design ảnh trên drive.
 git add .
 git commit -m "split js from html"
 git push origin main
