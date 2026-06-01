@@ -169,3 +169,26 @@
 #headerDropdown, #contextMenu, .dropdown-menu {
     z-index: 99999999 !important;
 }
+/* --- PATCH: ĐIỀU CHỈNH CĂN LỀ & KÍCH THƯỚC CỤM NÚT BOTTOM-RIGHT --- */
+
+/* 1. Căn giữa cụm nút chính và khối fabMenu theo trục dọc (ghi đè items-end) */
+div.bottom-20.right-6, 
+#fabMenu {
+    align-items: center !important;
+}
+
+/* 2. Ép buộc tất cả các nút/nhãn bên trong có cùng kích thước 56x56px (tương đương w-14 h-14) */
+div.bottom-20.right-6 button,
+div.bottom-20.right-6 label {
+    width: 56px !important;
+    height: 56px !important;
+    padding: 0 !important; /* Gỡ bỏ padding (p-3) để nội dung không bị ép méo */
+    justify-content: center !important; /* Căn giữa nội dung bên trong nút */
+    align-items: center !important;
+}
+
+/* 3. Căn giữa hoàn hảo icon (khối div w-10 h-10) bên trong các nút mở rộng */
+#fabMenu button > div,
+#fabMenu label > div {
+    margin: auto !important; /* Đảm bảo hình tròn chứa icon luôn nằm chính giữa nút */
+}
