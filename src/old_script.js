@@ -2,6 +2,69 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3Ly
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
+// --- PATCH: LOGIC NẠP BỘ NÃO NHỆN (HỖ TRỢ CÀI ĐẶT LẠI PWA) ---
+
+// 1. Lắng nghe lúc người dùng vừa bấm "Ghim ra màn hình chính" (Cài PWA)
+window.addEventListener('appinstalled', () => {
+    // Xóa cờ PWA đi, để khi mở app từ icon, nó bắt buộc nạp lại từ đầu
+    localStorage.removeItem("vinhloc_spider_pwa_loaded");
+    console.log("🕷️ Đã cài đặt PWA mới - Xóa trí nhớ cũ để nạp lại bộ não!");
+});
+
+// 2. Logic hiển thị khi mở App
+document.addEventListener("DOMContentLoaded", () => {
+    // Nhận diện xem user đang mở bằng Trình duyệt hay mở từ Icon PWA (Màn hình chính)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    
+    // Kiểm tra cờ trong bộ nhớ
+    const pwaLoaded = localStorage.getItem("vinhloc_spider_pwa_loaded");
+    const browserLoaded = localStorage.getItem("vinhloc_spider_browser_loaded");
+    
+    let shouldShowLoader = false;
+    let storageKeyToSave = "";
+
+    // Quyết định có hiển thị màn hình chờ hay không
+    if (isStandalone && !pwaLoaded) {
+        // Đang mở bằng Icon PWA và chưa nạp lần nào (hoặc vừa bị xóa cờ do mới cài lại)
+        shouldShowLoader = true;
+        storageKeyToSave = "vinhloc_spider_pwa_loaded";
+    } else if (!isStandalone && !browserLoaded) {
+        // Đang mở bằng Trình duyệt thông thường và chưa nạp lần nào
+        shouldShowLoader = true;
+        storageKeyToSave = "vinhloc_spider_browser_loaded";
+    }
+
+    const loader = document.getElementById("spider-brain-loader");
+    const textEl = document.getElementById("spider-brain-text");
+
+    // Chạy màn hình chờ nếu thỏa mãn điều kiện
+    if (shouldShowLoader && loader && textEl) {
+        loader.style.display = "flex"; // Bật màn hình chờ
+        let percent = 1;
+        const intervalTime = 300; // 300ms x 100 bước = ~30 giây
+
+        const loadingInterval = setInterval(() => {
+            percent++;
+            textEl.innerText = `Đang nạp ${percent}%...`;
+
+            if (percent >= 100) {
+                clearInterval(loadingInterval);
+                
+                // Kích hoạt hiệu ứng mờ dần
+                loader.classList.add("fade-out-spider");
+                
+                // Đánh dấu đã nạp thành công
+                localStorage.setItem(storageKeyToSave, "true");
+                
+                // Xóa khỏi luồng hiển thị
+                setTimeout(() => {
+                    loader.style.display = "none";
+                }, 1000);
+            }
+        }, intervalTime);
+    }
+});
+
 // Bỏ đọc từ localStorage để luôn làm mới stack mỗi khi mở app
 localStorage.removeItem('appFolderStack'); 
 let folderStack = [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }];
@@ -4943,3 +5006,583 @@ setTimeout(() => {
 
     console.log("✅ PATCH 37-38: Đã fix Menu Header bị cắt và Đồng bộ đúng thứ tự Alphabet khi tạo thư mục!");
 }, 21000); // Khởi chạy ở mốc 21s để đảm bảo đè thành công các bản cũ
+// ==============================================================
+// PATCH 41: NETWORK INTERCEPTOR (TIÊU DIỆT ZOMBIE TỪ TRẠM MẠNG)
+// ==============================================================
+setTimeout(() => {
+    // 1. TRẠM KIỂM SOÁT NETWORK: Bắt ID thật ngay khi vừa đẻ ra
+    if (!window.isFetchInterceptedP41) {
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+            const url = args[0];
+            const options = args[1];
+            
+            let reqAction = null;
+            let reqName = null;
+            let reqTempId = null;
+
+            // ĐỌC TRỘM GÓI TIN ĐI: Lưu lại tên và tempId trước khi bay lên Google
+            if (options && options.body && typeof options.body === 'string') {
+                try {
+                    const body = JSON.parse(options.body);
+                    reqAction = body.action;
+                    reqName = body.name || body.folderName || body.fileName;
+                    reqTempId = body.tempId || body.id;
+                    
+                    if (reqTempId && String(reqTempId).startsWith('temp_')) {
+                        let tracker = JSON.parse(localStorage.getItem('vinhloc_temp_tracker') || '{}');
+                        tracker[reqTempId] = reqName || "Unknown";
+                        localStorage.setItem('vinhloc_temp_tracker', JSON.stringify(tracker));
+                    }
+                } catch(e) {}
+            }
+
+            const response = await originalFetch.apply(this, args);
+
+            // ĐỌC TRỘM GÓI TIN VỀ: Bắt quả tang khi Google trả về ID thật
+            if ((reqAction === 'createFolder' || reqAction === 'create') && response.ok) {
+                const clone = response.clone();
+                clone.json().then(data => {
+                    if (data && data.success && data.id) {
+                        let blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
+                        blacklist = blacklist.filter(item => Date.now() - item.time < 300000); // 5 phút dọn 1 lần
+                        
+                        // ĐỐI CHIẾU: Nếu tempId này hoặc Tên này nằm trong sổ đen (nghĩa là user vừa bấm xóa)
+                        if (blacklist.some(b => b.tempId === reqTempId || b.name === reqName)) {
+                            console.log(`🔥 [NETWORK] Bắt được ID thật (${data.id}) của file vừa bị hủy. Bắn lệnh XÓA ngay lập tức!`);
+                            // Bí mật bắn lệnh xóa ID thật lên Google Drive trước cả khi nó kịp hiển thị
+                            originalFetch(url, {
+                                method: 'POST',
+                                body: JSON.stringify({ action: 'delete', id: data.id, type: 'folder' })
+                            });
+                        }
+                    }
+                }).catch(()=>{});
+            }
+            return response;
+        };
+        window.isFetchInterceptedP41 = true;
+    }
+
+    // 2. GHI SỔ ĐEN KHI BẤM XÓA ĐƠN
+    window.handleDelete = function(id, type, e) {
+        if (e) e.stopPropagation(); 
+        const menuObj = document.getElementById(`menu-${id}`);
+        if (menuObj) menuObj.classList.add('hidden');
+
+        document.getElementById('modalTitle').textContent = 'Xác nhận xóa';
+        document.getElementById('modalDesc').textContent = 'Bạn có chắc chắn muốn xóa mục này?';
+        document.getElementById('modalDesc').classList.remove('hidden'); 
+        document.getElementById('modalInput').classList.add('hidden');
+
+        const btn = document.getElementById('modalConfirmBtn');
+        btn.textContent = 'Xóa'; 
+        btn.className = 'px-5 py-2 bg-red-600 text-white font-bold rounded-xl';
+
+        btn.onclick = async () => {
+            closeModal();
+            const isTempId = String(id).startsWith('temp_');
+
+            if (isTempId) {
+                // Lục tìm chính xác TÊN của file ảo này
+                let targetName = "Unknown";
+                let tracker = JSON.parse(localStorage.getItem('vinhloc_temp_tracker') || '{}');
+                if (tracker[id]) targetName = tracker[id];
+                else if (typeof currentDriveItems !== 'undefined') {
+                    let item = currentDriveItems.find(i => i.id === id || i.tempId === id);
+                    if (item) targetName = item.name;
+                }
+
+                // Tống tên và tempId vào Sổ Đen
+                let blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
+                blacklist.push({ tempId: id, name: targetName, time: Date.now() });
+                localStorage.setItem('vinhloc_blacklist', JSON.stringify(blacklist));
+
+                // Dọn sạch khỏi màn hình
+                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
+                if (window.renderItems && typeof currentDriveItems !== 'undefined') window.renderItems(currentDriveItems);
+                showToast(`<i class="fas fa-ban mr-2"></i> Đã hủy mục ảo`);
+            } else {
+                // Xóa ID thật như bình thường
+                if (typeof addActionToQueue === 'function') addActionToQueue('delete', { id: id, type: type });
+                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
+                if (window.renderItems && typeof currentDriveItems !== 'undefined') window.renderItems(currentDriveItems);
+                showToast(`<i class="fas fa-trash mr-2"></i> Đã xóa`);
+            }
+        };
+        
+        document.getElementById('customModal').classList.remove('hidden'); 
+        document.getElementById('customModal').classList.add('flex');
+    };
+
+    // 3. GHI SỔ ĐEN KHI BẤM XÓA NHIỀU
+    window.deleteSelectedItems = function() {
+        if (window.multiSelectState.selectedIds.size === 0) return showToast("Vui lòng chọn mục cần xóa!", true);
+        
+        document.getElementById('modalTitle').textContent = 'Xóa nhiều mục'; 
+        document.getElementById('modalDesc').textContent = `Xác nhận xóa ${window.multiSelectState.selectedIds.size} mục?`; 
+        document.getElementById('modalDesc').classList.remove('hidden'); 
+        document.getElementById('modalInput').classList.add('hidden');
+        
+        const btn = document.getElementById('modalConfirmBtn'); 
+        btn.textContent = 'Xóa tất cả'; 
+        btn.className = 'px-5 py-2 bg-red-600 text-white font-bold rounded-xl';
+        
+        btn.onclick = async () => {
+            closeModal(); 
+            let idsToDelete = Array.from(window.multiSelectState.selectedIds); 
+            let tracker = JSON.parse(localStorage.getItem('vinhloc_temp_tracker') || '{}');
+            let blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
+
+            idsToDelete.forEach(id => {
+                if (String(id).startsWith('temp_')) {
+                    let targetName = tracker[id];
+                    if (!targetName && typeof currentDriveItems !== 'undefined') {
+                        let item = currentDriveItems.find(i => i.id === id || i.tempId === id);
+                        if (item) targetName = item.name;
+                    }
+                    if (targetName) blacklist.push({ tempId: id, name: targetName, time: Date.now() });
+                } else {
+                    if (typeof addActionToQueue === 'function') addActionToQueue('delete', { id: id });
+                }
+                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
+            });
+
+            localStorage.setItem('vinhloc_blacklist', JSON.stringify(blacklist));
+            window.multiSelectState.selectedIds.clear(); 
+            if (window.renderItems && typeof currentDriveItems !== 'undefined') window.renderItems(currentDriveItems);
+            showToast(`<i class="fas fa-check mr-2"></i> Đã xử lý lệnh xóa`);
+        };
+        
+        document.getElementById('customModal').classList.remove('hidden'); 
+        document.getElementById('customModal').classList.add('flex');
+    };
+
+    // 4. LƯỚI LỌC CUỐI CÙNG TRÊN CRAWLER
+    const origRenderP41 = window.renderItems;
+    window.renderItems = function(items, isSearchMode = false) {
+        if (!items || !Array.isArray(items)) return origRenderP41(items, isSearchMode);
+
+        let blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
+        blacklist = blacklist.filter(item => Date.now() - item.time < 300000);
+        
+        let safeItems = items.filter(item => {
+            // Nếu Crawler lôi về 1 file có TÊN trùng với sổ đen
+            if (blacklist.some(b => b.name === item.name)) {
+                console.log(`🕷️ Con Nhện bắt nhầm Zombie [${item.name}]. Tiêu diệt ngầm...`);
+                if (typeof SCRIPT_URL !== 'undefined') {
+                    fetch(SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'delete', id: item.id, type: item.type })
+                    }).catch(()=>{});
+                }
+                return false; // Giấu luôn, cấm hiển thị!
+            }
+            return true;
+        });
+
+        return origRenderP41(safeItems, isSearchMode);
+    };
+
+    console.log("✅ PATCH 41: Lưới lọc Network đã giăng. Chặn đứng 100% tỷ lệ tái sinh của Zombie!");
+}, 26000);
+// ==============================================================
+// PATCH: HỆ THỐNG CLIPBOARD PRO & CHỈNH SỬA ẢNH ĐƠN TỐC ĐỘ CAO
+// ==============================================================
+
+window.vlClipboard = {
+    mode: null,      
+    items: [],       
+    undoStack: null, 
+    currentTarget: null // Lưu vết đối tượng đang được mở menu
+};
+
+// Vô hiệu hóa độ trễ 10s của Menu Header 
+setInterval(() => {
+    const btn = document.getElementById('btn-header-menu');
+    if(btn) { btn.classList.remove('hidden'); btn.style.display = 'flex'; }
+}, 500);
+
+// Hàm lục tìm thông tin file/folder gốc bất chấp đang ở chế độ nào (kể cả Search)
+function findItemGlobal(id) {
+    if (typeof currentDriveItems !== 'undefined') {
+        let found = currentDriveItems.find(i => i.id === id);
+        if (found) return found;
+    }
+    if (typeof folderDataCache !== 'undefined') {
+        for (let fId in folderDataCache) {
+            let found = folderDataCache[fId].find(i => i.id === id);
+            if (found) return found;
+        }
+    }
+    if (typeof subFolderCache !== 'undefined') {
+        for (let mId in subFolderCache) {
+            let found = subFolderCache[mId].find(i => i.id === id);
+            if (found) return found;
+        }
+    }
+    // Nếu là Mega-row lấy từ appMeta
+    if (typeof appMeta !== 'undefined' && appMeta[id]) {
+        return { id: id, name: appMeta[id].name, type: 'folder' };
+    }
+    return null;
+}
+
+// 1. ĐÁNH CHẶN HÀM MỞ MENU ĐỂ BƠM NÚT VÀO MỌI LÚC MỌI NƠI
+if (!window.toggleItemMenu.isClipboardHooked) {
+    const originalToggleMenu = window.toggleItemMenu;
+    
+    window.toggleItemMenu = function(id, e) {
+        originalToggleMenu(id, e); // Chạy hàm gốc để mở menu
+        
+        const menuObj = document.getElementById(`menu-${id}`);
+        if (menuObj && !menuObj.classList.contains('hidden')) {
+            const targetItem = findItemGlobal(id);
+            window.vlClipboard.currentTarget = targetItem;
+            
+            // Chỉ bơm thêm nút nếu menu này chưa được bơm (tránh bị nhân bản nút)
+            if (!menuObj.hasAttribute('data-cb-injected')) {
+                const isImage = targetItem && targetItem.mimeType && targetItem.mimeType.includes('image');
+                
+                let html = `<div class="border-t border-gray-100 my-1"></div>`;
+                
+                // Bơm nút Chức năng Cơ bản
+                html += `
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-blue-50 text-gray-700 cursor-pointer font-semibold" data-action="copy">
+                    <i class="fa-regular fa-copy w-5 text-center text-blue-500 mr-2"></i><span>Sao chép</span>
+                </div>
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-orange-50 text-gray-700 cursor-pointer font-semibold" data-action="move">
+                    <i class="fa-solid fa-scissors w-5 text-center text-orange-500 mr-2"></i><span>Di chuyển</span>
+                </div>
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-green-50 text-gray-700 cursor-pointer font-semibold" data-action="paste">
+                    <i class="fa-solid fa-paste w-5 text-center text-green-500 mr-2"></i><span>Dán thay thế</span>
+                </div>
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-red-50 text-gray-700 cursor-pointer font-semibold" data-action="undo">
+                    <i class="fa-solid fa-rotate-left w-5 text-center text-red-500 mr-2"></i><span>Hoàn tác</span>
+                </div>`;
+                
+                // Nếu là ẢNH -> Bơm thêm nút BIÊN TẬP
+                if (isImage) {
+                    html += `<div class="border-t border-gray-100 my-1"></div>
+                    <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-purple-50 text-purple-700 cursor-pointer font-bold" data-action="edit_single">
+                        <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-purple-600 mr-2"></i><span>Biên tập ảnh này</span>
+                    </div>`;
+                }
+                
+                menuObj.insertAdjacentHTML('beforeend', html);
+                menuObj.setAttribute('data-cb-injected', 'true');
+            }
+        }
+    };
+    window.toggleItemMenu.isClipboardHooked = true;
+}
+
+// 2. BƠM NÚT VÀO MENU HEADER (Tổng)
+if (window.buildHeaderMenu && !window.buildHeaderMenu.isClipboardHooked) {
+    const originalBuildHeaderMenu = window.buildHeaderMenu;
+    window.buildHeaderMenu = function() {
+        originalBuildHeaderMenu();
+        const headerDropdown = document.getElementById('headerDropdown');
+        if (headerDropdown) {
+            let html = `
+            <div class="border-t border-gray-200 mt-1"></div>
+            <div class="px-5 py-3 hover:bg-blue-50 cursor-pointer text-gray-700 font-semibold flex items-center ctx-action-btn" data-action="paste_to_folder">
+                <i class="fa-solid fa-paste w-5 text-center text-green-500 mr-2"></i><span>Dán vào thư mục này</span>
+            </div>
+            <div class="px-5 py-3 hover:bg-red-50 cursor-pointer text-gray-700 font-semibold flex items-center ctx-action-btn" data-action="undo">
+                <i class="fa-solid fa-rotate-left w-5 text-center text-red-500 mr-2"></i><span>Hoàn tác</span>
+            </div>`;
+            headerDropdown.insertAdjacentHTML('beforeend', html);
+        }
+    };
+    window.buildHeaderMenu.isClipboardHooked = true;
+}
+
+// 3. BẮT SỰ KIỆN CLICK CHO TOÀN BỘ HỆ THỐNG
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.ctx-action-btn');
+    if (!btn) return;
+    
+    e.stopPropagation();
+    const action = btn.getAttribute('data-action');
+    const targetItem = window.vlClipboard.currentTarget;
+
+    // A. XỬ LÝ BIÊN TẬP ẢNH ĐƠN
+    if (action === 'edit_single') {
+        if (!targetItem || !targetItem.mimeType.includes('image')) return;
+        
+        // Ẩn menu
+        document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+        if (typeof closeFab === 'function') closeFab();
+
+        const imgUrl = targetItem.tempUrl ? targetItem.tempUrl : `https://drive.google.com/thumbnail?id=${targetItem.id}&sz=w2000`;
+        const genId = typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9);
+        
+        // Thiết lập giao diện Design chỉ với 1 ảnh
+        state.images = [{
+            id: genId,
+            src: imgUrl,
+            ratio: 'auto', panX: 50, panY: 50, selected: false, customName: targetItem.name, texts: [], wms: [],
+            filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
+        }];
+        state.layerOrder = [];
+        state.activeElementId = null;
+        
+        renderImages();
+        const overlayContainer = document.getElementById('watermark-overlay-container');
+        if (overlayContainer) overlayContainer.style.display = 'flex';
+        
+        // Tự động click ép về dạng 1 cột (Bấm 2 lần để chắc chắn kéo max xuống 1 cột)
+        setTimeout(() => {
+            const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
+            if (btnDecrease) {
+                btnDecrease.click(); 
+                setTimeout(() => btnDecrease.click(), 50); 
+            }
+        }, 150);
+        return;
+    }
+
+    // B. XỬ LÝ COPY / MOVE
+    if (action === 'copy' || action === 'move') {
+        if (targetItem) {
+            window.vlClipboard.mode = action;
+            window.vlClipboard.items = [{ id: targetItem.id, type: targetItem.type }];
+            showToast(`Đã lưu [${targetItem.name}] để ${action === 'copy' ? 'Sao chép' : 'Di chuyển'}`);
+        } else {
+            showToast("Vui lòng chọn đối tượng cụ thể!");
+        }
+    } 
+    
+    // C. XỬ LÝ PASTE
+    else if (action === 'paste' || action === 'paste_to_folder') {
+        if (!window.vlClipboard.mode || window.vlClipboard.items.length === 0) {
+            return showToast("Bộ nhớ tạm đang trống!", true);
+        }
+
+        let tFolderId = currentFolderId;
+        let tReplaceId = null;
+
+        // Nếu dán thay thế đè lên 1 File cụ thể
+        if (action === 'paste' && targetItem && targetItem.type === 'file') {
+            tReplaceId = targetItem.id;
+        } 
+        // Nếu dán vào Mega Folder con
+        else if (action === 'paste' && targetItem && targetItem.type === 'folder') {
+            tFolderId = targetItem.id;  
+        }
+
+        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang xử lý dữ liệu dán...');
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'clipboardOps',
+                mode: window.vlClipboard.mode,
+                items: window.vlClipboard.items,
+                targetFolderId: tFolderId,
+                targetReplaceId: tReplaceId
+            })
+        }).then(r => r.json()).then(res => {
+            if (res.success) {
+                showToast("✅ Dán hoàn tất!");
+                window.vlClipboard.undoStack = { undoType: window.vlClipboard.mode, items: res.processedItems };
+                
+                // Kết thúc dán -> Rút bộ nhớ tạm
+                window.vlClipboard.mode = null;
+                window.vlClipboard.items = [];
+                
+                // Gọi Trạm radar quét cập nhật thay đổi
+                if (typeof masterSync === 'function') masterSync();
+            } else { showToast("Lỗi: " + res.message, true); }
+        }).catch(()=> showToast("Lỗi mạng khi Dán!", true));
+    }
+    
+    // D. XỬ LÝ HOÀN TÁC (UNDO)
+    else if (action === 'undo') {
+        if (!window.vlClipboard.undoStack) return showToast("Không có hành động nào để Hoàn tác!");
+        
+        showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang thu hồi hành động...');
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'clipboardOps',
+                mode: 'undo',
+                undoType: window.vlClipboard.undoStack.undoType,
+                items: window.vlClipboard.undoStack.items
+            })
+        }).then(r => r.json()).then(res => {
+            if (res.success) {
+                showToast("🔄 Đã hoàn tác thành công!");
+                window.vlClipboard.undoStack = null;
+                if (typeof masterSync === 'function') masterSync();
+            }
+        }).catch(()=> showToast("Lỗi mạng khi Hoàn tác!", true));
+    }
+
+    // Đóng toàn bộ menu sau khi click xong
+    document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+    const headerDropdown = document.getElementById('headerDropdown');
+    if (headerDropdown) headerDropdown.classList.add('hidden');
+});
+// ==============================================================
+// PATCH 43: NÚT CÂY BÚT CHỈ BIÊN TẬP CÁC ẢNH ĐƯỢC CHỌN (HOẶC TẤT CẢ)
+// ==============================================================
+setTimeout(() => {
+    const oldBtn = document.getElementById('btn-open-design');
+    if (oldBtn) {
+        // Nhân bản nút để xóa bỏ các Event Listener cũ bị chồng chéo
+        const newBtn = oldBtn.cloneNode(true);
+        oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+
+        newBtn.addEventListener('click', () => {
+            // Lọc ra toàn bộ ảnh trong thư mục hiện tại
+            let targetItems = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
+
+            // Nếu người dùng đang tick chọn file, thì chỉ lấy các file được chọn đó
+            if (window.multiSelectState && window.multiSelectState.selectedIds.size > 0) {
+                targetItems = targetItems.filter(item => window.multiSelectState.selectedIds.has(item.id));
+            }
+
+            const driveImages = targetItems.map(item => ({
+                url: item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`,
+                name: item.name // Truyền tên gốc để làm tên file lúc tải về
+            }));
+
+            // Xử lý báo lỗi nếu thư mục trống hoặc các file được chọn không phải là ảnh
+            if (driveImages.length === 0) {
+                if (typeof closeFab === 'function') closeFab();
+                showToast("Không có ảnh hợp lệ nào để biên tập!", true);
+                return;
+            }
+
+            // Làm sạch không gian làm việc và nạp ảnh vào
+            state.images = []; 
+            state.layerOrder = []; 
+            state.activeElementId = null;
+            
+            driveImages.forEach(img => {
+                state.images.push({
+                    id: typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9),
+                    src: img.url, ratio: 'auto', panX: 50, panY: 50, selected: false,
+                    customName: img.name || '',
+                    texts: [], wms: [],
+                    filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
+                });
+            });
+
+            if (typeof renderImages === 'function') renderImages();
+            
+            const overlayContainer = document.getElementById('watermark-overlay-container');
+            if (overlayContainer) overlayContainer.style.display = 'flex';
+
+            // HIỆU ỨNG THÔNG MINH: Nếu chỉ có 1 ảnh được nạp, tự động ép khung lưới về 1 cột (Zoom to hết cỡ)
+            if (driveImages.length === 1) {
+                setTimeout(() => {
+                    const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
+                    if (btnDecrease) {
+                        btnDecrease.click();
+                        setTimeout(() => btnDecrease.click(), 50);
+                    }
+                }, 150);
+            }
+
+            // Phục hồi lại Patch đẩy lịch sử trình duyệt để sửa lỗi bấm nút Back (Trở về) trên điện thoại
+            setTimeout(() => {
+                if (overlayContainer && overlayContainer.style.display === 'flex') {
+                    if (!window.isDesignOverlayActive) {
+                        window.isDesignOverlayActive = true;
+                        folderStack.push({ id: 'dummy_design_state', name: 'Design Mode', scrollTop: 0 });
+                        history.pushState({ panel: 'design' }, '', '');
+                    }
+                }
+            }, 50);
+        });
+    }
+    console.log("✅ PATCH 43: Đã cập nhật Nút Cây Bút thông minh (Biết lấy ảnh đang chọn)!");
+}, 28000); // Cài đặt độ trễ 28s để chắc chắn các code khởi tạo nút đã chạy xong trước khi ghi đè
+// ==============================================================
+// PATCH 42 (BẢN FIX TỐI ƯU): CHIA SẺ ẢNH LÊN FACEBOOK KHÔNG BỊ ĐƠ
+// ==============================================================
+setTimeout(() => {
+    window.shareItem = async function (id, type, name, e) {
+        if (e) e.stopPropagation(); 
+        document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
+        
+        let mimeTypeParam = '';
+        let isImage = false;
+
+        if (type === 'file') {
+            const fileObj = currentDriveItems.find(i => i.id === id);
+            if (fileObj && fileObj.mimeType) {
+                mimeTypeParam = `&mimeType=${encodeURIComponent(fileObj.mimeType)}`;
+                if (fileObj.mimeType.includes('image')) isImage = true;
+            }
+        }
+
+        const shareUrl = `${window.location.origin}${window.location.pathname}?shareId=${id}&shareType=${type}&shareName=${encodeURIComponent(name)}${mimeTypeParam}`;
+        const shareText = `Mở xem chi tiết "${name}" trong ứng dụng:\n${shareUrl}`;
+
+        // NẾU LÀ ẢNH -> LẤY BLOB TRỰC TIẾP QUA PROXY (KHÔNG DÙNG BASE64 ĐỂ CHỐNG ĐƠ RAM)
+        if (isImage && navigator.canShare) {
+            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang nạp ảnh chuẩn để Share...');
+            try {
+                // Dùng Thumbnail chất lượng cao (w2000) thay vì file gốc để tải siêu nhanh
+                const driveImgUrl = `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
+                
+                // Mạng lưới Proxy vượt rào CORS (Tận dụng lại mảng có sẵn trong code của bạn)
+                const urlsToTry = [
+                    "https://wsrv.nl/?url=" + encodeURIComponent(driveImgUrl),
+                    "https://corsproxy.io/?" + encodeURIComponent(driveImgUrl),
+                    "https://api.allorigins.win/raw?url=" + encodeURIComponent(driveImgUrl)
+                ];
+
+                let blob = null;
+                for (let proxyUrl of urlsToTry) {
+                    try {
+                        const response = await fetch(proxyUrl);
+                        if (response.ok) {
+                            blob = await response.blob(); // Đổi thẳng dữ liệu thành File vật lý cực mượt
+                            break;
+                        }
+                    } catch (err) { 
+                        console.warn("Proxy bận, đang chuyển trạm...", err); 
+                    }
+                }
+
+                if (blob) {
+                    // Đóng gói Blob thành File thực thụ
+                    const fileObj = new File([blob], name, { type: blob.type || 'image/jpeg' });
+
+                    // Gửi File + Link vào Bảng Share của Hệ điều hành
+                    if (navigator.canShare({ files: [fileObj] })) {
+                        await navigator.share({ 
+                            files: [fileObj], 
+                            title: `Chia sẻ: ${name}`, 
+                            text: shareText // Link sẽ tự động thành Caption trên Facebook
+                        });
+                        return; // Xử lý xong, thoát hàm
+                    }
+                } else {
+                    throw new Error("Không thể tải ảnh qua mạng lưới Proxy");
+                }
+            } catch (err) {
+                console.warn("Lỗi tạo file vật lý, tự động lùi về chế độ share link thuần", err);
+            }
+        }
+
+        // FALLBACK: Trở về Share Link nếu thất bại hoặc mục đang chia sẻ là Thư mục / File văn bản
+        if (navigator.share) {
+            try { 
+                await navigator.share({ 
+                    title: `Chia sẻ: ${name}`, 
+                    text: `Mở xem chi tiết "${name}" trong ứng dụng:`, 
+                    url: shareUrl 
+                }); 
+            } catch (err) { }
+        } else {
+            navigator.clipboard.writeText(shareUrl).then(() => showToast(`<i class="fas fa-link mr-2"></i> Đã copy link!`));
+        }
+    };
+    
+    console.log("✅ PATCH 42 (FIXED): Đã tối ưu thuật toán truyền File vào Facebook siêu tốc!");
+}, 28500); // Khởi chạy trễ nhất để chắc chắn đè bẹp bản Patch 42 bị lỗi

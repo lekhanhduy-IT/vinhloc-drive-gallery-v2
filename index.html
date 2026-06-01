@@ -16,6 +16,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;700&family=Roboto:wght@400;700&family=Saira:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <link rel="stylesheet" href="./src/style.css?v=1.5">
@@ -23,6 +24,20 @@
 </head>
 
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
+    <div id="auth-overlay" class="fixed inset-0 bg-gray-900 flex flex-col items-center justify-center z-[20000] p-6 text-center">
+    <div class="bg-white rounded-3xl p-8 w-11/12 max-w-md shadow-2xl">
+        <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-600 text-4xl">
+            <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">Hệ thống Vĩnh Lộc Drive</h2>
+        <p class="text-gray-500 mb-8 text-sm">Vui lòng đăng nhập bằng tài khoản email được cấp quyền.</p>
+        
+        <div class="flex justify-center w-full" id="google-login-btn"></div>
+        
+        <p id="auth-error-msg" class="text-red-500 text-sm mt-4 font-semibold hidden"></p>
+    </div>
+</div>
+
     <div id="spider-brain-loader" style="display: none;">
     <img src="loaddata.gif" alt="Loading Data" />
     <div id="spider-brain-text">Đang nạp 1%...</div>
@@ -380,7 +395,7 @@
         </div>
     </div>
 
-    <script src="./src/script.js?v=1.0.109"></script>
+    <script src="./src/script.js?v=1.0.110"></script>
 
 </body>
 </html>

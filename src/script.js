@@ -2,34 +2,135 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3Ly
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
+// === CẤU HÌNH OAUTH CLIENT ID (Thay chuỗi dưới đây bằng Client ID của bạn trên Google Console) ===
+const GOOGLE_CLIENT_ID = "1034177686409-1fhm0m0tqmf58qjj1p0r2ifo018eh8o2.apps.googleusercontent.com";
+
 // --- PATCH: LOGIC NẠP BỘ NÃO NHỆN (HỖ TRỢ CÀI ĐẶT LẠI PWA) ---
 
 // 1. Lắng nghe lúc người dùng vừa bấm "Ghim ra màn hình chính" (Cài PWA)
 window.addEventListener('appinstalled', () => {
     // Xóa cờ PWA đi, để khi mở app từ icon, nó bắt buộc nạp lại từ đầu
     localStorage.removeItem("vinhloc_spider_pwa_loaded");
+    localStorage.removeItem("vinhloc_spider_browser_loaded");
     console.log("🕷️ Đã cài đặt PWA mới - Xóa trí nhớ cũ để nạp lại bộ não!");
 });
 
-// 2. Logic hiển thị khi mở App
+// 2. Logic kiểm tra phân quyền & Hiển thị giao diện khi mở App
 document.addEventListener("DOMContentLoaded", () => {
-    // Nhận diện xem user đang mở bằng Trình duyệt hay mở từ Icon PWA (Màn hình chính)
+    // Kiểm tra trạng thái đăng nhập được lưu từ trước
+    const loggedInUser = localStorage.getItem("vinhloc_authenticated_email");
+    
+    if (loggedInUser) {
+        // Trường hợp 1: Đã đăng nhập hợp lệ trước đó -> Ẩn màn hình đăng nhập, chạy thẳng vào luồng đếm loader
+        const authOverlay = document.getElementById("auth-overlay");
+        if (authOverlay) authOverlay.style.display = "none";
+        initSpiderLoaderFlow();
+    } else {
+        // Trường hợp 2: Chưa đăng nhập hoặc mới xóa cache -> Khởi tạo khung đăng nhập khóa ứng dụng
+        initGoogleAuth();
+    }
+});
+
+// Hàm khởi chạy và kết nối thư viện Google Sign-In định dạng nút bấm mặc định
+function initGoogleAuth() {
+    if (typeof google === 'undefined') {
+        // Nếu thư viện tải chậm do mạng, thử lại sau mỗi 500ms
+        setTimeout(initGoogleAuth, 500);
+        return;
+    }
+
+    google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse
+    });
+
+    const loginBtnEl = document.getElementById("google-login-btn");
+    if (loginBtnEl) {
+        google.accounts.id.renderButton(
+            loginBtnEl,
+            { theme: "outline", size: "large", width: "100%", text: "signin_with" }
+        );
+    }
+}
+
+// Xử lý thông tin Token mã hóa trả về từ Google sau khi chọn tài khoản email
+async function handleCredentialResponse(response) {
+    const errorMsgEl = document.getElementById("auth-error-msg");
+    if (errorMsgEl) errorMsgEl.classList.add("hidden");
+    
+    try {
+        // Giải mã nhanh phần thân (Payload) của JWT Token để bóc tách lấy Email
+        const base64Url = response.credential.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        const payloadObj = JSON.parse(jsonPayload);
+        const email = payloadObj.email;
+
+        // Cập nhật trạng thái đang đối chiếu hệ thống lên giao diện
+        if (errorMsgEl) {
+            errorMsgEl.innerText = "Đang xác thực quyền truy cập mây...";
+            errorMsgEl.classList.remove("text-red-500");
+            errorMsgEl.classList.add("text-blue-600");
+            errorMsgEl.classList.remove("hidden");
+        }
+
+        // Thực hiện gửi gói tin API verifyUser kiểm tra với danh sách Whitelist trong Sheet dữ liệu
+        const checkRes = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'verifyUser', email: email })
+        }).then(r => r.json());
+
+        if (checkRes && checkRes.success) {
+            // Xác thực thành công: Cất email vào bộ nhớ máy để bỏ qua bước đăng nhập lần sau
+            localStorage.setItem("vinhloc_authenticated_email", email);
+            
+            // Thực hiện đóng màn hình đăng nhập bảo mật
+            const authOverlay = document.getElementById("auth-overlay");
+            if (authOverlay) authOverlay.style.display = "none";
+            
+            // Xóa triệt để các cờ lưu cũ để cưỡng bức màn hình nạp 30 giây kích hoạt ngay tại nhịp này
+            localStorage.removeItem("vinhloc_spider_pwa_loaded");
+            localStorage.removeItem("vinhloc_spider_browser_loaded");
+
+            // Kích hoạt luồng đếm ngược nạp dữ liệu mạng lưới
+            initSpiderLoaderFlow();
+        } else {
+            // Bị từ chối: Xuất cảnh báo lỗi lên màn hình đăng nhập
+            if (errorMsgEl) {
+                errorMsgEl.innerText = checkRes.message || "Tài khoản của bạn chưa được cấp quyền sử dụng hệ thống!";
+                errorMsgEl.classList.remove("text-blue-600");
+                errorMsgEl.classList.add("text-red-500");
+            }
+        }
+    } catch (err) {
+        if (errorMsgEl) {
+            errorMsgEl.innerText = "Lỗi xử lý đăng nhập hệ thống!";
+            errorMsgEl.classList.remove("text-blue-600");
+            errorMsgEl.classList.add("text-red-500");
+        }
+        console.error("Lỗi Auth: ", err);
+    }
+}
+
+// Hàm quản lý độc lập luồng chạy màn hình chờ 30 giây (Chỉ chạy khi đã qua được lớp bảo mật)
+function initSpiderLoaderFlow() {
+    // Nhận diện xem user đang mở bằng Trình duyệt thông thường hay PWA độc lập từ màn hình chính
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     
-    // Kiểm tra cờ trong bộ nhớ
     const pwaLoaded = localStorage.getItem("vinhloc_spider_pwa_loaded");
     const browserLoaded = localStorage.getItem("vinhloc_spider_browser_loaded");
     
     let shouldShowLoader = false;
     let storageKeyToSave = "";
 
-    // Quyết định có hiển thị màn hình chờ hay không
+    // Phân tích trạng thái để quyết định có chạy màn đếm ngược hay không
     if (isStandalone && !pwaLoaded) {
-        // Đang mở bằng Icon PWA và chưa nạp lần nào (hoặc vừa bị xóa cờ do mới cài lại)
         shouldShowLoader = true;
         storageKeyToSave = "vinhloc_spider_pwa_loaded";
     } else if (!isStandalone && !browserLoaded) {
-        // Đang mở bằng Trình duyệt thông thường và chưa nạp lần nào
         shouldShowLoader = true;
         storageKeyToSave = "vinhloc_spider_browser_loaded";
     }
@@ -37,11 +138,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const loader = document.getElementById("spider-brain-loader");
     const textEl = document.getElementById("spider-brain-text");
 
-    // Chạy màn hình chờ nếu thỏa mãn điều kiện
+    // Tiến hành kích hoạt bộ đếm thời gian thực nếu đủ điều kiện tải lần đầu
     if (shouldShowLoader && loader && textEl) {
-        loader.style.display = "flex"; // Bật màn hình chờ
+        loader.style.display = "flex"; // Mở màn hình chờ
         let percent = 1;
-        const intervalTime = 300; // 300ms x 100 bước = ~30 giây
+        const intervalTime = 300; // 300ms x 100 bước = chính xác 30 giây
 
         const loadingInterval = setInterval(() => {
             percent++;
@@ -50,20 +151,23 @@ document.addEventListener("DOMContentLoaded", () => {
             if (percent >= 100) {
                 clearInterval(loadingInterval);
                 
-                // Kích hoạt hiệu ứng mờ dần
+                // Chạy hiệu ứng CSS mờ dần tấm màn chắn
                 loader.classList.add("fade-out-spider");
                 
-                // Đánh dấu đã nạp thành công
+                // Đánh dấu mốc thiết bị đã đồng bộ thành công vào ổ cứng
                 localStorage.setItem(storageKeyToSave, "true");
                 
-                // Xóa khỏi luồng hiển thị
+                // Gỡ bỏ hoàn toàn trạng thái hiển thị của tấm màn sau 1 giây hiệu ứng kết thúc
                 setTimeout(() => {
                     loader.style.display = "none";
                 }, 1000);
             }
         }, intervalTime);
+    } else if (loader) {
+        // Trong trường hợp thiết bị đã đồng bộ từ trước và không cần chạy lại loader, ẩn ngay lập tức để vào app
+        loader.style.display = "none";
     }
-});
+}
 
 // Bỏ đọc từ localStorage để luôn làm mới stack mỗi khi mở app
 localStorage.removeItem('appFolderStack'); 

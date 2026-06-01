@@ -19,6 +19,94 @@ function doPost(e) {
     let result = { success: false, message: "Hành động không hợp lệ" };
 
     switch (action) {
+      // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC ---
+      // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC (ĐÃ FIX LỖI) ---
+      case 'clipboardOps':
+        try {
+            const mode = payload.mode; // 'copy', 'move', 'undo'
+            const items = payload.items; // [{id, type, origParent}]
+            const targetFldId = payload.targetFolderId;
+            const targetReplaceId = payload.targetReplaceId;
+            let newIds = [];
+
+            // 1. NẾU LÀ LỆNH HOÀN TÁC (UNDO)
+            if (mode === 'undo') {
+                const undoType = payload.undoType;
+                if (undoType === 'copy') {
+                    // Xóa các bản sao vừa tạo ra
+                    items.forEach(i => {
+                        try { DriveApp.getFileById(i.id).setTrashed(true); } catch(e){}
+                        try { DriveApp.getFolderById(i.id).setTrashed(true); } catch(e){}
+                    });
+                } else if (undoType === 'move') {
+                    // Trả lại vị trí cũ
+                    items.forEach(i => {
+                        try {
+                            let node = i.type === 'file' ? DriveApp.getFileById(i.id) : DriveApp.getFolderById(i.id);
+                            let targetP = DriveApp.getFolderById(i.origParent);
+                            // SỬA LỖI: Dùng hàm moveTo() chuẩn của Google
+                            node.moveTo(targetP);
+                        } catch(e){}
+                    });
+                }
+                // FIX LỖI MẠNG: Đóng gói JSON đúng chuẩn GAS
+                return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Hoàn tác thành công" })).setMimeType(ContentService.MimeType.JSON);
+            }
+
+            // 2. TÌM THƯ MỤC ĐÍCH
+            let targetFolder;
+            if (targetReplaceId) {
+                try { 
+                    // Dán đè lên 1 file -> Lấy thư mục cha của file đó làm đích
+                    let repFile = DriveApp.getFileById(targetReplaceId);
+                    if (repFile.getParents().hasNext()) targetFolder = repFile.getParents().next(); 
+                } catch(e) {}
+            }
+            if (!targetFolder) targetFolder = DriveApp.getFolderById(targetFldId);
+            
+            // Hàm đệ quy copy thư mục
+            function copyFolderRecursive(srcFld, destFld, prefix) {
+                let newFld = destFld.createFolder(prefix + srcFld.getName());
+                let files = srcFld.getFiles();
+                while(files.hasNext()) files.next().makeCopy(newFld);
+                let subFlds = srcFld.getFolders();
+                while(subFlds.hasNext()) copyFolderRecursive(subFlds.next(), newFld, ""); 
+                return newFld;
+            }
+
+            // 3. XỬ LÝ LỆNH SAO CHÉP / DI CHUYỂN
+            for (let i of items) {
+                let node = i.type === 'file' ? DriveApp.getFileById(i.id) : DriveApp.getFolderById(i.id);
+                let origParent = node.getParents().hasNext() ? node.getParents().next().getId() : ""; // Tránh lỗi khi không có ID gốc
+
+                if (mode === 'copy') {
+                    let prefix = "Bản sao của_";
+                    if (i.type === 'file') {
+                        let newF = node.makeCopy(prefix + node.getName(), targetFolder);
+                        newIds.push({id: newF.getId(), type: 'file', origParent: origParent});
+                    } else {
+                        let newFld = copyFolderRecursive(node, targetFolder, prefix);
+                        newIds.push({id: newFld.getId(), type: 'folder', origParent: origParent});
+                    }
+                } else if (mode === 'move') {
+                    // SỬA LỖI: Dùng .moveTo thay vì removeFile/addFile (bị chặn)
+                    node.moveTo(targetFolder);
+                    newIds.push({id: node.getId(), type: i.type, origParent: origParent});
+                }
+            }
+
+            // 4. DỌN DẸP FILE CŨ NẾU LÀ "DÁN ĐÈ"
+            if (targetReplaceId) {
+                try { DriveApp.getFileById(targetReplaceId).setTrashed(true); } catch(e){}
+            }
+
+            // FIX LỖI MẠNG: Đóng gói dữ liệu trả về thành JSON String hợp lệ
+            return ContentService.createTextOutput(JSON.stringify({ success: true, processedItems: newIds })).setMimeType(ContentService.MimeType.JSON);
+            
+        } catch (err) {
+            // FIX LỖI MẠNG CHO KHỐI CATCH
+            return ContentService.createTextOutput(JSON.stringify({ success: false, message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+        }
       case 'saveGlobalCache':
         try {
           const cacheName = "_vinhloc_global_cache.json";
