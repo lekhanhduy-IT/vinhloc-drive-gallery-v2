@@ -131,6 +131,7 @@ function initGoogleAuth() {
         return;
     }
 function renderGoogleLoginButton() {
+
     const wrapper = document.getElementById('google-login-wrapper');
     const btn = document.getElementById('google-login-btn');
 
@@ -142,18 +143,16 @@ function renderGoogleLoginButton() {
     btn.innerHTML = '<div class="loader"></div>';
 
     setTimeout(() => {
+
         btn.innerHTML = '';
 
         google.accounts.id.renderButton(
-            document.getElementById("google-login-btn"),
+            btn,
             {
-                theme: "outline",
-                size: "large",
-                type: "standard",
-                shape: "pill", // Thuộc tính này làm nút bo tròn 2 đầu
-                text: "signin_with",
-                width: 320,
-                logo_alignment: "left"
+                theme: 'outline',
+                size: 'large',
+                width: 280,
+                shape: 'pill'
             }
         );
 
