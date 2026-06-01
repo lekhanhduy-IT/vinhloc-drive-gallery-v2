@@ -5246,7 +5246,7 @@ if (!window.toggleItemMenu.isClipboardHooked) {
                 
                 let html = `<div class="border-t border-gray-100 my-1"></div>`;
                 
-                // Bơm nút Chức năng Cơ bản
+                // Bơm nút Chức năng Cơ bản + Nút Chia sẻ
                 html += `
                 <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-blue-50 text-gray-700 cursor-pointer font-semibold" data-action="copy">
                     <i class="fa-regular fa-copy w-5 text-center text-blue-500 mr-2"></i><span>Sao chép</span>
@@ -5259,6 +5259,9 @@ if (!window.toggleItemMenu.isClipboardHooked) {
                 </div>
                 <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-red-50 text-gray-700 cursor-pointer font-semibold" data-action="undo">
                     <i class="fa-solid fa-rotate-left w-5 text-center text-red-500 mr-2"></i><span>Hoàn tác</span>
+                </div>
+                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-teal-50 text-gray-700 cursor-pointer font-semibold" data-action="share">
+                    <i class="fa-solid fa-share-nodes w-5 text-center text-teal-500 mr-2"></i><span>Chia sẻ</span>
                 </div>`;
                 
                 // Nếu là ẢNH -> Bơm thêm nút BIÊN TẬP
@@ -5417,6 +5420,37 @@ document.addEventListener('click', (e) => {
                 if (typeof masterSync === 'function') masterSync();
             }
         }).catch(()=> showToast("Lỗi mạng khi Hoàn tác!", true));
+    }
+
+    // E. XỬ LÝ CHIA SẺ (SHARE) VỚI FACEBOOK LH3 LOGIC
+    else if (action === 'share') {
+        if (!targetItem) return showToast("Vui lòng chọn đối tượng!");
+
+        let shareUrl = targetItem.url || `https://drive.google.com/file/d/${targetItem.id}/view`;
+        const isImage = targetItem.mimeType && targetItem.mimeType.includes('image');
+
+        // Bơm link LH3 để Facebook lấy thẳng ảnh nếu là file ảnh
+        if (targetItem.type === 'file' && isImage) {
+            shareUrl = `https://lh3.googleusercontent.com/d/$${targetItem.id}=s0`;
+        }
+
+        // Gọi Web Share API (native trên điện thoại)
+        if (navigator.share) {
+            navigator.share({
+                title: targetItem.name,
+                text: targetItem.name,
+                url: shareUrl
+            }).then(() => {
+                // Thành công gọi bảng Share native
+            }).catch((err) => {
+                console.log("Đã hủy hoặc lỗi share: ", err);
+            });
+        } else {
+            // Dự phòng cho trình duyệt PC / Cũ không hỗ trợ navigator.share
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showToast('<i class="fas fa-check-circle"></i> Đã copy link ảnh trực tiếp (LH3)!');
+            });
+        }
     }
 
     // Đóng toàn bộ menu sau khi click xong
