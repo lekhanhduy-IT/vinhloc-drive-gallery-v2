@@ -23,56 +23,41 @@ function doPost(e) {
       try {
         const userEmail = payload.email; 
         if (!userEmail) {
-          return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không tìm thấy email" })).setMimeType(ContentService.MimeType.JSON);
+          return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không tìm thấy email" })).setMimeType(ContentService.MimeType.JSON, headers);
         }
 
         let isAllowed = false;
-        
-        // KIỂM TRA QUYỀN TRUY CẬP TRỰC TIẾP TỪ GOOGLE DRIVE (BỘ NHỚ DÙNG CHUNG)
-        try {
-          const folder = DriveApp.getFolderById(ROOT_FOLDER_ID);
-          
-          // Kiểm tra xem email này có phải là Editor không
-          const editors = folder.getEditors();
-          for (let i = 0; i < editors.length; i++) {
-            if (editors[i].getEmail().toLowerCase() === userEmail.toLowerCase()) {
-              isAllowed = true;
-              break;
-            }
-          }
+        const emailCheck = userEmail.trim().toLowerCase();
 
-          // Nếu chưa phải Editor, kiểm tra xem có phải là Viewer không
-          if (!isAllowed) {
-            const viewers = folder.getViewers();
-            for (let i = 0; i < viewers.length; i++) {
-              if (viewers[i].getEmail().toLowerCase() === userEmail.toLowerCase()) {
-                isAllowed = true;
-                break;
-              }
-            }
-          }
+        if (emailCheck === Session.getScriptUser().getEmail().toLowerCase()) {
+            isAllowed = true;
+        }
 
-          // Kiểm tra xem có phải là Owner không (phòng trường hợp là chủ sở hữu file)
-          if (!isAllowed) {
-            const owner = folder.getOwner();
-            if (owner && owner.getEmail().toLowerCase() === userEmail.toLowerCase()) {
-              isAllowed = true;
+        // DÙNG DRIVE API NÂNG CAO ĐỂ QUÉT BỘ NHỚ DÙNG CHUNG
+        if (!isAllowed) {
+            try {
+                // Lấy thông tin Drive ID của thư mục gốc
+                const folderInfo = Drive.Files.get(ROOT_FOLDER_ID, {supportsAllDrives: true});
+                const driveId = folderInfo.driveId; 
+                
+                if (driveId) {
+                    // Lấy toàn bộ danh sách thành viên của Bộ nhớ dùng chung đó
+                    const permissions = Drive.Permissions.list(driveId, {supportsAllDrives: true}).items;
+                    for (let i = 0; i < permissions.length; i++) {
+                        if (permissions[i].emailAddress && permissions[i].emailAddress.toLowerCase() === emailCheck) {
+                            isAllowed = true;
+                            break;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Lỗi khi đọc Shared Drive API: " + e.message);
             }
-          }
-          
-          // Mở rộng kiểm tra: Nếu tài khoản là chính tài khoản chạy Script
-          if (!isAllowed && userEmail.toLowerCase() === Session.getScriptUser().getEmail().toLowerCase()) {
-              isAllowed = true;
-          }
-
-        } catch (e) {
-           // Lỗi khi truy cập folder (thường là do chưa có quyền API, hoặc ID folder sai)
-           console.error("Lỗi khi đọc quyền Folder: " + e.message);
         }
 
         return ContentService.createTextOutput(JSON.stringify({ 
           success: isAllowed, 
-          message: isAllowed ? "Quyền truy cập hợp lệ" : "Tài khoản của bạn chưa được share vào Bộ nhớ dùng chung/Thư mục!" 
+          message: isAllowed ? "Hợp lệ" : "Bạn không có trong danh sách Bộ nhớ dùng chung!" 
         })).setMimeType(ContentService.MimeType.JSON, headers);
 
       } catch(err) {
