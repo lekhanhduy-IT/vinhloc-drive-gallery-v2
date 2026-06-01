@@ -5527,37 +5527,41 @@ document.addEventListener('click', (e) => {
     if (headerDropdown) headerDropdown.classList.add('hidden');
 });
 // ==============================================================
-// PATCH 43: NÚT CÂY BÚT CHỈ BIÊN TẬP CÁC ẢNH ĐƯỢC CHỌN (HOẶC TẤT CẢ)
+// PATCH 43: NÚT CÂY BÚT THÔNG MINH (CHỈ LẤY ẢNH ĐANG ACTIVE)
 // ==============================================================
 setTimeout(() => {
     const oldBtn = document.getElementById('btn-open-design');
     if (oldBtn) {
-        // Nhân bản nút để xóa bỏ các Event Listener cũ bị chồng chéo
+        // Nhân bản nút để xóa bỏ mọi sự kiện rác cũ
         const newBtn = oldBtn.cloneNode(true);
         oldBtn.parentNode.replaceChild(newBtn, oldBtn);
 
         newBtn.addEventListener('click', () => {
-            // Lọc ra toàn bộ ảnh trong thư mục hiện tại
+            // 1. Lọc ra toàn bộ ảnh trong thư mục hiện tại
             let targetItems = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
 
-            // Nếu người dùng đang tick chọn file, thì chỉ lấy các file được chọn đó
+            // 2. LOGIC LÕI: Nếu đang có ảnh được "Active" (Tick chọn) -> Chỉ lấy những ảnh đó
             if (window.multiSelectState && window.multiSelectState.selectedIds.size > 0) {
                 targetItems = targetItems.filter(item => window.multiSelectState.selectedIds.has(item.id));
             }
 
             const driveImages = targetItems.map(item => ({
                 url: item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`,
-                name: item.name // Truyền tên gốc để làm tên file lúc tải về
+                name: item.name 
             }));
 
-            // Xử lý báo lỗi nếu thư mục trống hoặc các file được chọn không phải là ảnh
+            // Nếu không có ảnh nào hợp lệ
             if (driveImages.length === 0) {
                 if (typeof closeFab === 'function') closeFab();
-                showToast("Không có ảnh hợp lệ nào để biên tập!", true);
+                showToast("Không có ảnh nào để biên tập!", true);
                 return;
             }
 
-            // Làm sạch không gian làm việc và nạp ảnh vào
+            // Dọn dẹp UI trước khi mở
+            if (typeof closeFab === 'function') closeFab();
+            document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+
+            // 3. Làm sạch không gian làm việc và nạp ảnh vào Design
             state.images = []; 
             state.layerOrder = []; 
             state.activeElementId = null;
@@ -5577,18 +5581,18 @@ setTimeout(() => {
             const overlayContainer = document.getElementById('watermark-overlay-container');
             if (overlayContainer) overlayContainer.style.display = 'flex';
 
-            // HIỆU ỨNG THÔNG MINH: Nếu chỉ có 1 ảnh được nạp, tự động ép khung lưới về 1 cột (Zoom to hết cỡ)
+            // 4. TỰ ĐỘNG ZOOM TO: Nếu chỉ đưa vào 1 ảnh, ép lưới về 1 cột để dễ chỉnh sửa
             if (driveImages.length === 1) {
                 setTimeout(() => {
                     const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
                     if (btnDecrease) {
                         btnDecrease.click();
-                        setTimeout(() => btnDecrease.click(), 50);
+                        setTimeout(() => btnDecrease.click(), 50); // Bấm 2 nhịp để đưa về max 1 cột
                     }
                 }, 150);
             }
 
-            // Phục hồi lại Patch đẩy lịch sử trình duyệt để sửa lỗi bấm nút Back (Trở về) trên điện thoại
+            // 5. Phục hồi lịch sử trình duyệt để sửa lỗi nút Back vật lý của điện thoại (Safe Mode V2)
             setTimeout(() => {
                 if (overlayContainer && overlayContainer.style.display === 'flex') {
                     if (!window.isDesignOverlayActive) {
@@ -5601,7 +5605,7 @@ setTimeout(() => {
         });
     }
     console.log("✅ PATCH 43: Đã cập nhật Nút Cây Bút thông minh (Biết lấy ảnh đang chọn)!");
-}, 28000); // Cài đặt độ trễ 28s để chắc chắn các code khởi tạo nút đã chạy xong trước khi ghi đè
+}, 28000);
 // ==============================================================
 // PATCH 42 (BẢN FIX TỐI ƯU): CHIA SẺ ẢNH LÊN FACEBOOK KHÔNG BỊ ĐƠ
 // ==============================================================
