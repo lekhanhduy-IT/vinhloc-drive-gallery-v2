@@ -576,7 +576,7 @@ btnBack.addEventListener('click', () => { if (folderStack.length > 1) history.ba
 function updateBreadcrumbs() {
     if (folderStack.length === 1) {
         currentFolderName.innerHTML = currentCategory;
-        btnBack.classList.add('hidden'); btnMenu.classList.remove('hidden'); btnOpenDesign.classList.add('hidden');
+        btnBack.classList.add('hidden'); btnMenu.classList.remove('hidden'); btnOpenDesign.classList.remove('hidden');
     } else {
         currentFolderName.innerHTML = folderStack.map((f, i) => {
             if (i === folderStack.length - 1) return `<span class="font-bold">${f.name}</span>`;
@@ -5845,43 +5845,3 @@ setTimeout(() => {
     
     console.log("✅ PATCH 44: Đã gắn Nút Đăng xuất vào Menu Header!");
 }, 29000); // Khởi chạy trễ ở giây 29 để chắc chắn nó luôn nằm dưới cùng
-// ==============================================================
-// PATCH FIX TẬN GỐC: CÂY BÚT BỊ TÀNG HÌNH DO NHÂN BẢN DOM (PATCH 43)
-// ==============================================================
-(function() {
-    // Ghi đè hàm điều hướng để ép nó quét lại DOM tìm chiếc nút thật
-    const originalUpdateBreadcrumbs = window.updateBreadcrumbs;
-    
-    window.updateBreadcrumbs = function() {
-        // Vẫn chạy hàm cũ để hiển thị đúng Tên đường dẫn
-        if (typeof originalUpdateBreadcrumbs === 'function') {
-            originalUpdateBreadcrumbs();
-        }
-        
-        // BÍ QUYẾT: Quét trực tiếp HTML để tìm nút Cây Bút mới nhất
-        const realPenBtn = document.getElementById('btn-open-design');
-        
-        if (realPenBtn) {
-            if (window.folderStack && window.folderStack.length > 1) {
-                // Nếu đang ở trong Thư mục -> ÉP HIỆN
-                realPenBtn.classList.remove('hidden');
-                realPenBtn.style.display = 'flex';
-            } else {
-                // Nếu đang ở Mega-row gốc -> ÉP ẨN
-                realPenBtn.classList.add('hidden');
-                realPenBtn.style.display = 'none';
-            }
-        }
-    };
-
-    // Tự động kích hoạt quét một lần ngay lập tức (phòng trường hợp bạn đang đứng sẵn trong thư mục)
-    setTimeout(() => {
-        if (window.folderStack && window.folderStack.length > 1) {
-            const currentPenBtn = document.getElementById('btn-open-design');
-            if (currentPenBtn) {
-                currentPenBtn.classList.remove('hidden');
-                currentPenBtn.style.display = 'flex';
-            }
-        }
-    }, 500);
-})();
