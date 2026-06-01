@@ -191,10 +191,9 @@ async function handleCredentialResponse(response) {
         // Cập nhật trạng thái đang đối chiếu hệ thống lên giao diện
         if (errorMsgEl) {
             errorMsgEl.innerText = "Đang xác thực quyền truy cập...";
-errorMsgEl.classList.remove("text-red-500");
-errorMsgEl.classList.remove("text-blue-600");
-errorMsgEl.classList.add("text-white");
-errorMsgEl.classList.remove("hidden");
+            errorMsgEl.classList.remove("text-red-500");
+            errorMsgEl.classList.add("text-blue-600");
+            errorMsgEl.classList.remove("hidden");
         }
 
         // Thực hiện gửi gói tin API verifyUser kiểm tra với danh sách Whitelist trong Sheet dữ liệu
