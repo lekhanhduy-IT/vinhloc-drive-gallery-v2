@@ -5864,24 +5864,22 @@ setTimeout(() => {
     console.log("✅ PATCH 42 (FIXED): Đã tối ưu thuật toán truyền File vào Facebook siêu tốc!");
 }, 28500); // Khởi chạy trễ nhất để chắc chắn đè bẹp bản Patch 42 bị lỗi
 // ==============================================================
-// PATCH 44: THÊM NÚT ĐĂNG XUẤT VÀO MENU HEADER (DẤU 3 CHẤM)
+// PATCH 44 (BẢN DÙNG MODAL CSS): THÊM NÚT ĐĂNG XUẤT VÀO MENU HEADER
 // ==============================================================
 setTimeout(() => {
     if (window.buildHeaderMenu && !window.buildHeaderMenu.isLogoutHooked) {
-        // Lưu lại hàm build menu gốc (bao gồm cả các nút đã thêm từ các Patch trước)
+        // Lưu lại hàm build menu gốc
         const originalBuildHeaderMenuForLogout = window.buildHeaderMenu;
         
         window.buildHeaderMenu = function() {
-            // 1. Chạy hàm gốc để dựng các mục cơ bản (Lọc, Chia sẻ, v.v...)
             originalBuildHeaderMenuForLogout();
             
-            // 2. Chèn Nút Đăng xuất xuống đáy Menu
             const headerDropdown = document.getElementById('headerDropdown');
             if (headerDropdown) {
                 const logoutHtml = `
                     <div class="border-t border-gray-100 my-1"></div>
-                    <div class="px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center cursor-pointer transition" onclick="window.vinhlocForceLogout()">
-                        <i class="fa-solid fa-right-from-bracket w-5 text-center mr-2"></i><span>Đăng xuất hệ thống</span>
+                    <div class="px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center cursor-pointer transition" onclick="window.vinhlocForceLogout(event)">
+                        <i class="fa-solid fa-right-from-bracket w-5 text-center mr-2"></i><span>Đăng xuất</span>
                     </div>
                 `;
                 headerDropdown.insertAdjacentHTML('beforeend', logoutHtml);
@@ -5891,23 +5889,62 @@ setTimeout(() => {
     }
 
     // HÀM XỬ LÝ SỰ KIỆN KHI BẤM ĐĂNG XUẤT
-    window.vinhlocForceLogout = function() {
-        if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?")) {
-            // 1. Hủy phiên đăng nhập hiện tại
-            localStorage.removeItem("vinhloc_authenticated_email");
-            
-            // 2. Xóa cờ để lần tới đăng nhập sẽ có màn hình chờ 30 giây nạp Nhện
-            localStorage.removeItem("vinhloc_spider_pwa_loaded");
-            localStorage.removeItem("vinhloc_spider_browser_loaded");
-            
-            // 3. Quét sạch tàn dư dữ liệu nội bộ và tải lại ứng dụng
-            if (window.localforage) {
-                localforage.clear().then(() => window.location.reload());
-            } else {
-                window.location.reload();
+    window.vinhlocForceLogout = function(e) {
+        if (e) e.stopPropagation();
+        
+        // 1. Đóng menu dropdown thả xuống cho gọn mắt
+        const headerDropdown = document.getElementById('headerDropdown');
+        if (headerDropdown) headerDropdown.classList.add('hidden');
+
+        // 2. Tận dụng Custom Modal có sẵn của hệ thống
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDesc = document.getElementById('modalDesc');
+        const modalInput = document.getElementById('modalInput');
+        const confirmBtn = document.getElementById('modalConfirmBtn');
+        const customModal = document.getElementById('customModal');
+
+        if (customModal && modalTitle && modalDesc && confirmBtn) {
+            // Thay đổi nội dung Modal
+            modalTitle.textContent = 'Xác nhận Đăng xuất';
+            modalDesc.textContent = 'Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?';
+            modalDesc.classList.remove('hidden');
+            if (modalInput) modalInput.classList.add('hidden');
+
+            // Đổi style nút bấm
+            confirmBtn.textContent = 'Đăng xuất';
+            confirmBtn.className = 'px-5 py-2 bg-red-600 text-white font-bold rounded-xl';
+
+            // Gắn lệnh thực thi khi user bấm Đồng ý
+            confirmBtn.onclick = () => {
+                if (typeof closeModal === 'function') closeModal();
+                
+                // Hủy phiên đăng nhập
+                localStorage.removeItem("vinhloc_authenticated_email");
+                localStorage.removeItem("vinhloc_spider_pwa_loaded");
+                localStorage.removeItem("vinhloc_spider_browser_loaded");
+                
+                // Quét sạch dữ liệu nội bộ và ép tải lại
+                if (window.localforage) {
+                    localforage.clear().then(() => window.location.reload());
+                } else {
+                    window.location.reload();
+                }
+            };
+
+            // Bật Modal lên
+            customModal.classList.remove('hidden');
+            customModal.classList.add('flex');
+        } else {
+            // Fallback an toàn phòng khi mất HTML gốc
+            if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?")) {
+                localStorage.removeItem("vinhloc_authenticated_email");
+                localStorage.removeItem("vinhloc_spider_pwa_loaded");
+                localStorage.removeItem("vinhloc_spider_browser_loaded");
+                if (window.localforage) localforage.clear().then(() => window.location.reload());
+                else window.location.reload();
             }
         }
     };
     
-    console.log("✅ PATCH 44: Đã gắn Nút Đăng xuất vào Menu Header!");
-}, 29000); // Khởi chạy trễ ở giây 29 để chắc chắn nó luôn nằm dưới cùng
+    console.log("✅ PATCH 44: Đã gắn Nút Đăng xuất (Custom UI) vào Menu Header!");
+}, 29000);
