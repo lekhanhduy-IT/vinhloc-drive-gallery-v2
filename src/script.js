@@ -5479,7 +5479,7 @@ if (!window.toggleItemMenu.isClipboardHooked) {
                 if (isImage) {
                     html += `<div class="border-t border-gray-100 my-1"></div>
                     <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-purple-50 text-purple-700 cursor-pointer font-bold" data-action="edit_single">
-                        <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-purple-600 mr-2"></i><span>Biên tập ảnh này</span>
+                        <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-purple-600 mr-2"></i><span>Biên tập</span>
                     </div>`;
                 }
                 
