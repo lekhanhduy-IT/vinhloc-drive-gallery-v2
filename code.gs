@@ -19,42 +19,65 @@ function doPost(e) {
     let result = { success: false, message: "Hành động không hợp lệ" };
 
     switch (action) {
-      // Thêm logic này vào trong hàm doPost(e) -> switch (action) của file code.gs
-case 'verifyUser':
-  try {
-    const userEmail = payload.email; // Email gửi từ client lên
-    if (!userEmail) {
-      return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không tìm thấy email" })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // ĐỌC DANH SÁCH EMAIL ĐƯỢC PHÉP TỪ GOOGLE SHEET
-    const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("Whitelist"); // Tạo một tab tên là Whitelist trong file Sheets
-    let isAllowed = false;
-
-    if (sheet) {
-      const data = sheet.getDataRange().getValues();
-      // Quét qua cột chứa danh sách email (giả định cột đầu tiên)
-      for (let i = 0; i < data.length; i++) {
-        if (data[i][0].toString().trim().toLowerCase() === userEmail.trim().toLowerCase()) {
-          isAllowed = true;
-          break;
+      case 'verifyUser':
+      try {
+        const userEmail = payload.email; 
+        if (!userEmail) {
+          return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không tìm thấy email" })).setMimeType(ContentService.MimeType.JSON);
         }
-      }
-    } else {
-      // Phương án dự phòng: Nếu không có cấu hình Sheet, mặc định cho phép chủ tài khoản AppScript truy cập
-      if (userEmail.trim().toLowerCase() == Session.getScriptUser().getEmail().toLowerCase()) {
-        isAllowed = true;
-      }
-    }
 
-    return ContentService.createTextOutput(JSON.stringify({ 
-      success: isAllowed, 
-      message: isAllowed ? "Quyền truy cập hợp lệ" : "Tài khoản của bạn chưa được cấp quyền sử dụng hệ thống!" 
-    })).setMimeType(ContentService.MimeType.JSON, headers);
+        let isAllowed = false;
+        
+        // KIỂM TRA QUYỀN TRUY CẬP TRỰC TIẾP TỪ GOOGLE DRIVE (BỘ NHỚ DÙNG CHUNG)
+        try {
+          const folder = DriveApp.getFolderById(ROOT_FOLDER_ID);
+          
+          // Kiểm tra xem email này có phải là Editor không
+          const editors = folder.getEditors();
+          for (let i = 0; i < editors.length; i++) {
+            if (editors[i].getEmail().toLowerCase() === userEmail.toLowerCase()) {
+              isAllowed = true;
+              break;
+            }
+          }
 
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Lỗi hệ thống: " + err.toString() })).setMimeType(ContentService.MimeType.JSON, headers);
-  }
+          // Nếu chưa phải Editor, kiểm tra xem có phải là Viewer không
+          if (!isAllowed) {
+            const viewers = folder.getViewers();
+            for (let i = 0; i < viewers.length; i++) {
+              if (viewers[i].getEmail().toLowerCase() === userEmail.toLowerCase()) {
+                isAllowed = true;
+                break;
+              }
+            }
+          }
+
+          // Kiểm tra xem có phải là Owner không (phòng trường hợp là chủ sở hữu file)
+          if (!isAllowed) {
+            const owner = folder.getOwner();
+            if (owner && owner.getEmail().toLowerCase() === userEmail.toLowerCase()) {
+              isAllowed = true;
+            }
+          }
+          
+          // Mở rộng kiểm tra: Nếu tài khoản là chính tài khoản chạy Script
+          if (!isAllowed && userEmail.toLowerCase() === Session.getScriptUser().getEmail().toLowerCase()) {
+              isAllowed = true;
+          }
+
+        } catch (e) {
+           // Lỗi khi truy cập folder (thường là do chưa có quyền API, hoặc ID folder sai)
+           console.error("Lỗi khi đọc quyền Folder: " + e.message);
+        }
+
+        return ContentService.createTextOutput(JSON.stringify({ 
+          success: isAllowed, 
+          message: isAllowed ? "Quyền truy cập hợp lệ" : "Tài khoản của bạn chưa được share vào Bộ nhớ dùng chung/Thư mục!" 
+        })).setMimeType(ContentService.MimeType.JSON, headers);
+
+      } catch(err) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Lỗi hệ thống: " + err.toString() })).setMimeType(ContentService.MimeType.JSON, headers);
+      }
       // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC ---
       // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC (ĐÃ FIX LỖI) ---
       case 'clipboardOps':
