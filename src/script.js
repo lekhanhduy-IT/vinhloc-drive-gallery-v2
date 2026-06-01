@@ -1,43 +1,7 @@
 // ==============================================================
 // SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN
 // ==============================================================
-function renderGoogleLoginButton() {
 
-    const wrapper = document.getElementById('google-login-wrapper');
-    const btn = document.getElementById('google-login-btn');
-
-    if (!wrapper || !btn) return;
-
-    wrapper.classList.remove('ready');
-    wrapper.classList.add('loading');
-
-    btn.innerHTML = '<div class="loader"></div>';
-
-    setTimeout(() => {
-
-        btn.innerHTML = '';
-
-        google.accounts.id.renderButton(
-            btn,
-            {
-                theme: 'outline',
-                size: 'large',
-                width: 280,
-                shape: 'pill'
-            }
-        );
-
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-
-                wrapper.classList.remove('loading');
-                wrapper.classList.add('ready');
-
-            });
-        });
-
-    }, 150);
-}
 (function() {
     // 1. SỬA LỖI TÀNG HÌNH: Khắc phục Illegal Invocation của setTimeout
     window._isAppBooting = true;
@@ -166,7 +130,37 @@ function initGoogleAuth() {
         setTimeout(initGoogleAuth, 500);
         return;
     }
+function renderGoogleLoginButton() {
 
+    const wrapper = document.getElementById('google-login-wrapper');
+    const btn = document.getElementById('google-login-btn');
+
+    if (!wrapper || !btn) return;
+
+    wrapper.classList.remove('ready');
+    wrapper.classList.add('loading');
+
+    btn.innerHTML = '<div class="loader"></div>';
+
+    setTimeout(() => {
+
+        btn.innerHTML = '';
+
+        google.accounts.id.renderButton(
+            btn,
+            {
+                theme: 'outline',
+                size: 'large',
+                width: 280,
+                shape: 'pill'
+            }
+        );
+
+        wrapper.classList.remove('loading');
+        wrapper.classList.add('ready');
+
+    }, 150);
+}
     google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse
@@ -174,10 +168,7 @@ function initGoogleAuth() {
 
     const loginBtnEl = document.getElementById("google-login-btn");
     if (loginBtnEl) {
-        google.accounts.id.renderButton(
-            loginBtnEl,
-            { theme: "outline", size: "large", width: "100%", text: "signin_with" }
-        );
+        renderGoogleLoginButton();
     }
 }
 
@@ -200,9 +191,10 @@ async function handleCredentialResponse(response) {
         // Cập nhật trạng thái đang đối chiếu hệ thống lên giao diện
         if (errorMsgEl) {
             errorMsgEl.innerText = "Đang xác thực quyền truy cập...";
-            errorMsgEl.classList.remove("text-red-500");
-            errorMsgEl.classList.add("text-blue-600");
-            errorMsgEl.classList.remove("hidden");
+errorMsgEl.classList.remove("text-red-500");
+errorMsgEl.classList.remove("text-blue-600");
+errorMsgEl.classList.add("text-white");
+errorMsgEl.classList.remove("hidden");
         }
 
         // Thực hiện gửi gói tin API verifyUser kiểm tra với danh sách Whitelist trong Sheet dữ liệu
