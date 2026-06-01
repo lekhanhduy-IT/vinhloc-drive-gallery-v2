@@ -327,3 +327,9 @@ function FORCE_AUTH() {
   DriveApp.getRootFolder();
   Logger.log(ScriptApp.getOAuthToken());
 }
+function KichHoatQuyenNangCao() {
+  // Hàm này chỉ dùng chạy tay 1 lần duy nhất để ép Google bật bảng Review Permissions
+  DriveApp.getFiles();
+  Drive.Files.get(ROOT_FOLDER_ID, {supportsAllDrives: true});
+  console.log("Đã cấp quyền thành công!");
+}
