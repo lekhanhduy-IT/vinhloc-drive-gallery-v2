@@ -131,7 +131,6 @@ function initGoogleAuth() {
         return;
     }
 function renderGoogleLoginButton() {
-
     const wrapper = document.getElementById('google-login-wrapper');
     const btn = document.getElementById('google-login-btn');
 
@@ -143,21 +142,20 @@ function renderGoogleLoginButton() {
     btn.innerHTML = '<div class="loader"></div>';
 
     setTimeout(() => {
-
         btn.innerHTML = '';
 
         google.accounts.id.renderButton(
-    document.getElementById("google-login-btn"),
-    {
-        theme: "outline",
-        size: "large",
-        type: "standard",
-        shape: "pill",
-        text: "signin_with",
-        width: 320,
-        logo_alignment: "left"
-    }
-);
+            document.getElementById("google-login-btn"),
+            {
+                theme: "outline",
+                size: "large",
+                type: "standard",
+                shape: "pill", // Thuộc tính này làm nút bo tròn 2 đầu
+                text: "signin_with",
+                width: 320,
+                logo_alignment: "left"
+            }
+        );
 
         wrapper.classList.remove('loading');
         wrapper.classList.add('ready');
@@ -182,22 +180,14 @@ async function handleCredentialResponse(response) {
     
     try {
         // Giải mã nhanh phần thân (Payload) của JWT Token để bóc tách lấy Email
-        const base64Url = response.credential.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-
-        const payloadObj = JSON.parse(jsonPayload);
-        const email = payloadObj.email;
-
         // Cập nhật trạng thái đang đối chiếu hệ thống lên giao diện
         if (errorMsgEl) {
             errorMsgEl.innerText = "Đang xác thực quyền truy cập...";
-errorMsgEl.classList.remove("text-red-500");
-errorMsgEl.classList.remove("text-blue-600");
-errorMsgEl.classList.add("text-white");
-errorMsgEl.classList.remove("hidden");
+            // Xóa các class màu lỗi/màu xanh đi
+            errorMsgEl.classList.remove("text-red-500", "text-blue-600", "text-yellow-400");
+            // Thêm class màu trắng
+            errorMsgEl.classList.add("text-white");
+            errorMsgEl.classList.remove("hidden");
         }
 
         // Thực hiện gửi gói tin API verifyUser kiểm tra với danh sách Whitelist trong Sheet dữ liệu
@@ -220,16 +210,16 @@ errorMsgEl.classList.remove("hidden");
 
             // Kích hoạt luồng đếm ngược nạp dữ liệu mạng lưới
             initSpiderLoaderFlow();
-} else {
+        } else {
             // TỪ CHỐI ĐĂNG NHẬP: Ép hệ thống phải in ra đúng câu trả lời của App Script
             errorMsgEl.innerText = checkRes.message || "Hệ thống không phản hồi!";
-            errorMsgEl.classList.remove("text-blue-600");
+            errorMsgEl.classList.remove("text-white", "text-blue-600", "text-yellow-400");
             errorMsgEl.classList.add("text-red-500");
         }
     } catch (err) {
         if (errorMsgEl) {
             errorMsgEl.innerText = "Lỗi xử lý đăng nhập hệ thống!";
-            errorMsgEl.classList.remove("text-blue-600");
+            errorMsgEl.classList.remove("text-white", "text-blue-600", "text-yellow-400");
             errorMsgEl.classList.add("text-red-500");
         }
         console.error("Lỗi Auth: ", err);
