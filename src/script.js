@@ -5246,7 +5246,7 @@ if (!window.toggleItemMenu.isClipboardHooked) {
                 
                 let html = `<div class="border-t border-gray-100 my-1"></div>`;
                 
-                // Bơm nút Chức năng Cơ bản + Nút Chia sẻ
+                // Bơm nút Chức năng Cơ bản
                 html += `
                 <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-blue-50 text-gray-700 cursor-pointer font-semibold" data-action="copy">
                     <i class="fa-regular fa-copy w-5 text-center text-blue-500 mr-2"></i><span>Sao chép</span>
@@ -5259,9 +5259,6 @@ if (!window.toggleItemMenu.isClipboardHooked) {
                 </div>
                 <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-red-50 text-gray-700 cursor-pointer font-semibold" data-action="undo">
                     <i class="fa-solid fa-rotate-left w-5 text-center text-red-500 mr-2"></i><span>Hoàn tác</span>
-                </div>
-                <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-teal-50 text-gray-700 cursor-pointer font-semibold" data-action="share">
-                    <i class="fa-solid fa-share-nodes w-5 text-center text-teal-500 mr-2"></i><span>Chia sẻ</span>
                 </div>`;
                 
                 // Nếu là ẢNH -> Bơm thêm nút BIÊN TẬP
@@ -5422,39 +5419,78 @@ document.addEventListener('click', (e) => {
         }).catch(()=> showToast("Lỗi mạng khi Hoàn tác!", true));
     }
 
-    // E. XỬ LÝ CHIA SẺ (SHARE) VỚI FACEBOOK LH3 LOGIC
-    else if (action === 'share') {
-        if (!targetItem) return showToast("Vui lòng chọn đối tượng!");
-
-        let shareUrl = targetItem.url || `https://drive.google.com/file/d/${targetItem.id}/view`;
-        const isImage = targetItem.mimeType && targetItem.mimeType.includes('image');
-
-        // Bơm link LH3 để Facebook lấy thẳng ảnh nếu là file ảnh
-        if (targetItem.type === 'file' && isImage) {
-            shareUrl = `https://lh3.googleusercontent.com/d/$${targetItem.id}=s0`;
-        }
-
-        // Gọi Web Share API (native trên điện thoại)
-        if (navigator.share) {
-            navigator.share({
-                title: targetItem.name,
-                text: targetItem.name,
-                url: shareUrl
-            }).then(() => {
-                // Thành công gọi bảng Share native
-            }).catch((err) => {
-                console.log("Đã hủy hoặc lỗi share: ", err);
-            });
-        } else {
-            // Dự phòng cho trình duyệt PC / Cũ không hỗ trợ navigator.share
-            navigator.clipboard.writeText(shareUrl).then(() => {
-                showToast('<i class="fas fa-check-circle"></i> Đã copy link ảnh trực tiếp (LH3)!');
-            });
-        }
-    }
-
     // Đóng toàn bộ menu sau khi click xong
     document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
     const headerDropdown = document.getElementById('headerDropdown');
     if (headerDropdown) headerDropdown.classList.add('hidden');
 });
+// ==============================================================
+// PATCH 42: NÂNG CẤP CHIA SẺ (ÉP HIỂN THỊ ẢNH POST FACEBOOK & ZALO)
+// ==============================================================
+setTimeout(() => {
+    window.shareItem = async function (id, type, name, e) {
+        if (e) e.stopPropagation(); 
+        document.querySelectorAll('.item-action-menu').forEach(menu => menu.classList.add('hidden'));
+        
+        let mimeTypeParam = '';
+        let isImage = false;
+
+        // Kiểm tra xem mục đang share có phải là File Ảnh không
+        if (type === 'file') {
+            const fileObj = currentDriveItems.find(i => i.id === id);
+            if (fileObj && fileObj.mimeType) {
+                mimeTypeParam = `&mimeType=${encodeURIComponent(fileObj.mimeType)}`;
+                if (fileObj.mimeType.includes('image')) isImage = true;
+            }
+        }
+
+        // Link dẫn về PWA của bạn (Để dùng cho các app khác)
+        const shareUrl = `${window.location.origin}${window.location.pathname}?shareId=${id}&shareType=${type}&shareName=${encodeURIComponent(name)}${mimeTypeParam}`;
+        const shareText = `Mở xem chi tiết "${name}" trong ứng dụng:\n${shareUrl}`;
+
+        // CHIẾN THUẬT: NẾU LÀ ẢNH -> ÉP TRUYỀN FILE VẬT LÝ VÀO BẢNG SHARE HỆ ĐIỀU HÀNH
+        if (isImage && navigator.canShare) {
+            showToast('<i class="fas fa-spinner fa-spin mr-2"></i> Đang nạp ảnh gốc để chia sẻ...');
+            try {
+                // Dùng hàm GAS có sẵn để kéo file base64 về (Vượt rào CORS của Google)
+                const b64Res = await apiCall('getFileBase64', { fileId: id });
+                
+                if (b64Res.success && b64Res.data && b64Res.mimeType) {
+                    // Dịch ngược Base64 thành File vật lý
+                    const byteCharacters = atob(b64Res.data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    const blob = new Blob([new Uint8Array(byteNumbers)], { type: b64Res.mimeType });
+                    const fileObj = new File([blob], name, { type: b64Res.mimeType });
+
+                    // Truyền cả File ảnh thật VÀ Link Web vào Bảng Share của Điện thoại
+                    if (navigator.canShare({ files: [fileObj] })) {
+                        await navigator.share({ 
+                            files: [fileObj], 
+                            title: `Chia sẻ: ${name}`, 
+                            text: shareText // Link PWA sẽ nằm ở phần Caption (chú thích bài đăng FB)
+                        });
+                        return; // Hoàn thành, thoát hàm
+                    }
+                }
+            } catch (err) {
+                console.warn("Lỗi nạp file vật lý, tự động lùi về chế độ share link thuần", err);
+            }
+        }
+
+        // FALLBACK: Nếu là Thư mục, File tài liệu, hoặc trình duyệt cũ không hỗ trợ share File -> Trở về Share Link thuần túy
+        if (navigator.share) {
+            try { 
+                await navigator.share({ 
+                    title: `Chia sẻ: ${name}`, 
+                    text: `Mở xem chi tiết "${name}" trong ứng dụng:`, 
+                    url: shareUrl 
+                }); 
+            } catch (err) { }
+        } else {
+            navigator.clipboard.writeText(shareUrl).then(() => showToast(`<i class="fas fa-link mr-2"></i> Đã copy link!`));
+        }
+    };
+    
+    console.log("✅ PATCH 42: Đã nâng cấp Chia sẻ đa nền tảng (Ép hiển thị Post Ảnh trên Facebook)!");
+}, 28000); // Khởi chạy sau cùng để ghi đè các hàm cũ
