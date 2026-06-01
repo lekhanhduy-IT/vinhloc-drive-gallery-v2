@@ -4944,38 +4944,71 @@ setTimeout(() => {
     console.log("✅ PATCH 37-38: Đã fix Menu Header bị cắt và Đồng bộ đúng thứ tự Alphabet khi tạo thư mục!");
 }, 21000); // Khởi chạy ở mốc 21s để đảm bảo đè thành công các bản cũ
 // ==============================================================
-// PATCH 40: SỔ NAM TÀO - DIỆT ZOMBIE XUYÊN THIẾT BỊ (GHOST BUSTERS)
+// PATCH 41: NETWORK INTERCEPTOR (TIÊU DIỆT ZOMBIE TỪ TRẠM MẠNG)
 // ==============================================================
 setTimeout(() => {
-    // 1. Hàm ghi danh kẻ xấu vào sổ (Lưu theo Tên và Loại)
-    function logGhostToTombstone(id) {
-        let itemsSource = typeof currentDriveItems !== 'undefined' ? currentDriveItems : [];
-        let itemToKill = itemsSource.find(i => i.id === id);
-        
-        if (!itemToKill && window.isSearching && window.currentSearchResults) {
-            itemToKill = window.currentSearchResults.find(i => i.id === id);
-        }
-        
-        if (itemToKill) {
-            let ghostList = JSON.parse(localStorage.getItem('ghost_busters') || '[]');
-            ghostList.push({
-                name: itemToKill.name,
-                type: itemToKill.type,
-                time: Date.now()
-            });
-            localStorage.setItem('ghost_busters', JSON.stringify(ghostList));
-            console.log(`👻 Đã ghi [${itemToKill.name}] vào Sổ Nam Tào! Mọi ID thật của nó sẽ bị thủ tiêu ngầm.`);
-        }
+    // 1. TRẠM KIỂM SOÁT NETWORK: Bắt ID thật ngay khi vừa đẻ ra
+    if (!window.isFetchInterceptedP41) {
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+            const url = args[0];
+            const options = args[1];
+            
+            let reqAction = null;
+            let reqName = null;
+            let reqTempId = null;
+
+            // ĐỌC TRỘM GÓI TIN ĐI: Lưu lại tên và tempId trước khi bay lên Google
+            if (options && options.body && typeof options.body === 'string') {
+                try {
+                    const body = JSON.parse(options.body);
+                    reqAction = body.action;
+                    reqName = body.name || body.folderName || body.fileName;
+                    reqTempId = body.tempId || body.id;
+                    
+                    if (reqTempId && String(reqTempId).startsWith('temp_')) {
+                        let tracker = JSON.parse(localStorage.getItem('vinhloc_temp_tracker') || '{}');
+                        tracker[reqTempId] = reqName || "Unknown";
+                        localStorage.setItem('vinhloc_temp_tracker', JSON.stringify(tracker));
+                    }
+                } catch(e) {}
+            }
+
+            const response = await originalFetch.apply(this, args);
+
+            // ĐỌC TRỘM GÓI TIN VỀ: Bắt quả tang khi Google trả về ID thật
+            if ((reqAction === 'createFolder' || reqAction === 'create') && response.ok) {
+                const clone = response.clone();
+                clone.json().then(data => {
+                    if (data && data.success && data.id) {
+                        let blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
+                        blacklist = blacklist.filter(item => Date.now() - item.time < 300000); // 5 phút dọn 1 lần
+                        
+                        // ĐỐI CHIẾU: Nếu tempId này hoặc Tên này nằm trong sổ đen (nghĩa là user vừa bấm xóa)
+                        if (blacklist.some(b => b.tempId === reqTempId || b.name === reqName)) {
+                            console.log(`🔥 [NETWORK] Bắt được ID thật (${data.id}) của file vừa bị hủy. Bắn lệnh XÓA ngay lập tức!`);
+                            // Bí mật bắn lệnh xóa ID thật lên Google Drive trước cả khi nó kịp hiển thị
+                            originalFetch(url, {
+                                method: 'POST',
+                                body: JSON.stringify({ action: 'delete', id: data.id, type: 'folder' })
+                            });
+                        }
+                    }
+                }).catch(()=>{});
+            }
+            return response;
+        };
+        window.isFetchInterceptedP41 = true;
     }
 
-    // 2. Ghi đè hàm Xóa Đơn Mục
+    // 2. GHI SỔ ĐEN KHI BẤM XÓA ĐƠN
     window.handleDelete = function(id, type, e) {
         if (e) e.stopPropagation(); 
         const menuObj = document.getElementById(`menu-${id}`);
         if (menuObj) menuObj.classList.add('hidden');
 
         document.getElementById('modalTitle').textContent = 'Xác nhận xóa';
-        document.getElementById('modalDesc').textContent = 'Bạn có chắc chắn muốn xóa mục này? Hành động này không thể hoàn tác.';
+        document.getElementById('modalDesc').textContent = 'Bạn có chắc chắn muốn xóa mục này?';
         document.getElementById('modalDesc').classList.remove('hidden'); 
         document.getElementById('modalInput').classList.add('hidden');
 
@@ -4988,26 +5021,29 @@ setTimeout(() => {
             const isTempId = String(id).startsWith('temp_');
 
             if (isTempId) {
-                // BƯỚC QUAN TRỌNG: Ghi vào sổ trước khi nó bay màu khỏi UI
-                logGhostToTombstone(id);
-                
-                // Dọn UI
-                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
-                window.renderItems(currentDriveItems);
+                // Lục tìm chính xác TÊN của file ảo này
+                let targetName = "Unknown";
+                let tracker = JSON.parse(localStorage.getItem('vinhloc_temp_tracker') || '{}');
+                if (tracker[id]) targetName = tracker[id];
+                else if (typeof currentDriveItems !== 'undefined') {
+                    let item = currentDriveItems.find(i => i.id === id || i.tempId === id);
+                    if (item) targetName = item.name;
+                }
 
-                // Hủy hàng đợi cục bộ
-                try {
-                    let queue = await localforage.getItem('vinhloc_action_queue') || [];
-                    const newQueue = queue.filter(task => !(task.action === 'createFolder' && task.payload && task.payload.tempId === id));
-                    await localforage.setItem('vinhloc_action_queue', newQueue);
-                } catch(err) {}
-                
-                showToast(`<i class="fas fa-ghost mr-2"></i> Đã thủ tiêu mục ảo`);
+                // Tống tên và tempId vào Sổ Đen
+                let blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
+                blacklist.push({ tempId: id, name: targetName, time: Date.now() });
+                localStorage.setItem('vinhloc_blacklist', JSON.stringify(blacklist));
+
+                // Dọn sạch khỏi màn hình
+                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
+                if (window.renderItems && typeof currentDriveItems !== 'undefined') window.renderItems(currentDriveItems);
+                showToast(`<i class="fas fa-ban mr-2"></i> Đã hủy mục ảo`);
             } else {
                 // Xóa ID thật như bình thường
                 if (typeof addActionToQueue === 'function') addActionToQueue('delete', { id: id, type: type });
                 if (window.purgeDeletedItem) window.purgeDeletedItem(id);
-                window.renderItems(currentDriveItems);
+                if (window.renderItems && typeof currentDriveItems !== 'undefined') window.renderItems(currentDriveItems);
                 showToast(`<i class="fas fa-trash mr-2"></i> Đã xóa`);
             }
         };
@@ -5016,12 +5052,12 @@ setTimeout(() => {
         document.getElementById('customModal').classList.add('flex');
     };
 
-    // 3. Ghi đè hàm Xóa Nhiều Mục
+    // 3. GHI SỔ ĐEN KHI BẤM XÓA NHIỀU
     window.deleteSelectedItems = function() {
         if (window.multiSelectState.selectedIds.size === 0) return showToast("Vui lòng chọn mục cần xóa!", true);
         
         document.getElementById('modalTitle').textContent = 'Xóa nhiều mục'; 
-        document.getElementById('modalDesc').textContent = `Xác nhận xóa ${window.multiSelectState.selectedIds.size} mục đã chọn?`; 
+        document.getElementById('modalDesc').textContent = `Xác nhận xóa ${window.multiSelectState.selectedIds.size} mục?`; 
         document.getElementById('modalDesc').classList.remove('hidden'); 
         document.getElementById('modalInput').classList.add('hidden');
         
@@ -5032,97 +5068,58 @@ setTimeout(() => {
         btn.onclick = async () => {
             closeModal(); 
             let idsToDelete = Array.from(window.multiSelectState.selectedIds); 
-            
-            let tempIds = idsToDelete.filter(id => String(id).startsWith('temp_'));
-            let realIds = idsToDelete.filter(id => !String(id).startsWith('temp_'));
+            let tracker = JSON.parse(localStorage.getItem('vinhloc_temp_tracker') || '{}');
+            let blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
 
-            // Ghi toàn bộ Temp ID vào sổ Nam Tào
-            tempIds.forEach(id => logGhostToTombstone(id));
-
-            idsToDelete.forEach(id => { if (window.purgeDeletedItem) window.purgeDeletedItem(id); });
-            window.multiSelectState.selectedIds.clear(); 
-            window.renderItems(currentDriveItems);
-
-            if (tempIds.length > 0) {
-                let queue = await localforage.getItem('vinhloc_action_queue') || [];
-                const newQueue = queue.filter(task => !(task.action === 'createFolder' && task.payload && tempIds.includes(task.payload.tempId)));
-                await localforage.setItem('vinhloc_action_queue', newQueue);
-            }
-
-            if (realIds.length > 0) {
-                showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang xóa ${realIds.length} mục...`);
-                realIds.forEach(id => {
+            idsToDelete.forEach(id => {
+                if (String(id).startsWith('temp_')) {
+                    let targetName = tracker[id];
+                    if (!targetName && typeof currentDriveItems !== 'undefined') {
+                        let item = currentDriveItems.find(i => i.id === id || i.tempId === id);
+                        if (item) targetName = item.name;
+                    }
+                    if (targetName) blacklist.push({ tempId: id, name: targetName, time: Date.now() });
+                } else {
                     if (typeof addActionToQueue === 'function') addActionToQueue('delete', { id: id });
-                });
-            } else {
-                showToast(`<i class="fas fa-ghost mr-2"></i> Đã dọn dẹp các mục ảo`);
-            }
+                }
+                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
+            });
+
+            localStorage.setItem('vinhloc_blacklist', JSON.stringify(blacklist));
+            window.multiSelectState.selectedIds.clear(); 
+            if (window.renderItems && typeof currentDriveItems !== 'undefined') window.renderItems(currentDriveItems);
+            showToast(`<i class="fas fa-check mr-2"></i> Đã xử lý lệnh xóa`);
         };
         
         document.getElementById('customModal').classList.remove('hidden'); 
         document.getElementById('customModal').classList.add('flex');
     };
 
-    // 4. MẢNG LƯỚI BẮT MA Ở RENDER CỦA CON NHỆN
-    const originalRenderItemsP40 = window.renderItems;
+    // 4. LƯỚI LỌC CUỐI CÙNG TRÊN CRAWLER
+    const origRenderP41 = window.renderItems;
     window.renderItems = function(items, isSearchMode = false) {
-        if (!items || !Array.isArray(items)) return originalRenderItemsP40(items, isSearchMode);
+        if (!items || !Array.isArray(items)) return origRenderP41(items, isSearchMode);
 
-        // Ép sắp xếp Alphabet cho Mega-row (Kế thừa tính năng cố định vị trí)
-        if (folderStack.length === 1 && !isSearchMode && !window.isSearching) {
-            items.sort((a, b) => {
-                if (a.type === b.type) return String(a.name || '').localeCompare(String(b.name || ''));
-                return a.type === 'folder' ? -1 : 1;
-            });
-        }
-
-        // KÍCH HOẠT SỔ NAM TÀO
-        let ghostList = JSON.parse(localStorage.getItem('ghost_busters') || '[]');
-        if (ghostList.length > 0) {
-            let now = Date.now();
-            // Xóa án tích sau 5 phút (tránh trùng tên với file tạo hợp lệ sau này)
-            ghostList = ghostList.filter(g => now - g.time < 300000); 
-            
-            let realIdsToKill = [];
-            
-            // Lọc các item tải về từ máy chủ
-            let finalItems = items.filter(item => {
-                let ghostIndex = ghostList.findIndex(g => g.name === item.name && g.type === item.type);
-                if (ghostIndex !== -1) {
-                    // BẮT QUẢ TANG: Con nhện vừa lôi về 1 ID thật thuộc về mục ảo đã bị xóa!
-                    realIdsToKill.push({id: item.id, type: item.type});
-                    // Xóa tên khỏi sổ (1 mạng đổi 1 mạng)
-                    ghostList.splice(ghostIndex, 1);
-                    return false; // Giấu nhẹm nó khỏi giao diện ngay lập tức
-                }
-                return true;
-            });
-            
-            localStorage.setItem('ghost_busters', JSON.stringify(ghostList));
-            
-            // Xách súng đi bắn ID thật trên máy chủ một cách âm thầm
-            realIdsToKill.forEach(target => {
-                console.log(`🕷️ Đang thủ tiêu ngầm ID thật của Zombie: ${target.id}`);
-                // Nạp vào queue để xoá đồng bộ
-                if (typeof addActionToQueue === 'function') {
-                    addActionToQueue('delete', { id: target.id, type: target.type });
-                }
-                // Thọc thẳng API một phát cho chắc chắn
+        let blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
+        blacklist = blacklist.filter(item => Date.now() - item.time < 300000);
+        
+        let safeItems = items.filter(item => {
+            // Nếu Crawler lôi về 1 file có TÊN trùng với sổ đen
+            if (blacklist.some(b => b.name === item.name)) {
+                console.log(`🕷️ Con Nhện bắt nhầm Zombie [${item.name}]. Tiêu diệt ngầm...`);
                 if (typeof SCRIPT_URL !== 'undefined') {
                     fetch(SCRIPT_URL, {
                         method: 'POST',
-                        body: JSON.stringify({ action: 'delete', id: target.id, type: target.type })
-                    }).catch(e => e);
+                        body: JSON.stringify({ action: 'delete', id: item.id, type: item.type })
+                    }).catch(()=>{});
                 }
-            });
-            
-            // Trả mảng sạch bong không tì vết ra giao diện
-            return originalRenderItemsP40(finalItems, isSearchMode);
-        }
-        
-        // Nếu không có ma, gọi hàm gốc bình thường
-        originalRenderItemsP40(items, isSearchMode);
+                return false; // Giấu luôn, cấm hiển thị!
+            }
+            return true;
+        });
+
+        return origRenderP41(safeItems, isSearchMode);
     };
 
-    console.log("✅ PATCH 40: Hệ thống 'Sổ Nam Tào' chống Zombie hiển thị chéo thiết bị đã sẵn sàng!");
-}, 24000);
+    console.log("✅ PATCH 41: Lưới lọc Network đã giăng. Chặn đứng 100% tỷ lệ tái sinh của Zombie!");
+}, 26000);
