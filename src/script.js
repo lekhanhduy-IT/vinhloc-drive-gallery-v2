@@ -2,6 +2,44 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3Ly
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
 
+// --- PATCH: LOGIC NẠP BỘ NÃO NHỆN 30 GIÂY ---
+document.addEventListener("DOMContentLoaded", () => {
+    // Dùng localStorage để nhận diện thiết bị mới
+    const isBrainLoaded = localStorage.getItem("vinhloc_spider_brain_loaded");
+    const loader = document.getElementById("spider-brain-loader");
+    const textEl = document.getElementById("spider-brain-text");
+
+    // Nếu chưa từng nạp dữ liệu trên trình duyệt/thiết bị này
+    if (!isBrainLoaded && loader && textEl) {
+        loader.style.display = "flex"; // Bật màn hình chờ
+        let percent = 1;
+        
+        // Cần chạy từ 1% đến 100% trong 30 giây (30000ms)
+        // Số bước là 100 => Mỗi bước cách nhau 300ms
+        const intervalTime = 300; 
+
+        const loadingInterval = setInterval(() => {
+            percent++;
+            textEl.innerText = `Đang nạp ${percent}%...`;
+
+            if (percent >= 100) {
+                clearInterval(loadingInterval);
+                
+                // 1. Kích hoạt hiệu ứng mờ dần
+                loader.classList.add("fade-out-spider");
+                
+                // 2. Đánh dấu thiết bị này đã nạp thành công bộ não
+                localStorage.setItem("vinhloc_spider_brain_loaded", "true");
+                
+                // 3. Xóa hoàn toàn khỏi luồng hiển thị sau khi mờ xong (1 giây)
+                setTimeout(() => {
+                    loader.style.display = "none";
+                }, 1000);
+            }
+        }, intervalTime);
+    }
+});
+
 // Bỏ đọc từ localStorage để luôn làm mới stack mỗi khi mở app
 localStorage.removeItem('appFolderStack'); 
 let folderStack = [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }];

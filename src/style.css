@@ -121,3 +121,39 @@
             white-space: nowrap; display: flex; align-items: center; gap: 8px;
         }
         .toast-popup.show { opacity: 1; top: 40px; }
+        /* --- PATCH: MÀN HÌNH CHỜ CON NHỆN --- */
+#spider-brain-loader {
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh;
+    background-color: #380ad7; /* Nền xanh tím che toàn bộ */
+    z-index: 9999999; /* Z-index cực lớn để đè lên mọi UI khác */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 1s ease-in-out; /* Hiệu ứng mờ dần trong 1s */
+}
+
+#spider-brain-loader img {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 8px; /* Tùy chọn: làm cong nhẹ góc ảnh vuông */
+    margin-bottom: 20px;
+}
+
+#spider-brain-text {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'Montserrat', sans-serif;
+    letter-spacing: 0.5px;
+}
+
+.fade-out-spider {
+    opacity: 0;
+    pointer-events: none; /* Ngăn chặn click khi đang mờ dần */
+}
