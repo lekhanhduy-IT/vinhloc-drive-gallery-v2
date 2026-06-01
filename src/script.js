@@ -4944,76 +4944,45 @@ setTimeout(() => {
     console.log("✅ PATCH 37-38: Đã fix Menu Header bị cắt và Đồng bộ đúng thứ tự Alphabet khi tạo thư mục!");
 }, 21000); // Khởi chạy ở mốc 21s để đảm bảo đè thành công các bản cũ
 // ==============================================================
-// PATCH 39: HỆ THỐNG "SỔ ĐEN" (BLACKLIST) & DỌN DẸP HÀNG ĐỢI TỨC THÌ
+// PATCH 39 (BẢN CUỐI CÙNG): HỆ THỐNG DIỆT ZOMBIE ĐA THIẾT BỊ TỐI THƯỢNG
+// Gộp chung logic của Patch 39, 40, 41 - Tối ưu hóa hiệu suất
 // ==============================================================
 setTimeout(() => {
-    // 1. KHỞI TẠO SỔ ĐEN (Lưu danh sách các ID đã bị tử hình)
+    // 1. KHỞI TẠO SỔ ĐEN CỤC BỘ
     window.vinhloc_blacklist = JSON.parse(localStorage.getItem('vinhloc_blacklist') || '[]');
 
-    // 2. HÀM THANH TRỪNG HÀNG ĐỢI NGẦM (SANITIZER)
+    // 2. KHÔNG HỦY HÀNG ĐỢI (Đảm bảo Drive kịp tạo ID thật rồi mới Xóa)
     window.sanitizeQueueForDeletedItem = async function(id) {
-        try {
-            let queue = await localforage.getItem('vinhloc_action_queue') || [];
-            let initialLen = queue.length;
-            
-            // Lọc bỏ các lệnh liên quan đến kẻ vừa bị xóa
-            queue = queue.filter(task => {
-                const p = task.payload;
-                if (!p) return true;
-                
-                // Nếu là lệnh Tạo/Upload/Update của đúng ID này -> GẠCH BỎ KHỎI HÀNG ĐỢI
-                if ((task.action === 'createFolder' && p.tempId === id) || 
-                    (task.action === 'upload' && p.id === id) || 
-                    (task.action === 'updateSingleMeta' && p.meta && p.meta.id === id)) {
-                    return false; 
-                }
-                
-                // Nếu là lệnh Xóa của một ID ẢO (chưa từng tải lên Mây) -> GẠCH BỎ LUÔN LỆNH XÓA (Khỏi cần báo cáo Server)
-                if (task.action === 'delete' && (p.id === id) && String(id).startsWith('temp_')) {
-                    return false;
-                }
-                
-                return true;
-            });
-
-            if (queue.length !== initialLen) {
-                await localforage.setItem('vinhloc_action_queue', queue);
-                console.log(`🧹 Đã dọn sạch các lệnh thừa của [${id}] khỏi hàng đợi Queue!`);
-            }
-        } catch(e) { console.error("Lỗi dọn hàng đợi:", e); }
+        console.log(`🛡️ Bỏ qua hủy lệnh hàng đợi của [${id}] để chờ đồng bộ ID thật.`);
     };
 
-    // 3. NÂNG CẤP HÀM XÓA (GHI VÀO SỔ ĐEN & KÍCH HOẠT THANH TRỪNG)
-    if (window.purgeDeletedItem && !window.purgeDeletedItem.isBlacklisted) {
-        const originalPurge = window.purgeDeletedItem;
-        window.purgeDeletedItem = function(id) {
-            // A. Đưa vào sổ đen (Giữ tối đa 500 mục gần nhất để không nặng máy)
-            if (!window.vinhloc_blacklist.includes(id)) {
-                window.vinhloc_blacklist.push(id);
-                if (window.vinhloc_blacklist.length > 500) window.vinhloc_blacklist.shift(); 
-                localStorage.setItem('vinhloc_blacklist', JSON.stringify(window.vinhloc_blacklist));
+    // 3. GHI ĐÈ FETCH: LUÔN ĐÍNH KÈM SỔ ĐEN VÀO GÓI "NÃO NHỆN"
+    const originalFetch = window.fetch;
+    window.fetch = function() {
+        if (arguments[1] && typeof arguments[1].body === 'string') {
+            if (arguments[1].body.includes('"action":"saveGlobalCache"')) {
+                try {
+                    let bodyObj = JSON.parse(arguments[1].body);
+                    let cacheObj = JSON.parse(bodyObj.cacheData);
+                    // Bơm sổ đen vào dữ liệu trước khi gửi lên Drive
+                    cacheObj.blacklist = window.vinhloc_blacklist || [];
+                    bodyObj.cacheData = JSON.stringify(cacheObj);
+                    arguments[1].body = JSON.stringify(bodyObj);
+                } catch(e) {}
             }
+        }
+        return originalFetch.apply(this, arguments);
+    };
 
-            // B. Gọi vệ sinh hàng đợi ngầm
-            window.sanitizeQueueForDeletedItem(id);
-
-            // C. Chạy lệnh xóa gốc khỏi UI
-            originalPurge(id);
-        };
-        window.purgeDeletedItem.isBlacklisted = true;
-    }
-
-    // 4. LÁ CHẮN TẠI HÀM RENDER: CHỐNG ZOMBIE ĐỘI MỒ SỐNG DẬY TỪ MÂY
+    // 4. LÁ CHẮN RENDER: CHẶN ZOMBIE HIỂN THỊ LÊN MÀN HÌNH
     if (window.renderItems && !window.renderItems.isBlacklistHooked) {
         const originalRenderItemsP39 = window.renderItems;
         window.renderItems = function(items, isSearchMode = false) {
-            // Nếu Sổ đen có tên
             if (window.vinhloc_blacklist && window.vinhloc_blacklist.length > 0) {
-                
-                // A. Chém Zombie không cho hiện lên giao diện
+                // Lọc bỏ Zombie khỏi danh sách hiển thị
                 items = items.filter(item => !window.vinhloc_blacklist.includes(item.id));
                 
-                // B. Truy quét tiêu diệt tận gốc Zombie trong Ổ cứng máy (Chống Con Nhện load lại)
+                // Quét sạch Zombie trong bộ nhớ đệm
                 let cacheChanged = false;
                 for (let fId in folderDataCache) {
                     if (Array.isArray(folderDataCache[fId])) {
@@ -5029,8 +4998,6 @@ setTimeout(() => {
                         if (subFolderCache[mId].length !== oldLen) cacheChanged = true;
                     }
                 }
-                
-                // Cập nhật lại ổ cứng nếu vừa chém được con Zombie nào đó
                 if (cacheChanged) {
                     localforage.setItem('vinhloc_folder_cache', folderDataCache).catch(()=>{});
                     localforage.setItem('vinhloc_subfolder_cache', subFolderCache).catch(()=>{});
@@ -5041,79 +5008,86 @@ setTimeout(() => {
         window.renderItems.isBlacklistHooked = true;
     }
 
-    // 5. TRUYỀN ÁN TỬ KHI ID ẢO BIẾN THÀNH ID THẬT
-    if (window.replaceTempId && !window.replaceTempId.isBlacklistHooked) {
-        const originalReplaceIdP39 = window.replaceTempId;
-        window.replaceTempId = function(tempId, realId) {
-            // Nếu ID ảo đã bị lên Sổ đen, thì ID thật do Drive báo về cũng tự động bị bắt vào Sổ đen!
-            if (window.vinhloc_blacklist && window.vinhloc_blacklist.includes(tempId)) {
-                if (!window.vinhloc_blacklist.includes(realId)) {
-                    window.vinhloc_blacklist.push(realId);
-                    localStorage.setItem('vinhloc_blacklist', JSON.stringify(window.vinhloc_blacklist));
-                }
-            }
-            if (originalReplaceIdP39) originalReplaceIdP39(tempId, realId);
-        };
-        window.replaceTempId.isBlacklistHooked = true;
-    }
-
-    console.log("✅ PATCH 39: Đã trang bị Sổ Đen Blacklist! Quái vật Zombie sẽ không thể hồi sinh!");
-}, 22000); // Kích hoạt ở mốc 22s để bao trọn mọi chức năng của các Patch trước
-// ==============================================================
-// PATCH 40: ĐỒNG BỘ SỔ ĐEN TOÀN CẦU (DIỆT ZOMBIE ĐA THIẾT BỊ)
-// ==============================================================
-setTimeout(() => {
-    // 1. GHI ĐÈ FETCH: LUÔN ĐÍNH KÈM SỔ ĐEN MỖI KHI PHÁT SÓNG NÃO NHỆN
-    const originalFetch = window.fetch;
-    window.fetch = function() {
-        if (arguments[1] && typeof arguments[1].body === 'string') {
-            // Can thiệp vào lúc hệ thống gửi lệnh saveGlobalCache
-            if (arguments[1].body.includes('"action":"saveGlobalCache"')) {
-                try {
-                    let bodyObj = JSON.parse(arguments[1].body);
-                    let cacheObj = JSON.parse(bodyObj.cacheData);
-                    
-                    // Nhét thêm Sổ Đen hiện tại của máy này vào gói hàng
-                    cacheObj.blacklist = window.vinhloc_blacklist || [];
-                    
-                    bodyObj.cacheData = JSON.stringify(cacheObj);
-                    arguments[1].body = JSON.stringify(bodyObj);
-                } catch(e) {}
-            }
-        }
-        return originalFetch.apply(this, arguments);
-    };
-
-    // 2. ÉP PHÁT SÓNG LỆNH TRUY NÃ TỨC THÌ KHI BẤM XÓA
+    // 5. NÂNG CẤP HÀM XÓA: GHI SỔ ĐEN & PHÁT LỆNH TRUY NÃ TỨC THÌ
     if (window.purgeDeletedItem && !window.purgeDeletedItem.isGlobalBlacklistHooked) {
-        const originalPurgeP40 = window.purgeDeletedItem;
+        const originalPurge = window.purgeDeletedItem;
         window.purgeDeletedItem = function(id) {
-            // Chạy lệnh xóa và lưu Sổ Đen cục bộ (của Patch 39)
-            if (originalPurgeP40) originalPurgeP40(id);
+            if (!window.vinhloc_blacklist.includes(id)) {
+                window.vinhloc_blacklist.push(id);
+                // Giới hạn 500 mục để tránh nặng file JSON
+                if (window.vinhloc_blacklist.length > 500) window.vinhloc_blacklist.shift(); 
+                localStorage.setItem('vinhloc_blacklist', JSON.stringify(window.vinhloc_blacklist));
+            }
+
+            // Chạy lệnh xóa gốc
+            if (originalPurge) originalPurge(id);
             
-            // Ép trạm phát sóng gửi Não Nhện (+ Sổ Đen) lên Mây NGAY TỨC KHẮC
+            // Ép phát sóng Não Nhện mang theo Sổ Đen lên mạng lưới lập tức
             if (typeof folderDataCache !== 'undefined' && Object.keys(folderDataCache).length > 0) {
-                const payload = {
-                    action: 'saveGlobalCache',
-                    cacheData: JSON.stringify({ 
-                        folderData: folderDataCache, 
-                        subData: subFolderCache, 
-                        blacklist: window.vinhloc_blacklist 
-                    })
-                };
                 originalFetch(SCRIPT_URL, {
                     method: 'POST',
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        action: 'saveGlobalCache',
+                        cacheData: JSON.stringify({ 
+                            folderData: folderDataCache, 
+                            subData: subFolderCache, 
+                            blacklist: window.vinhloc_blacklist 
+                        })
+                    })
                 }).then(() => console.log(`☠️ Đã phát lệnh truy nã toàn cầu cho ID: ${id}`)).catch(()=>{});
             }
         };
         window.purgeDeletedItem.isGlobalBlacklistHooked = true;
     }
 
-    // 3. RADAR QUÉT LỆNH TRUY NÃ LIÊN TỤC TRÊN CÁC MÁY KHÁC
+    // 6. CẬP NHẬT ID THẬT VÀO HÀNG ĐỢI & PHÁT SÓNG LẠI
+    if (window.replaceTempId && !window.replaceTempId.isBlacklistHooked) {
+        const originalReplaceId = window.replaceTempId;
+        window.replaceTempId = async function(tempId, realId) {
+            
+            // Cập nhật ID Thật vào Hàng đợi ngầm (để lệnh Xóa gửi lên Drive không bị lỗi)
+            try {
+                let queue = await localforage.getItem('vinhloc_action_queue') || [];
+                let queueChanged = false;
+                queue.forEach(task => {
+                    if (task.payload) {
+                        if (task.payload.id === tempId) { task.payload.id = realId; queueChanged = true; }
+                        if (task.payload.folderId === tempId) { task.payload.folderId = realId; queueChanged = true; }
+                        if (task.payload.meta && task.payload.meta.id === tempId) { task.payload.meta.id = realId; queueChanged = true; }
+                    }
+                });
+                if (queueChanged) await localforage.setItem('vinhloc_action_queue', queue);
+            } catch(e) {}
+
+            // Nhét ID Thật vào Sổ Đen và bắn lên cho các thiết bị khác
+            if (window.vinhloc_blacklist && window.vinhloc_blacklist.includes(tempId)) {
+                if (!window.vinhloc_blacklist.includes(realId)) {
+                    window.vinhloc_blacklist.push(realId);
+                    localStorage.setItem('vinhloc_blacklist', JSON.stringify(window.vinhloc_blacklist));
+                    
+                    if (typeof folderDataCache !== 'undefined' && Object.keys(folderDataCache).length > 0) {
+                        originalFetch(SCRIPT_URL, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                action: 'saveGlobalCache',
+                                cacheData: JSON.stringify({ 
+                                    folderData: folderDataCache, 
+                                    subData: subFolderCache, 
+                                    blacklist: window.vinhloc_blacklist 
+                                })
+                            })
+                        }).catch(()=>{});
+                    }
+                }
+            }
+            if (originalReplaceId) originalReplaceId(tempId, realId);
+        };
+        window.replaceTempId.isBlacklistHooked = true;
+    }
+
+    // 7. RADAR QUÉT LỆNH TRUY NÃ TỪ MÁY KHÁC MỖI 30 GIÂY
     setInterval(async () => {
         try {
-            // Tải Não Nhện về chỉ để kiểm tra Sổ Đen
             const res = await originalFetch(SCRIPT_URL, { 
                 method: 'POST', 
                 body: JSON.stringify({ action: 'loadGlobalCache' }) 
@@ -5123,7 +5097,6 @@ setTimeout(() => {
                 const globalBlacklist = res.data.blacklist;
                 let hasNewZombie = false;
                 
-                // Đối chiếu Sổ Đen Mạng Lưới với Sổ Đen Cục Bộ
                 globalBlacklist.forEach(id => {
                     if (!window.vinhloc_blacklist.includes(id)) {
                         window.vinhloc_blacklist.push(id);
@@ -5131,19 +5104,21 @@ setTimeout(() => {
                     }
                 });
                 
-                // Nếu phát hiện có kẻ vừa bị máy khác kết án tử hình
                 if (hasNewZombie) {
                     localStorage.setItem('vinhloc_blacklist', JSON.stringify(window.vinhloc_blacklist));
                     console.log("🛡️ Nhận lệnh truy nã từ Mạng Lưới! Đang thanh trừng Zombie...");
-                    
-                    // Vẽ lại màn hình. Lúc này Patch 39 sẽ tự động dò Sổ Đen và chém bay các thư mục rác đang hiển thị
                     if (window.renderItems && typeof currentDriveItems !== 'undefined') {
                         window.renderItems(currentDriveItems);
                     }
                 }
             }
         } catch(e) {}
-    }, 30000); // Quét radar mỗi 30 giây để đảm bảo máy luôn sạch sẽ
+    }, 30000);
 
-    console.log("✅ PATCH 40: Mạng lưới Sổ Đen Toàn Cầu đã kích hoạt! Zombie hết đường sống!");
-}, 25000); // Đợi 25s để bao trùm lên toàn bộ các hàm của Patch 39
+    // Kích hoạt quét làm sạch bề mặt ngay lập tức
+    if (window.renderItems && typeof currentDriveItems !== 'undefined') {
+        window.renderItems(currentDriveItems);
+    }
+
+    console.log("✅ PATCH 39 (FINAL): Đã gom thành công kiến trúc Diệt Zombie tối thượng!");
+}, 22000); // 22s là đủ bao trùm tất cả để làm chốt chặn cuối
