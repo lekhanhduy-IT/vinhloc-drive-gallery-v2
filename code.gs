@@ -5,50 +5,52 @@ const CACHE_FOLDER_ID = "1mneX5p8b4rIKNObOTxdn7yIDTlEscEZx"; // Thư mục lưu 
 // =========================================
 // HÀM KIỂM TRA BẢO MẬT GMAIL
 // =========================================
+// =========================================
+// HÀM KIỂM TRA BẢO MẬT GMAIL (QUÉT TRỰC TIẾP DRIVE API)
+// =========================================
 function checkAccess(folderId, userEmail) {
   if (!userEmail) return false;
   
   const emailHopLe = userEmail.toLowerCase().trim();
 
-  // 1. TỰ ĐỘNG ĐẠI ĐỒNG: Luôn luôn cấp quyền cho chủ sở hữu App Script
+  // 1. TỰ ĐỘNG CẤP QUYỀN CHO CHỦ SỞ HỮU APP SCRIPT
   const adminEmail = Session.getEffectiveUser().getEmail().toLowerCase().trim();
   if (emailHopLe === adminEmail) return true;
   
-  // 2. DANH SÁCH EMAIL NHÂN VIÊN ĐƯỢC PHÉP TRUY CẬP
-  const ALLOWED_EMAILS = [
-    "admin@tudonghoavinhloc.com",
-    "anhttcs181068@fpt.edu.vn",
-    "khanhduyhazo@gmail.com",
-    "lethimylinh190100@gmail.com",
-    "mthuantruong2000@gmail.com",
-    "nguyenphamnhaquyen88@gmail.com",
-    "nguyenthanhlamct03@gmail.com",
-    "nhaquyen456@gmail.com",
-    "TRANLEDATTHINH@gmail.com",
-    "tuanh.truong099@gmail.com",
-    "tudonghoavinhlocct2015@gmail.com"
-  ];
+  // 2. TỰ ĐỘNG QUÉT DANH SÁCH EMAIL TỪ BỘ NHỚ DÙNG CHUNG DRIVE
+  let allowedEmails = [];
+  let cache = CacheService.getScriptCache();
+  let cachedData = cache.get("AUTO_DRIVE_EMAILS");
   
-  for (let i = 0; i < ALLOWED_EMAILS.length; i++) {
-    if (emailHopLe === ALLOWED_EMAILS[i].toLowerCase().trim()) return true;
+  if (cachedData) {
+    allowedEmails = JSON.parse(cachedData);
+  } else {
+    try {
+      // Gọi API Drive để lấy danh sách thành viên thực tế
+      let response = Drive.Permissions.list(ROOT_FOLDER_ID, {
+        supportsAllDrives: true,
+        fields: "*" 
+      });
+      
+      if (response && response.permissions) {
+        for (let i = 0; i < response.permissions.length; i++) {
+          let p = response.permissions[i];
+          if (p.emailAddress) {
+            allowedEmails.push(p.emailAddress.toLowerCase().trim());
+          }
+        }
+      }
+      cache.put("AUTO_DRIVE_EMAILS", JSON.stringify(allowedEmails), 300);
+    } catch (e) {
+      console.log("Lỗi Drive API: " + e.toString());
+      return false; // Chặn cửa ngay nếu có lỗi mạng
+    }
   }
-  
-  // 3. DỰ PHÒNG: Quét quyền theo kiểu My Drive thông thường
-  try {
-    let folder = DriveApp.getFolderById(folderId);
-    let owner = folder.getOwner() ? folder.getOwner().getEmail().toLowerCase().trim() : "";
-    if (owner && owner === emailHopLe) return true;
 
-    let editors = folder.getEditors();
-    for (let i = 0; i < editors.length; i++) {
-      if (editors[i].getEmail().toLowerCase().trim() === emailHopLe) return true;
-    }
-
-    let viewers = folder.getViewers();
-    for (let i = 0; i < viewers.length; i++) {
-      if (viewers[i].getEmail().toLowerCase().trim() === emailHopLe) return true;
-    }
-  } catch (e) {}
+  // 3. ĐỐI CHIẾU QUYỀN
+  if (allowedEmails.includes(emailHopLe)) {
+    return true;
+  }
 
   return false;
 }

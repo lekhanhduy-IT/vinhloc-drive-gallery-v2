@@ -1,7 +1,123 @@
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwQ1jyePOExK9YbdU3LykeAoy_FqLmZNl7WKVRTV1G6BJ1zzAeE_tUReM-rswzupdU/exec";
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
+// ==============================================================
+// PATCH 0: xử lý sau khi đăng nhập thành công và giải mã Email:
+// ==============================================================
+// ==============================================================
+// PATCH 39 (FIXED): QUẢN LÝ ĐĂNG NHẬP VÀ TỰ ĐỘNG TIÊM EMAIL
+// ==============================================================
+let currentUserEmail = localStorage.getItem('vinhloc_user_email') || null;
 
+// 1. Kiểm tra trạng thái đăng nhập khi vừa mở web
+document.addEventListener("DOMContentLoaded", () => {
+    const loginScreen = document.getElementById('vinhloc-login-screen');
+    if (currentUserEmail) {
+        if (loginScreen) loginScreen.style.display = 'none';
+    } else {
+        if (loginScreen) loginScreen.style.display = 'flex';
+    }
+});
+
+// Phải khai báo originalFetch trước để dùng trong lúc gọi hỏi Server
+const originalFetch = window.fetch;
+
+// 2. Xử lý giải mã và HỎI SERVER sau khi Google Login thành công
+window.handleCredentialResponse = async function(response) {
+    const responsePayload = decodeJwtResponse(response.credential);
+    const tempEmail = responsePayload.email;
+    
+    // Đừng mở cửa vội! Hiện thông báo đang đem thẻ tên đi hỏi bảo vệ
+    showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang kiểm tra quyền của ${tempEmail}...`);
+    
+    try {
+        // GỌI THẲNG LÊN CODE.GS ĐỂ HỎI XEM EMAIL NÀY CÓ ĐƯỢC VÀO KHÔNG
+        const res = await originalFetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'getMeta', email: tempEmail }) // Mượn lệnh getMeta để check chốt chặn
+        });
+        
+        const data = await res.json();
+        
+        if (data.needLogin) {
+            // ĐÂY RỒI! BÁC BẢO VỆ SERVER TRẢ LỜI: "TỪ CHỐI"
+            showToast(`<i class="fas fa-times-circle mr-2"></i> Truy cập bị từ chối: ${tempEmail} không có quyền!`, true);
+            
+            // Xóa bộ nhớ form chọn tài khoản của Google để bắt người ta chọn lại
+            if (window.google && window.google.accounts) google.accounts.id.disableAutoSelect();
+            
+            // KẾT THÚC SỚM TẠI ĐÂY, KHÔNG CHO TẮT MÀN HÌNH ĐĂNG NHẬP
+            return; 
+        }
+        
+        // --- NẾU SERVER KHÔNG TRẢ VỀ NEEDLOGIN TỨC LÀ CHO QUA ---
+        currentUserEmail = tempEmail;
+        
+        // Lưu email vào máy
+        localStorage.setItem('vinhloc_user_email', currentUserEmail);
+        
+        // ĐƯỢC CHO PHÉP THÌ BÂY GIỜ MỚI ẨN MÀN HÌNH ĐĂNG NHẬP NÈ
+        const loginScreen = document.getElementById('vinhloc-login-screen');
+        if (loginScreen) loginScreen.style.display = 'none';
+        
+        showToast(`<i class="fas fa-check-circle mr-2 text-green-400"></i> Đã cấp quyền: ${currentUserEmail}`);
+        
+        // Khởi động lại hệ thống dữ liệu
+        if (typeof initDatabase === 'function') initDatabase();
+        
+    } catch (error) {
+        showToast("Lỗi kết nối máy chủ khi xác thực!", true);
+    }
+};
+
+function decodeJwtResponse(token) {
+    let base64Url = token.split('.')[1];
+    let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+}
+
+// 3. THE ULTIMATE INTERCEPTOR: Chặn mọi gói tin Fetch để nhét Email vào
+// 3. THE ULTIMATE INTERCEPTOR: Chặn mọi gói tin Fetch để nhét Email vào
+window.fetch = async function() {
+    if (arguments[0] === SCRIPT_URL && arguments[1] && arguments[1].body) {
+        try {
+            let payload = JSON.parse(arguments[1].body);
+            // Kẹp email vào gói dữ liệu gửi đi (nếu đã được phép vào)
+            if (currentUserEmail) {
+                payload.email = currentUserEmail; 
+                arguments[1].body = JSON.stringify(payload);
+            }
+        } catch(e) {}
+    }
+    
+    const response = await originalFetch.apply(this, arguments);
+    const clonedRes = response.clone();
+    
+    try {
+        const data = await clonedRes.json();
+        if (data && data.needLogin) {
+            // SỬA LỖI Ở ĐÂY: Chỉ báo Toast đỏ nếu người dùng đã từng vào được app
+            // Tránh việc app vừa mở lên đang chờ đăng nhập đã báo lỗi loạn xạ
+            if (currentUserEmail) {
+                showToast("Tài khoản đã bị thu hồi quyền trên Google Drive!", true);
+            }
+            
+            localStorage.removeItem('vinhloc_user_email');
+            currentUserEmail = null;
+            const loginScreen = document.getElementById('vinhloc-login-screen');
+            if (loginScreen) loginScreen.style.display = 'flex';
+        }
+    } catch(e) {}
+    
+    return response;
+};
+// ==============================================================
+// ==============================================================
+// Kết thúc patch 0
+// ==============================================================
 // Bỏ đọc từ localStorage để luôn làm mới stack mỗi khi mở app
 localStorage.removeItem('appFolderStack'); 
 let folderStack = [{ id: ROOT_FOLDER_ID, name: "Triển khai", scrollTop: 0 }];
@@ -203,6 +319,8 @@ async function bgApiCall(action, payload = {}) {
     syncQueueCount++; updateSyncIndicator();
     payload.action = action;
     if (!payload.folderId) payload.folderId = currentFolderId;
+    // THÊM DÒNG NÀY VÀO ĐÂY:
+    payload.email = currentUserEmail;
     return fetch(SCRIPT_URL, {
         method: 'POST', body: JSON.stringify(payload)
     }).then(res => res.json()).catch(err => ({ success: false })).finally(() => {
@@ -341,6 +459,8 @@ async function apiCall(action, payload = {}) {
     if (action !== 'getMeta') loading.classList.remove('hidden');
     payload.action = action;
     if (!payload.folderId) payload.folderId = currentFolderId;
+    // THÊM DÒNG NÀY VÀO ĐÂY:
+    payload.email = currentUserEmail;
     try {
         const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
         const data = await response.json();
@@ -4039,7 +4159,7 @@ setTimeout(() => {
 
                         let response = await fetch(SCRIPT_URL, {
                             method: 'POST',
-                            body: JSON.stringify({ action: currentTask.action, ...currentTask.payload })
+                            body: JSON.stringify({ action: currentTask.action, ...currentTask.payload, email: currentUserEmail })
                         });
                         let data = await response.json();
 
@@ -4943,3 +5063,4 @@ setTimeout(() => {
 
     console.log("✅ PATCH 37-38: Đã fix Menu Header bị cắt và Đồng bộ đúng thứ tự Alphabet khi tạo thư mục!");
 }, 21000); // Khởi chạy ở mốc 21s để đảm bảo đè thành công các bản cũ
+

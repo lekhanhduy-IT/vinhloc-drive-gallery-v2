@@ -1,6 +1,22 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<div id="vinhloc-login-screen" class="fixed inset-0 bg-white z-[9999999] flex flex-col items-center justify-center" style="display: flex;">
+    <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-4xl mb-4 shadow-sm">
+        <i class="fas fa-shield-alt"></i>
+    </div>
+    <h2 class="text-2xl font-bold mb-2 text-gray-800">Quản Lý Ảnh Vĩnh Lộc</h2>
+    <p class="text-sm text-gray-500 mb-8 px-6 text-center">Đăng nhập</p>
+    
+    <div id="g_id_onload"
+         data-client_id="1034177686409-1fhm0m0tqmf58qjj1p0r2ifo018eh8o2.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="sign_in_with" data-shape="rectangular" data-logo_alignment="left"></div>
+</div>
     <title>QL Ảnh</title>
     
     <link rel="manifest" href="manifest.json?v=2">
