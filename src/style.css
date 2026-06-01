@@ -193,96 +193,170 @@ div.bottom-20.right-6 label {
     margin: auto !important; /* Đảm bảo hình tròn chứa icon luôn nằm chính giữa nút */
 }
 /* =========================================================
-   GOOGLE LOGIN MATERIAL DESIGN ANIMATION
+   GOOGLE LOGIN - MOBILE / PWA STABLE VERSION
    ========================================================= */
 
-#google-login-wrapper{
-    width:100%;
-    overflow:hidden;
+/* Overlay */
 
-    max-height:48px;
-    opacity:.85;
+#auth-overlay{
+    position: fixed;
+    inset: 0;
+    z-index: 99999999;
 
-    display:flex;
-    justify-content:center;
-    align-items:center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 
-    transition:
-        max-height .55s cubic-bezier(.22,1,.36,1),
-        opacity .35s ease;
+    contain: layout style paint;
+    overflow: hidden;
+
+    -webkit-tap-highlight-color: transparent;
 }
 
-#google-login-wrapper.ready{
-    max-height:96px;
-    opacity:1;
-}
-
-#google-login-btn{
-    min-height:48px;
-
-    display:flex;
-    justify-content:center;
-    align-items:center;
-
-    transform:translateY(12px);
-    opacity:0;
-
-    transition:
-        transform .45s cubic-bezier(.22,1,.36,1),
-        opacity .45s ease;
-}
-
-#google-login-wrapper.ready #google-login-btn{
-    transform:translateY(0);
-    opacity:1;
-}
-
-/* Card login */
+/* Login Card */
 
 #auth-overlay .rounded-3xl{
-    transition:
-        transform .45s cubic-bezier(.22,1,.36,1),
-        padding .45s cubic-bezier(.22,1,.36,1);
+    width: 100%;
+    max-width: 420px;
+
+    box-sizing: border-box;
+
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+
+    transform: translateZ(0);
+    will-change: auto;
 }
 
 /* Logo */
 
 #auth-overlay img{
-    transition:
-        transform .5s cubic-bezier(.22,1,.36,1),
-        opacity .4s ease;
+    display: block;
+
+    user-select: none;
+    -webkit-user-drag: none;
+
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+
+    transform: translateZ(0);
 }
 
-#google-login-wrapper.ready ~ #auth-error-msg{
-    animation: authFadeUp .45s cubic-bezier(.22,1,.36,1);
+/* Google Wrapper */
+
+#google-login-wrapper{
+    width: 100%;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    min-height: 48px;
+
+    overflow: visible;
+
+    opacity: 1;
+
+    transform: none;
+
+    transition: none;
 }
 
-/* Hiệu ứng Material */
+/* Google Button */
 
-@keyframes authFadeUp{
-    from{
-        opacity:0;
-        transform:translateY(-10px);
-    }
-    to{
-        opacity:1;
-        transform:translateY(0);
-    }
+#google-login-btn{
+    width: 100%;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    min-height: 48px;
+
+    opacity: 1;
+
+    transform: none;
+
+    transition: none;
+
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 }
 
-/* Loader fade-out */
+/* Google render xong */
+
+#google-login-wrapper.ready,
+#google-login-wrapper.ready #google-login-btn{
+    opacity: 1;
+    transform: none;
+}
+
+/* Loading */
+
+#google-login-wrapper.loading{
+    pointer-events: none;
+}
 
 #google-login-wrapper.loading .loader{
-    opacity:1;
-    transition:opacity .25s ease;
+    opacity: 1;
+}
+
+/* Loader */
+
+.loader{
+    transition: opacity .2s linear;
 }
 
 #google-login-wrapper.ready .loader{
-    opacity:0;
+    opacity: 0;
+    pointer-events: none;
 }
 
-/* Chống layout jump */
+/* Error Message */
 
-#auth-overlay{
-    contain:layout;
+#auth-error-msg{
+    min-height: 20px;
+    margin-top: 12px;
+
+    opacity: 1;
+
+    transition: opacity .2s ease;
+}
+
+/* Chống giật trên Android */
+
+#google-login-wrapper,
+#google-login-btn,
+#auth-overlay .rounded-3xl,
+#auth-overlay img{
+    transform: translateZ(0);
+}
+
+/* PWA Safe Area */
+
+@supports (padding:max(0px)){
+
+    #auth-overlay{
+        padding-top: max(20px, env(safe-area-inset-top));
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+        padding-left: max(20px, env(safe-area-inset-left));
+        padding-right: max(20px, env(safe-area-inset-right));
+    }
+
+}
+
+/* Reduced Motion */
+
+@media (prefers-reduced-motion: reduce){
+
+    #google-login-wrapper,
+    #google-login-btn,
+    #auth-overlay img,
+    #auth-overlay .rounded-3xl,
+    .loader{
+        transition: none !important;
+        animation: none !important;
+    }
+
 }
