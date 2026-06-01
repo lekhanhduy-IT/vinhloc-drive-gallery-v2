@@ -27,18 +27,16 @@
 <div id="auth-overlay" class="fixed inset-0 flex flex-col items-center justify-center z-[99999999] p-6 text-center" style="background-color: #380ad7;">
     <div class="rounded-3xl p-8 w-11/12 max-w-md">
         
-        <img src="loaddata.gif" alt="Loading" class="w-34 h-34 object-cover mx-auto mb-6">
+        <img src="loaddata.gif" alt="Loading" class="w-40 h-40 object-cover mx-auto mb-6">
         
         <h2 class="text-1xl font-bold text-white mb-4">QUẢN LÝ ẢNH VĨNH LỘC</h2>
         <p class="text-white opacity-80 mb-8 text-sm">Hệ thống nội bộ</p>
         
-        <div
-    id="google-login-btn"
-    class="flex justify-center items-center w-full"
-    style="height:48px"
->
-    <div class="loader"></div>
+        <div id="google-login-wrapper">
+    <div id="google-login-btn">
+        <div class="loader"></div>
     </div>
+        </div>
         
         <p id="auth-error-msg" class="text-yellow-400 text-sm mt-4 font-semibold hidden"></p>
     </div>
@@ -401,7 +399,7 @@
         </div>
     </div>
 
-    <script src="./src/script.js?v=1.3.24"></script>
+    <script src="./src/script.js?v=1.3.27"></script>
 
 </body>
 </html>

@@ -1,7 +1,43 @@
 // ==============================================================
 // SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN
 // ==============================================================
+function renderGoogleLoginButton() {
 
+    const wrapper = document.getElementById('google-login-wrapper');
+    const btn = document.getElementById('google-login-btn');
+
+    if (!wrapper || !btn) return;
+
+    wrapper.classList.remove('ready');
+    wrapper.classList.add('loading');
+
+    btn.innerHTML = '<div class="loader"></div>';
+
+    setTimeout(() => {
+
+        btn.innerHTML = '';
+
+        google.accounts.id.renderButton(
+            btn,
+            {
+                theme: 'outline',
+                size: 'large',
+                width: 280,
+                shape: 'pill'
+            }
+        );
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+
+                wrapper.classList.remove('loading');
+                wrapper.classList.add('ready');
+
+            });
+        });
+
+    }, 150);
+}
 (function() {
     // 1. SỬA LỖI TÀNG HÌNH: Khắc phục Illegal Invocation của setTimeout
     window._isAppBooting = true;

@@ -192,3 +192,97 @@ div.bottom-20.right-6 label {
 #fabMenu label > div {
     margin: auto !important; /* Đảm bảo hình tròn chứa icon luôn nằm chính giữa nút */
 }
+/* =========================================================
+   GOOGLE LOGIN MATERIAL DESIGN ANIMATION
+   ========================================================= */
+
+#google-login-wrapper{
+    width:100%;
+    overflow:hidden;
+
+    max-height:48px;
+    opacity:.85;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    transition:
+        max-height .55s cubic-bezier(.22,1,.36,1),
+        opacity .35s ease;
+}
+
+#google-login-wrapper.ready{
+    max-height:96px;
+    opacity:1;
+}
+
+#google-login-btn{
+    min-height:48px;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    transform:translateY(12px);
+    opacity:0;
+
+    transition:
+        transform .45s cubic-bezier(.22,1,.36,1),
+        opacity .45s ease;
+}
+
+#google-login-wrapper.ready #google-login-btn{
+    transform:translateY(0);
+    opacity:1;
+}
+
+/* Card login */
+
+#auth-overlay .rounded-3xl{
+    transition:
+        transform .45s cubic-bezier(.22,1,.36,1),
+        padding .45s cubic-bezier(.22,1,.36,1);
+}
+
+/* Logo */
+
+#auth-overlay img{
+    transition:
+        transform .5s cubic-bezier(.22,1,.36,1),
+        opacity .4s ease;
+}
+
+#google-login-wrapper.ready ~ #auth-error-msg{
+    animation: authFadeUp .45s cubic-bezier(.22,1,.36,1);
+}
+
+/* Hiệu ứng Material */
+
+@keyframes authFadeUp{
+    from{
+        opacity:0;
+        transform:translateY(-10px);
+    }
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+}
+
+/* Loader fade-out */
+
+#google-login-wrapper.loading .loader{
+    opacity:1;
+    transition:opacity .25s ease;
+}
+
+#google-login-wrapper.ready .loader{
+    opacity:0;
+}
+
+/* Chống layout jump */
+
+#auth-overlay{
+    contain:layout;
+}
