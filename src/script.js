@@ -4944,19 +4944,33 @@ setTimeout(() => {
     console.log("✅ PATCH 37-38: Đã fix Menu Header bị cắt và Đồng bộ đúng thứ tự Alphabet khi tạo thư mục!");
 }, 21000); // Khởi chạy ở mốc 21s để đảm bảo đè thành công các bản cũ
 // ==============================================================
-// PATCH 39: HỦY LỆNH QUEUE ẢO TỨC THÌ & ĐỒNG BỘ THỨ TỰ MEGA-ROW
+// PATCH 40: SỔ NAM TÀO - DIỆT ZOMBIE XUYÊN THIẾT BỊ (GHOST BUSTERS)
 // ==============================================================
 setTimeout(() => {
-    // ---------------------------------------------------------
-    // 1. NGĂN CHẶN "ZOMBIE": HỦY LỆNH TẠO NẾU ID VẪN LÀ ẢO
-    // ---------------------------------------------------------
-    const originalHandleDeleteP39 = window.handleDelete;
-    
-    window.handleDelete = function(id, type, e) {
-        // Chặn sự kiện click để không lan ra ngoài
-        if (e) e.stopPropagation(); 
+    // 1. Hàm ghi danh kẻ xấu vào sổ (Lưu theo Tên và Loại)
+    function logGhostToTombstone(id) {
+        let itemsSource = typeof currentDriveItems !== 'undefined' ? currentDriveItems : [];
+        let itemToKill = itemsSource.find(i => i.id === id);
         
-        // Đóng menu 3 chấm
+        if (!itemToKill && window.isSearching && window.currentSearchResults) {
+            itemToKill = window.currentSearchResults.find(i => i.id === id);
+        }
+        
+        if (itemToKill) {
+            let ghostList = JSON.parse(localStorage.getItem('ghost_busters') || '[]');
+            ghostList.push({
+                name: itemToKill.name,
+                type: itemToKill.type,
+                time: Date.now()
+            });
+            localStorage.setItem('ghost_busters', JSON.stringify(ghostList));
+            console.log(`👻 Đã ghi [${itemToKill.name}] vào Sổ Nam Tào! Mọi ID thật của nó sẽ bị thủ tiêu ngầm.`);
+        }
+    }
+
+    // 2. Ghi đè hàm Xóa Đơn Mục
+    window.handleDelete = function(id, type, e) {
+        if (e) e.stopPropagation(); 
         const menuObj = document.getElementById(`menu-${id}`);
         if (menuObj) menuObj.classList.add('hidden');
 
@@ -4971,41 +4985,29 @@ setTimeout(() => {
 
         btn.onclick = async () => {
             closeModal();
-            
-            // Xóa ngay khỏi giao diện và Cache cục bộ
-            if (window.purgeDeletedItem) window.purgeDeletedItem(id);
-            if (window.isSearching && window.currentSearchResults) {
-                window.currentSearchResults = window.currentSearchResults.filter(i => i.id !== id);
-            }
-            window.renderItems(currentDriveItems);
-
-            // BÍ QUYẾT: Kiểm tra xem ID này đã tồn tại trên Drive chưa
             const isTempId = String(id).startsWith('temp_');
 
             if (isTempId) {
-                // NẾU LÀ ID ẢO: Kẻ thù chưa lên mây, ta giết nó ngay trong hàng đợi (Queue)
+                // BƯỚC QUAN TRỌNG: Ghi vào sổ trước khi nó bay màu khỏi UI
+                logGhostToTombstone(id);
+                
+                // Dọn UI
+                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
+                window.renderItems(currentDriveItems);
+
+                // Hủy hàng đợi cục bộ
                 try {
                     let queue = await localforage.getItem('vinhloc_action_queue') || [];
-                    
-                    // Lọc bỏ lệnh 'createFolder' mang cái tempId này ra khỏi Sổ tay
-                    const newQueue = queue.filter(task => {
-                        if (task.action === 'createFolder' && task.payload && task.payload.tempId === id) {
-                            return false; // Tiêu diệt lệnh này
-                        }
-                        return true; // Giữ lại các lệnh khác
-                    });
-                    
+                    const newQueue = queue.filter(task => !(task.action === 'createFolder' && task.payload && task.payload.tempId === id));
                     await localforage.setItem('vinhloc_action_queue', newQueue);
-                    showToast(`<i class="fas fa-eraser mr-2"></i> Đã hủy tạo mục ảo`);
-                    console.log(`🕷️ Đã đánh chặn thành công Zombie ID: ${id} trước khi lên mây!`);
-                } catch(err) {
-                    console.error("Lỗi khi dọn dẹp hàng đợi:", err);
-                }
+                } catch(err) {}
+                
+                showToast(`<i class="fas fa-ghost mr-2"></i> Đã thủ tiêu mục ảo`);
             } else {
-                // NẾU LÀ ID THẬT: Tống lệnh Xóa lên hàng đợi như bình thường
-                if (typeof addActionToQueue === 'function') {
-                    addActionToQueue('delete', { id: id, type: type });
-                }
+                // Xóa ID thật như bình thường
+                if (typeof addActionToQueue === 'function') addActionToQueue('delete', { id: id, type: type });
+                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
+                window.renderItems(currentDriveItems);
                 showToast(`<i class="fas fa-trash mr-2"></i> Đã xóa`);
             }
         };
@@ -5014,13 +5016,12 @@ setTimeout(() => {
         document.getElementById('customModal').classList.add('flex');
     };
 
-    // Áp dụng tương tự cho chức năng Xóa nhiều mục (Delete Selected)
-    const originalDeleteSelectedP39 = window.deleteSelectedItems;
+    // 3. Ghi đè hàm Xóa Nhiều Mục
     window.deleteSelectedItems = function() {
         if (window.multiSelectState.selectedIds.size === 0) return showToast("Vui lòng chọn mục cần xóa!", true);
         
         document.getElementById('modalTitle').textContent = 'Xóa nhiều mục'; 
-        document.getElementById('modalDesc').textContent = `Xác nhận xóa ${window.multiSelectState.selectedIds.size} mục đã chọn? Hành động này không thể hoàn tác.`; 
+        document.getElementById('modalDesc').textContent = `Xác nhận xóa ${window.multiSelectState.selectedIds.size} mục đã chọn?`; 
         document.getElementById('modalDesc').classList.remove('hidden'); 
         document.getElementById('modalInput').classList.add('hidden');
         
@@ -5032,48 +5033,29 @@ setTimeout(() => {
             closeModal(); 
             let idsToDelete = Array.from(window.multiSelectState.selectedIds); 
             
-            // Tách làm 2 nhóm: Nhóm Ảo (Chưa lên Drive) và Nhóm Thật (Đã có trên Drive)
             let tempIds = idsToDelete.filter(id => String(id).startsWith('temp_'));
             let realIds = idsToDelete.filter(id => !String(id).startsWith('temp_'));
 
-            // Xóa khỏi UI ngay lập tức
-            idsToDelete.forEach(id => {
-                if (window.purgeDeletedItem) window.purgeDeletedItem(id);
-            });
+            // Ghi toàn bộ Temp ID vào sổ Nam Tào
+            tempIds.forEach(id => logGhostToTombstone(id));
+
+            idsToDelete.forEach(id => { if (window.purgeDeletedItem) window.purgeDeletedItem(id); });
             window.multiSelectState.selectedIds.clear(); 
             window.renderItems(currentDriveItems);
 
-            // 1. Xử lý nhóm Ảo: Lục soát Queue và tiêu diệt
             if (tempIds.length > 0) {
                 let queue = await localforage.getItem('vinhloc_action_queue') || [];
-                const newQueue = queue.filter(task => {
-                    if (task.action === 'createFolder' && task.payload && tempIds.includes(task.payload.tempId)) {
-                        return false; 
-                    }
-                    return true;
-                });
+                const newQueue = queue.filter(task => !(task.action === 'createFolder' && task.payload && tempIds.includes(task.payload.tempId)));
                 await localforage.setItem('vinhloc_action_queue', newQueue);
             }
 
-            // 2. Xử lý nhóm Thật: Bắn API xóa lên Drive
             if (realIds.length > 0) {
-                showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang xóa ${realIds.length} mục trên mây...`);
-                let successCount = 0;
-                
-                // Trực tiếp gọi API ngầm (vì đây là thao tác hàng loạt, dễ làm ngập Queue)
-                for (let id of realIds) {
-                    let type = (appMeta[id] && appMeta[id].type) ? 'folder' : 'file'; // Đoán type
-                    try {
-                        let res = await fetch(SCRIPT_URL, {
-                            method: 'POST',
-                            body: JSON.stringify({ action: 'delete', id: id, type: type })
-                        }).then(r => r.json());
-                        if (res && res.success) successCount++;
-                    } catch(e) {}
-                }
-                showToast(`<i class="fas fa-check mr-2"></i> Đã xóa thành công ${successCount + tempIds.length} mục.`);
+                showToast(`<i class="fas fa-spinner fa-spin mr-2"></i> Đang xóa ${realIds.length} mục...`);
+                realIds.forEach(id => {
+                    if (typeof addActionToQueue === 'function') addActionToQueue('delete', { id: id });
+                });
             } else {
-                showToast(`<i class="fas fa-eraser mr-2"></i> Đã hủy các mục ảo thành công.`);
+                showToast(`<i class="fas fa-ghost mr-2"></i> Đã dọn dẹp các mục ảo`);
             }
         };
         
@@ -5081,31 +5063,66 @@ setTimeout(() => {
         document.getElementById('customModal').classList.add('flex');
     };
 
-    // ---------------------------------------------------------
-    // 2. ÉP THỨ TỰ ALPHABET TUYỆT ĐỐI CHO MEGA-ROWS
-    // ---------------------------------------------------------
-    if (window.renderItems && !window.renderItems.isMegaSortedP39) {
-        const originalRenderForSort = window.renderItems;
+    // 4. MẢNG LƯỚI BẮT MA Ở RENDER CỦA CON NHỆN
+    const originalRenderItemsP40 = window.renderItems;
+    window.renderItems = function(items, isSearchMode = false) {
+        if (!items || !Array.isArray(items)) return originalRenderItemsP40(items, isSearchMode);
+
+        // Ép sắp xếp Alphabet cho Mega-row (Kế thừa tính năng cố định vị trí)
+        if (folderStack.length === 1 && !isSearchMode && !window.isSearching) {
+            items.sort((a, b) => {
+                if (a.type === b.type) return String(a.name || '').localeCompare(String(b.name || ''));
+                return a.type === 'folder' ? -1 : 1;
+            });
+        }
+
+        // KÍCH HOẠT SỔ NAM TÀO
+        let ghostList = JSON.parse(localStorage.getItem('ghost_busters') || '[]');
+        if (ghostList.length > 0) {
+            let now = Date.now();
+            // Xóa án tích sau 5 phút (tránh trùng tên với file tạo hợp lệ sau này)
+            ghostList = ghostList.filter(g => now - g.time < 300000); 
+            
+            let realIdsToKill = [];
+            
+            // Lọc các item tải về từ máy chủ
+            let finalItems = items.filter(item => {
+                let ghostIndex = ghostList.findIndex(g => g.name === item.name && g.type === item.type);
+                if (ghostIndex !== -1) {
+                    // BẮT QUẢ TANG: Con nhện vừa lôi về 1 ID thật thuộc về mục ảo đã bị xóa!
+                    realIdsToKill.push({id: item.id, type: item.type});
+                    // Xóa tên khỏi sổ (1 mạng đổi 1 mạng)
+                    ghostList.splice(ghostIndex, 1);
+                    return false; // Giấu nhẹm nó khỏi giao diện ngay lập tức
+                }
+                return true;
+            });
+            
+            localStorage.setItem('ghost_busters', JSON.stringify(ghostList));
+            
+            // Xách súng đi bắn ID thật trên máy chủ một cách âm thầm
+            realIdsToKill.forEach(target => {
+                console.log(`🕷️ Đang thủ tiêu ngầm ID thật của Zombie: ${target.id}`);
+                // Nạp vào queue để xoá đồng bộ
+                if (typeof addActionToQueue === 'function') {
+                    addActionToQueue('delete', { id: target.id, type: target.type });
+                }
+                // Thọc thẳng API một phát cho chắc chắn
+                if (typeof SCRIPT_URL !== 'undefined') {
+                    fetch(SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'delete', id: target.id, type: target.type })
+                    }).catch(e => e);
+                }
+            });
+            
+            // Trả mảng sạch bong không tì vết ra giao diện
+            return originalRenderItemsP40(finalItems, isSearchMode);
+        }
         
-        window.renderItems = function(items, isSearchMode = false) {
-            // Can thiệp: Ép sắp xếp mảng items đầu vào nếu nó đang nằm ở mảng gốc
-            if (folderStack.length === 1 && !isSearchMode) {
-                // Thuật toán sort Locale Compare chuẩn mực
-                items.sort((a, b) => {
-                    if (a.type === b.type) return String(a.name || '').localeCompare(String(b.name || ''));
-                    return a.type === 'folder' ? -1 : 1;
-                });
-            }
-            // Sau khi đã bị ép vào khuôn, đẩy qua hàm vẽ gốc
-            originalRenderForSort(items, isSearchMode);
-        };
-        window.renderItems.isMegaSortedP39 = true;
-    }
+        // Nếu không có ma, gọi hàm gốc bình thường
+        originalRenderItemsP40(items, isSearchMode);
+    };
 
-    // Refresh UI nhẹ để các Mega-row hiện tại vào đúng hàng lối
-    if (typeof currentDriveItems !== 'undefined' && folderStack.length === 1) {
-        window.renderItems(currentDriveItems);
-    }
-
-    console.log("✅ PATCH 39: Đã gắn chốt chặn Hủy Diệt Zombie & Ép chuẩn vị trí Mega-Row!");
-}, 22000); // Kích hoạt trễ nhất để bao phủ toàn bộ các Patch cũ
+    console.log("✅ PATCH 40: Hệ thống 'Sổ Nam Tào' chống Zombie hiển thị chéo thiết bị đã sẵn sàng!");
+}, 24000);
