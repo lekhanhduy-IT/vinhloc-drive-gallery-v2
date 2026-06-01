@@ -89,7 +89,6 @@
 // ==============================================================
 // (MÃ CŨ CỦA BẠN BẮT ĐẦU TỪ ĐÂY)
 // const SCRIPT_URL = "https://script.google.com/...";
-
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3xI-bNWfeffsEH-iIc0yYfF9bHYvAiKZKWIfco6j7Z7GOtOAv7Q8WE1_y9xjen7c/exec";
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";

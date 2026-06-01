@@ -19,7 +19,7 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
-    <link rel="stylesheet" href="./src/style.css?v=1.5">
+    <link rel="stylesheet" href="./src/style.css?v=1.6">
 
 </head>
 
@@ -32,11 +32,7 @@
         <h2 class="text-1xl font-bold text-white mb-4">QUẢN LÝ ẢNH VĨNH LỘC</h2>
         <p class="text-white opacity-80 mb-8 text-sm">Hệ thống nội bộ</p>
         
-        <div id="google-login-wrapper">
-    <div id="google-login-btn">
-        <div class="loader"></div>
-    </div>
-        </div>
+        <div class="flex justify-center w-full" id="google-login-btn"></div>
         
         <p id="auth-error-msg" class="text-yellow-400 text-sm mt-4 font-semibold hidden"></p>
     </div>
@@ -399,7 +395,7 @@
         </div>
     </div>
 
-    <script src="./src/script.js?v=1.4.40"></script>
+    <script src="./src/script.js?v=1.4.20"></script>
 
 </body>
 </html>
