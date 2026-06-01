@@ -19,51 +19,56 @@ function doPost(e) {
     let result = { success: false, message: "Hành động không hợp lệ" };
 
     switch (action) {
-      case 'verifyUser':
+case 'verifyUser':
       try {
         const userEmail = payload.email; 
-        if (!userEmail) {
-          return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không tìm thấy email" })).setMimeType(ContentService.MimeType.JSON, headers);
-        }
+        if (!userEmail) return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không nhận được Email từ Google Sign-in" })).setMimeType(ContentService.MimeType.JSON);
 
-        let isAllowed = false;
         const emailCheck = userEmail.trim().toLowerCase();
 
-        if (emailCheck === Session.getScriptUser().getEmail().toLowerCase()) {
-            isAllowed = true;
-        }
-
-        // DÙNG DRIVE API NÂNG CAO ĐỂ QUÉT BỘ NHỚ DÙNG CHUNG
-        if (!isAllowed) {
-            try {
-                // Lấy thông tin Drive ID của thư mục gốc
-                const folderInfo = Drive.Files.get(ROOT_FOLDER_ID, {supportsAllDrives: true});
-                const driveId = folderInfo.driveId; 
+        try {
+            // Lấy ID của Bộ nhớ dùng chung (Drive API v3)
+            const folderInfo = Drive.Files.get(ROOT_FOLDER_ID, { supportsAllDrives: true });
+            const driveId = folderInfo.driveId; 
+            
+            if (driveId) {
+                // SỬA LỖI Ở ĐÂY: Drive API v3 dùng .permissions thay vì .items, 
+                // và phải yêu cầu tham số fields để nó trả về emailAddress
+                const permissionResponse = Drive.Permissions.list(driveId, { 
+                    supportsAllDrives: true,
+                    fields: "permissions(emailAddress, role)" 
+                });
                 
-                if (driveId) {
-                    // Lấy toàn bộ danh sách thành viên của Bộ nhớ dùng chung đó
-                    const permissions = Drive.Permissions.list(driveId, {supportsAllDrives: true}).items;
-                    for (let i = 0; i < permissions.length; i++) {
-                        if (permissions[i].emailAddress && permissions[i].emailAddress.toLowerCase() === emailCheck) {
-                            isAllowed = true;
-                            break;
+                const permissionsList = permissionResponse.permissions;
+                let foundEmails = []; 
+                
+                if (permissionsList && permissionsList.length > 0) {
+                    for (let i = 0; i < permissionsList.length; i++) {
+                        if (permissionsList[i].emailAddress) {
+                            foundEmails.push(permissionsList[i].emailAddress.toLowerCase());
                         }
                     }
                 }
-            } catch (e) {
-                console.error("Lỗi khi đọc Shared Drive API: " + e.message);
+                
+                // ĐỐI CHIẾU
+                if (foundEmails.includes(emailCheck)) {
+                    return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Pass" })).setMimeType(ContentService.MimeType.JSON);
+                } else {
+                    return ContentService.createTextOutput(JSON.stringify({ 
+                        success: false, 
+                        message: `Tài khoản không được ủy quyền` 
+                    })).setMimeType(ContentService.MimeType.JSON);
+                }
+            } else {
+                return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không lấy được ID Bộ nhớ dùng chung" })).setMimeType(ContentService.MimeType.JSON);
             }
+        } catch (e) {
+            return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Lỗi quét API Drive v3: " + e.message })).setMimeType(ContentService.MimeType.JSON);
         }
 
-        return ContentService.createTextOutput(JSON.stringify({ 
-          success: isAllowed, 
-          message: isAllowed ? "Hợp lệ" : "Bạn không có trong danh sách Bộ nhớ dùng chung!" 
-        })).setMimeType(ContentService.MimeType.JSON, headers);
-
       } catch(err) {
-        return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Lỗi hệ thống: " + err.toString() })).setMimeType(ContentService.MimeType.JSON, headers);
-      }
-      // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC ---
+        return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Lỗi Server: " + err.message })).setMimeType(ContentService.MimeType.JSON);
+      }      // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC ---
       // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC (ĐÃ FIX LỖI) ---
       case 'clipboardOps':
         try {
@@ -326,10 +331,4 @@ function isDescendantOfRoot(item, rootId) {
 function FORCE_AUTH() {
   DriveApp.getRootFolder();
   Logger.log(ScriptApp.getOAuthToken());
-}
-function KichHoatQuyenNangCao() {
-  // Hàm này chỉ dùng chạy tay 1 lần duy nhất để ép Google bật bảng Review Permissions
-  DriveApp.getFiles();
-  Drive.Files.get(ROOT_FOLDER_ID, {supportsAllDrives: true});
-  console.log("Đã cấp quyền thành công!");
 }

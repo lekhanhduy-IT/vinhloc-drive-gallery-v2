@@ -4373,36 +4373,57 @@ try {
     window.handleMultipleFileUpload = newUploadLogic;
 }
 // ==============================================================
-// HIỂN THỊ SỐ PHIÊN BẢN NGAY DƯỚI CÁC MỤC TRONG SIDEBAR
+// HIỂN THỊ SỐ PHIÊN BẢN & ÉP ĐĂNG NHẬP LẠI KHI CÓ CẬP NHẬT MỚI
 // ==============================================================
 setTimeout(() => {
-    // Tìm thẳng vào vùng chứa danh sách mục menu
     const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
     
     if (sidebarMenuContainer) {
-        // 1. Tự động đi tìm số phiên bản đang chạy trong HTML
+        // 1. Đi tìm số phiên bản đang chạy
         let currentVersion = "Không rõ";
         const scripts = document.querySelectorAll('script');
         scripts.forEach(s => {
             if (s.src && s.src.includes('script.js?v=')) {
-                // Bóc tách lấy đúng con số sau chữ v=
                 const match = s.src.match(/v=([0-9.]+)/);
                 if (match && match[1]) currentVersion = match[1];
             }
         });
 
-        // 2. Xóa thẻ cũ (nếu có) để tránh bị nhân đôi khi lướt web
+        // 2. LOGIC BẢO MẬT: So sánh phiên bản và ép Đăng xuất nếu có bản mới
+        if (currentVersion !== "Không rõ") {
+            const savedVersion = localStorage.getItem('vinhloc_app_version');
+            
+            if (savedVersion && savedVersion !== currentVersion) {
+                console.log(`⚠️ Phát hiện bản cập nhật mới: ${savedVersion} -> ${currentVersion}`);
+                
+                // Lưu lại mốc phiên bản mới để không bị reload lặp vô hạn
+                localStorage.setItem('vinhloc_app_version', currentVersion);
+                
+                // Xóa toàn bộ thông tin đăng nhập và cờ màn hình chờ
+                localStorage.removeItem("vinhloc_authenticated_email");
+                localStorage.removeItem("vinhloc_spider_pwa_loaded");
+                localStorage.removeItem("vinhloc_spider_browser_loaded");
+                
+                // Dọn dẹp sạch sẽ bộ nhớ đệm của Nhện và tải lại trang để khóa hệ thống
+                if (window.localforage) {
+                    localforage.clear().then(() => window.location.reload());
+                } else {
+                    window.location.reload();
+                }
+                return; // Ngừng vẽ giao diện, nhường quyền cho tiến trình tải lại
+            } else if (!savedVersion) {
+                // Nếu vào lần đầu, ghi nhớ phiên bản hiện tại
+                localStorage.setItem('vinhloc_app_version', currentVersion);
+            }
+        }
+
+        // 3. Vẽ thông tin phiên bản ra giao diện
         const oldVerDiv = document.getElementById('app-version-display');
         if (oldVerDiv) oldVerDiv.remove();
 
-        // 3. Tạo thẻ hiển thị mới
         const versionDiv = document.createElement('div');
         versionDiv.id = 'app-version-display';
-        
-        // SỬA Ở ĐÂY: Dùng pl-[24px] để khớp chính xác 100% với (20px padding + 4px border) của menu
-        versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px]  text-red-400 tracking-widest opacity-80 cursor-default';
-        
-        // Icon được fix cứng độ rộng w-6 và căn giữa giống hệt menu
+        versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px] text-red-400 tracking-widest opacity-80 cursor-default';
         versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${currentVersion}`;
         
         sidebarMenuContainer.appendChild(versionDiv);
@@ -5692,3 +5713,51 @@ setTimeout(() => {
     
     console.log("✅ PATCH 42 (FIXED): Đã tối ưu thuật toán truyền File vào Facebook siêu tốc!");
 }, 28500); // Khởi chạy trễ nhất để chắc chắn đè bẹp bản Patch 42 bị lỗi
+// ==============================================================
+// PATCH 44: THÊM NÚT ĐĂNG XUẤT VÀO MENU HEADER (DẤU 3 CHẤM)
+// ==============================================================
+setTimeout(() => {
+    if (window.buildHeaderMenu && !window.buildHeaderMenu.isLogoutHooked) {
+        // Lưu lại hàm build menu gốc (bao gồm cả các nút đã thêm từ các Patch trước)
+        const originalBuildHeaderMenuForLogout = window.buildHeaderMenu;
+        
+        window.buildHeaderMenu = function() {
+            // 1. Chạy hàm gốc để dựng các mục cơ bản (Lọc, Chia sẻ, v.v...)
+            originalBuildHeaderMenuForLogout();
+            
+            // 2. Chèn Nút Đăng xuất xuống đáy Menu
+            const headerDropdown = document.getElementById('headerDropdown');
+            if (headerDropdown) {
+                const logoutHtml = `
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <div class="px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center cursor-pointer transition" onclick="window.vinhlocForceLogout()">
+                        <i class="fa-solid fa-right-from-bracket w-5 text-center mr-2"></i><span>Đăng xuất hệ thống</span>
+                    </div>
+                `;
+                headerDropdown.insertAdjacentHTML('beforeend', logoutHtml);
+            }
+        };
+        window.buildHeaderMenu.isLogoutHooked = true;
+    }
+
+    // HÀM XỬ LÝ SỰ KIỆN KHI BẤM ĐĂNG XUẤT
+    window.vinhlocForceLogout = function() {
+        if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?")) {
+            // 1. Hủy phiên đăng nhập hiện tại
+            localStorage.removeItem("vinhloc_authenticated_email");
+            
+            // 2. Xóa cờ để lần tới đăng nhập sẽ có màn hình chờ 30 giây nạp Nhện
+            localStorage.removeItem("vinhloc_spider_pwa_loaded");
+            localStorage.removeItem("vinhloc_spider_browser_loaded");
+            
+            // 3. Quét sạch tàn dư dữ liệu nội bộ và tải lại ứng dụng
+            if (window.localforage) {
+                localforage.clear().then(() => window.location.reload());
+            } else {
+                window.location.reload();
+            }
+        }
+    };
+    
+    console.log("✅ PATCH 44: Đã gắn Nút Đăng xuất vào Menu Header!");
+}, 29000); // Khởi chạy trễ ở giây 29 để chắc chắn nó luôn nằm dưới cùng
