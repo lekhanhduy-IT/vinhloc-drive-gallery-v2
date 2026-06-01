@@ -1,3 +1,87 @@
+// ==============================================================
+// SUPER PATCH: QUẢN LÝ ĐĂNG NHẬP ĐA TÀI KHOẢN & TUA NHANH PATCH
+// ==============================================================
+
+(function() {
+    // 1. TRẠM KIỂM SOÁT THỜI GIAN: Tua nhanh thời gian bung Patch
+    // Biến này chỉ tồn tại trong 2 giây đầu tiên khi load web để nhận diện các Patch đang được đăng ký
+    window._isAppBooting = true;
+    setTimeout(() => { window._isAppBooting = false; }, 2000); 
+
+    const originalSetTimeout = window.setTimeout;
+    window.setTimeout = function(fn, delay, ...args) {
+        // Nếu app đang trong giai đoạn khởi động VÀ thiết bị này đã từng nạp xong Não Nhện
+        if (window._isAppBooting && localStorage.getItem('vinhloc_device_patched') === 'true') {
+            // Lọc các delay của Patch (từ 500ms đến 35000ms) và tua nhanh gấp 100 lần
+            // (Ví dụ: Patch 29000ms sẽ bung ngay lập tức sau 290ms, giữ nguyên được thứ tự chạy)
+            if (delay >= 500 && delay <= 35000) {
+                delay = delay / 100; 
+            }
+        }
+        return originalSetTimeout(fn, delay, ...args);
+    };
+
+    // 2. TÁI CẤU TRÚC LOGIC ĐĂNG NHẬP & MÀN HÌNH CHỜ
+    window.initSpiderLoaderFlow = function() {
+        const currentEmail = localStorage.getItem("vinhloc_authenticated_email");
+        if (!currentEmail) return;
+
+        // Xóa triệt để các cờ lưu cũ không còn sử dụng
+        localStorage.removeItem("vinhloc_spider_pwa_loaded");
+        localStorage.removeItem("vinhloc_spider_browser_loaded");
+
+        // Lấy danh sách các tài khoản đã hoàn thành màn hình 30s trên thiết bị này
+        let loadedAccounts = JSON.parse(localStorage.getItem("vinhloc_loaded_accounts") || "[]");
+        const isAccountLoaded = loadedAccounts.includes(currentEmail);
+        
+        const loader = document.getElementById("spider-brain-loader");
+        const textEl = document.getElementById("spider-brain-text");
+
+        if (!isAccountLoaded && loader && textEl) {
+            // TÀI KHOẢN MỚI HOẶC CHƯA NẠP LẦN NÀO -> BẬT MÀN HÌNH 30 GIÂY
+            loader.style.display = "flex";
+            loader.classList.remove("fade-out-spider");
+            let percent = 1;
+            const intervalTime = 300; // 300ms x 100 bước = 30 giây
+
+            const loadingInterval = setInterval(() => {
+                percent++;
+                textEl.innerText = `Đang nạp ${percent}%...`;
+
+                if (percent >= 100) {
+                    clearInterval(loadingInterval);
+                    loader.classList.add("fade-out-spider");
+                    
+                    // Ghi danh tài khoản này vào sổ đã nạp
+                    loadedAccounts.push(currentEmail);
+                    localStorage.setItem("vinhloc_loaded_accounts", JSON.stringify(loadedAccounts));
+                    
+                    // Đánh dấu mộc Thiết bị đã Bung Patch toàn cầu
+                    localStorage.setItem("vinhloc_device_patched", "true");
+
+                    setTimeout(() => { loader.style.display = "none"; }, 1000);
+                }
+            }, intervalTime);
+        } else {
+            // TÀI KHOẢN CŨ ĐÃ NẠP -> VÀO THẲNG GIAO DIỆN CHÍNH
+            if (loader) loader.style.display = "none";
+            // Đảm bảo thiết bị luôn được giữ mộc Bung Patch
+            localStorage.setItem("vinhloc_device_patched", "true"); 
+        }
+    };
+
+    // 3. XỬ LÝ SỰ KIỆN KHI CÀI ĐẶT PWA
+    window.addEventListener('appinstalled', () => {
+        // Chỉ reset lại danh sách tài khoản để ép chạy lại màn hình chờ 30s
+        // KHÔNG reset vinhloc_device_patched để các Patch vẫn được bung tức thì
+        localStorage.removeItem("vinhloc_loaded_accounts");
+        console.log("🕷️ Đã cài đặt PWA mới - Xóa thẻ nhớ tài khoản để nạp lại UI!");
+    });
+})();
+
+// ==============================================================
+// (MÃ CŨ CỦA BẠN BẮT ĐẦU TỪ ĐÂY)
+// const SCRIPT_URL = "https://script.google.com/...";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3xI-bNWfeffsEH-iIc0yYfF9bHYvAiKZKWIfco6j7Z7GOtOAv7Q8WE1_y9xjen7c/exec";
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
