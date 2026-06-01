@@ -5845,3 +5845,55 @@ setTimeout(() => {
     
     console.log("✅ PATCH 44: Đã gắn Nút Đăng xuất vào Menu Header!");
 }, 29000); // Khởi chạy trễ ở giây 29 để chắc chắn nó luôn nằm dưới cùng
+// ==============================================================
+// PATCH SỬA LỖI: ÉP HIỆN CÂY BÚT PENDESIGN KHI VÀO THƯ MỤC
+// ==============================================================
+(function() {
+    // Ghi đè hàm cập nhật thanh điều hướng để bắt trọn khoảnh khắc đổi folder
+    const originalUpdateBreadcrumbs = window.updateBreadcrumbs;
+    
+    window.updateBreadcrumbs = function(...args) {
+        // Chạy logic cũ của hệ thống trước
+        if (typeof originalUpdateBreadcrumbs === 'function') {
+            originalUpdateBreadcrumbs.apply(this, args);
+        }
+        
+        // Tìm kiếm nút cây bút bằng mọi định danh có thể có
+        const penBtn = window.btnOpenDesign || 
+                       document.getElementById('btn-open-design') || 
+                       document.getElementById('btnOpenDesign') || 
+                       document.querySelector('[id*="design"]');
+                       
+        if (penBtn) {
+            // Kiểm tra xem có đang ở trong folder hay không (stack > 1)
+            if (window.folderStack && window.folderStack.length > 1) {
+                // ÉP BUỘC HIỆN: Xóa class ẩn và đè thuộc tính hiển thị mạnh nhất
+                penBtn.classList.remove('hidden');
+                penBtn.style.setProperty('display', 'flex', 'important'); 
+                penBtn.style.setProperty('visibility', 'visible', 'important');
+                penBtn.style.setProperty('opacity', '1', 'important');
+            } else {
+                // Ở trang chủ gốc thì ẩn đi cho sạch giao diện
+                penBtn.classList.add('hidden');
+                penBtn.style.setProperty('display', 'none', 'important');
+            }
+        }
+    };
+
+    // Đề phòng trường hợp hàm vẽ danh sách file (render) xóa nhầm, 
+    // kiểm tra thêm một lần nữa mỗi khi có thay đổi trên màn hình
+    const observer = new MutationObserver(() => {
+        const penBtn = window.btnOpenDesign || document.getElementById('btn-open-design') || document.getElementById('btnOpenDesign');
+        if (penBtn && window.folderStack && window.folderStack.length > 1) {
+            if (penBtn.classList.contains('hidden') || penBtn.style.display === 'none') {
+                penBtn.classList.remove('hidden');
+                penBtn.style.setProperty('display', 'flex', 'important');
+            }
+        }
+    });
+    
+    // Kích hoạt bộ giám sát ngầm ngay khi tài liệu sẵn sàng
+    document.addEventListener("DOMContentLoaded", () => {
+        observer.observe(document.body, { childList: true, subtree: true });
+    });
+})();
