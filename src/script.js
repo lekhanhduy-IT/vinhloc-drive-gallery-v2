@@ -583,7 +583,7 @@ btnBack.addEventListener('click', () => { if (folderStack.length > 1) history.ba
 function updateBreadcrumbs() {
     if (folderStack.length === 1) {
         currentFolderName.innerHTML = currentCategory;
-        btnBack.classList.add('hidden'); btnMenu.classList.remove('hidden'); btnOpenDesign.classList.remove('hidden');
+        btnBack.classList.add('hidden'); btnMenu.classList.remove('hidden'); btnOpenDesign.classList.add('hidden');
     } else {
         currentFolderName.innerHTML = folderStack.map((f, i) => {
             if (i === folderStack.length - 1) return `<span class="font-bold">${f.name}</span>`;
