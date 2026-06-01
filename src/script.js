@@ -5122,3 +5122,52 @@ setTimeout(() => {
 
     console.log("✅ PATCH 39 (FINAL): Đã gom thành công kiến trúc Diệt Zombie tối thượng!");
 }, 22000); // 22s là đủ bao trùm tất cả để làm chốt chặn cuối
+// ==============================================================
+// PATCH 42: BỘ LỌC KHỬ TRÙNG LẶP BÓNG MA (GHOST DEDUPLICATION)
+// ==============================================================
+setTimeout(() => {
+    if (window.renderItems && !window.renderItems.isDedupHooked) {
+        const originalRenderItemsP42 = window.renderItems;
+        
+        window.renderItems = function(items, isSearchMode = false) {
+            // BỘ LỌC KHỬ TRÙNG: Chống hiện 1 ảo + 1 thật cùng lúc trên màn hình
+            if (items && items.length > 0 && !isSearchMode) {
+                let uniqueItems = [];
+                let realNames = new Set();
+                
+                // Bước 1: Quét một vòng, gom toàn bộ tên của các File/Folder THẬT (ID không có chữ temp)
+                items.forEach(item => {
+                    if (!String(item.id).startsWith('temp_')) {
+                        realNames.add(item.name + '_' + item.type);
+                    }
+                });
+                
+                // Bước 2: Bắt đầu sát hạch danh sách hiển thị
+                items.forEach(item => {
+                    const isTemp = String(item.id).startsWith('temp_');
+                    const dupeKey = item.name + '_' + item.type;
+                    
+                    // Nếu đây là hàng Ảo (temp_), MÀ trên màn hình ĐÃ CÓ hàng Thật cùng tên
+                    if (isTemp && realNames.has(dupeKey)) {
+                        console.log(`👻 Đã tiêu diệt bóng ma phân thân: ${item.name}`);
+                        
+                        // Tiện tay ném luôn ID ảo này vào Sổ đen để diệt tận gốc rễ
+                        if (window.vinhloc_blacklist && !window.vinhloc_blacklist.includes(item.id)) {
+                            window.vinhloc_blacklist.push(item.id);
+                            localStorage.setItem('vinhloc_blacklist', JSON.stringify(window.vinhloc_blacklist));
+                        }
+                    } else {
+                        // Nếu là hàng thật, hoặc hàng ảo chưa có hàng thật đè lên -> Cho phép hiển thị
+                        uniqueItems.push(item);
+                    }
+                });
+                
+                items = uniqueItems; // Cập nhật lại danh sách sạch sẽ không tì vết
+            }
+            
+            return originalRenderItemsP42(items, isSearchMode);
+        };
+        window.renderItems.isDedupHooked = true;
+    }
+    console.log("✅ PATCH 42: Đã trang bị Kính lúp phát hiện và tiêu diệt Bóng ma phân thân!");
+}, 23500); // Khởi chạy sau Sổ đen để bọc thêm một lớp bảo vệ bên ngoài
