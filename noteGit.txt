@@ -1,3 +1,21 @@
 git add .
 git commit -m "split js from html"
 git push origin main
+
+4. Sau đó commit lại
+git add .
+git commit -m "split js from html"
+5. Push lên GitHub
+git push origin main
+
+https://docs.google.com/spreadsheets/d/1rzm6zSX24UB03QOKRhR3O4BvGiQvnaOz6mhA6YL3GqA/edit?gid=0#gid=0
+
+https://script.google.com/u/0/home/projects/1KezbJucJAsjN13f2r57vOIgeoPpPrLBx2ubDn9K08CG8eRYPgXOLLEaN/edit
+
+https://console.cloud.google.com/auth/clients?project=vinhloc-drive-auth-image-app
+
+https://vercel.com/khanhduyhazo-6916s-projects/vinhloc-drive-gallery-app/7hDNKaeuhVBm6LFgM2cDPwTbY34D
+
+https://gemini.google.com/app/1aa7e6a8194e5fd3?hl=vi
+
+https://me.developers.google.com/u/me
