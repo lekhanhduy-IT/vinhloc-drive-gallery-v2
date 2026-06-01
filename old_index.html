@@ -1,22 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-<div id="vinhloc-login-screen" class="fixed inset-0 bg-white z-[9999999] flex flex-col items-center justify-center" style="display: flex;">
-    <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-4xl mb-4 shadow-sm">
-        <i class="fas fa-shield-alt"></i>
-    </div>
-    <h2 class="text-2xl font-bold mb-2 text-gray-800">Quản Lý Ảnh Vĩnh Lộc</h2>
-    <p class="text-sm text-gray-500 mb-8 px-6 text-center">Đăng nhập</p>
-    
-    <div id="g_id_onload"
-         data-client_id="1034177686409-1fhm0m0tqmf58qjj1p0r2ifo018eh8o2.apps.googleusercontent.com"
-         data-callback="handleCredentialResponse"
-         data-auto_prompt="false">
-    </div>
-    <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="sign_in_with" data-shape="rectangular" data-logo_alignment="left"></div>
-</div>
     <title>QL Ảnh</title>
     
     <link rel="manifest" href="manifest.json?v=2">
@@ -39,6 +23,10 @@
 </head>
 
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
+    <div id="spider-brain-loader" style="display: none;">
+    <img src="loaddata.gif" alt="Loading Data" />
+    <div id="spider-brain-text">Đang nạp 1%...</div>
+</div>
 
     <div id="toast-container" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-[10000] flex flex-col gap-2 pointer-events-none"></div>
 
@@ -89,7 +77,7 @@
         <div id="fileList" class="grid grid-cols-2 gap-3 px-3 pb-24"></div>
     </main>
 
-    <div class="absolute bottom-6 right-6 flex flex-col-reverse items-end gap-3 z-30">
+    <div class="absolute bottom-20 right-6 flex flex-col-reverse items-end gap-3 z-30">
 <button id="fabMain" class="w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition transform hover:scale-105 active:scale-95 overflow-hidden bg-transparent border-none p-0">
             <img src="addfolder.gif" id="fabIcon" class="w-full h-full object-cover transition-transform duration-300" alt="Thêm mới">
         </button>
@@ -396,7 +384,7 @@
         </div>
     </div>
 
-    <script src="./src/script.js?v=1.0.41"></script>
+    <script src="./src/script.js?v=1.0.100"></script>
 
 </body>
 </html>
