@@ -5187,7 +5187,7 @@ setTimeout(() => {
     console.log("✅ PATCH 41: Lưới lọc Network đã giăng. Chặn đứng 100% tỷ lệ tái sinh của Zombie!");
 }, 26000);
 // ==============================================================
-// PATCH: HỆ THỐNG CLIPBOARD PRO & CHỈNH SỬA ẢNH SIÊU TỐC (UPDATE)
+// PATCH: HỆ THỐNG CLIPBOARD PRO & CHỈNH SỬA ẢNH ĐƠN TỐC ĐỘ CAO
 // ==============================================================
 
 window.vlClipboard = {
@@ -5203,7 +5203,7 @@ setInterval(() => {
     if(btn) { btn.classList.remove('hidden'); btn.style.display = 'flex'; }
 }, 500);
 
-// Hàm lục tìm thông tin file/folder gốc bất chấp đang ở chế độ nào
+// Hàm lục tìm thông tin file/folder gốc bất chấp đang ở chế độ nào (kể cả Search)
 function findItemGlobal(id) {
     if (typeof currentDriveItems !== 'undefined') {
         let found = currentDriveItems.find(i => i.id === id);
@@ -5221,31 +5221,32 @@ function findItemGlobal(id) {
             if (found) return found;
         }
     }
+    // Nếu là Mega-row lấy từ appMeta
     if (typeof appMeta !== 'undefined' && appMeta[id]) {
         return { id: id, name: appMeta[id].name, type: 'folder' };
     }
     return null;
 }
 
-// -------------------------------------------------------------
 // 1. ĐÁNH CHẶN HÀM MỞ MENU ĐỂ BƠM NÚT VÀO MỌI LÚC MỌI NƠI
-// -------------------------------------------------------------
 if (!window.toggleItemMenu.isClipboardHooked) {
     const originalToggleMenu = window.toggleItemMenu;
     
     window.toggleItemMenu = function(id, e) {
-        originalToggleMenu(id, e); 
+        originalToggleMenu(id, e); // Chạy hàm gốc để mở menu
         
         const menuObj = document.getElementById(`menu-${id}`);
         if (menuObj && !menuObj.classList.contains('hidden')) {
             const targetItem = findItemGlobal(id);
             window.vlClipboard.currentTarget = targetItem;
             
+            // Chỉ bơm thêm nút nếu menu này chưa được bơm (tránh bị nhân bản nút)
             if (!menuObj.hasAttribute('data-cb-injected')) {
                 const isImage = targetItem && targetItem.mimeType && targetItem.mimeType.includes('image');
                 
                 let html = `<div class="border-t border-gray-100 my-1"></div>`;
                 
+                // Bơm nút Chức năng Cơ bản
                 html += `
                 <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-blue-50 text-gray-700 cursor-pointer font-semibold" data-action="copy">
                     <i class="fa-regular fa-copy w-5 text-center text-blue-500 mr-2"></i><span>Sao chép</span>
@@ -5260,6 +5261,7 @@ if (!window.toggleItemMenu.isClipboardHooked) {
                     <i class="fa-solid fa-rotate-left w-5 text-center text-red-500 mr-2"></i><span>Hoàn tác</span>
                 </div>`;
                 
+                // Nếu là ẢNH -> Bơm thêm nút BIÊN TẬP
                 if (isImage) {
                     html += `<div class="border-t border-gray-100 my-1"></div>
                     <div class="ctx-action-btn flex items-center px-4 py-3 hover:bg-purple-50 text-purple-700 cursor-pointer font-bold" data-action="edit_single">
@@ -5275,9 +5277,7 @@ if (!window.toggleItemMenu.isClipboardHooked) {
     window.toggleItemMenu.isClipboardHooked = true;
 }
 
-// -------------------------------------------------------------
 // 2. BƠM NÚT VÀO MENU HEADER (Tổng)
-// -------------------------------------------------------------
 if (window.buildHeaderMenu && !window.buildHeaderMenu.isClipboardHooked) {
     const originalBuildHeaderMenu = window.buildHeaderMenu;
     window.buildHeaderMenu = function() {
@@ -5298,90 +5298,7 @@ if (window.buildHeaderMenu && !window.buildHeaderMenu.isClipboardHooked) {
     window.buildHeaderMenu.isClipboardHooked = true;
 }
 
-// -------------------------------------------------------------
-// 3. HÀM MỞ GIAO DIỆN CHỈNH SỬA CHUNG (TRÁNH VIẾT LẶP CODE)
-// -------------------------------------------------------------
-function launchDesignEditor(imagesToLoad, isSingleMode = false) {
-    if (typeof closeFab === 'function') closeFab();
-    
-    state.images = [];
-    state.layerOrder = [];
-    state.activeElementId = null;
-
-    imagesToLoad.forEach(item => {
-        const imgUrl = item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`;
-        const genId = typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9);
-        state.images.push({
-            id: genId, src: imgUrl,
-            ratio: 'auto', panX: 50, panY: 50, selected: false, customName: item.name || '', texts: [], wms: [],
-            filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
-        });
-    });
-
-    renderImages();
-    const overlayContainer = document.getElementById('watermark-overlay-container');
-    if (overlayContainer) overlayContainer.style.display = 'flex';
-    
-    // Lưu lịch sử để nút Back (Phím cứng điện thoại) có thể thoát Design an toàn
-    if (!window.isDesignOverlayActive) { 
-        window.isDesignOverlayActive = true; 
-        folderStack.push({ id: 'dummy_design_state', name: 'Design Mode', scrollTop: 0 }); 
-        history.pushState({ panel: 'design' }, '', ''); 
-    }
-
-    // Nếu chỉ có 1 ảnh, tự động click nút thu về 1 cột cho to rõ
-    if (isSingleMode) {
-        setTimeout(() => {
-            const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
-            if (btnDecrease) {
-                btnDecrease.click(); 
-                setTimeout(() => btnDecrease.click(), 50); 
-            }
-        }, 150);
-    }
-}
-
-// -------------------------------------------------------------
-// 4. [NEW] BẮT SỰ KIỆN CLICK NÚT CÂY BÚT (MỞ DESIGN)
-// -------------------------------------------------------------
-setTimeout(() => {
-    const btnOpenDesign = document.getElementById('btn-open-design');
-    if (btnOpenDesign) {
-        // Clone nút để xóa sạch các Event Listener cũ cản trở
-        const newBtnOpenDesign = btnOpenDesign.cloneNode(true);
-        btnOpenDesign.parentNode.replaceChild(newBtnOpenDesign, btnOpenDesign);
-
-        newBtnOpenDesign.addEventListener('click', (e) => {
-            e.stopPropagation();
-            
-            const selectedIds = window.multiSelectState ? Array.from(window.multiSelectState.selectedIds) : [];
-            let imagesToLoad = [];
-
-            // A. NẾU CÓ CHỌN FILE (Dùng Checkbox)
-            if (selectedIds.length > 0) {
-                const selectedItems = selectedIds.map(id => findItemGlobal(id)).filter(Boolean);
-                imagesToLoad = selectedItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
-                
-                if (imagesToLoad.length === 0) return showToast("Không có ảnh nào trong số các mục được chọn!", true);
-                
-                // Mở biên tập. Nếu chọn đúng 1 ảnh thì kích hoạt chế độ Single (1 Cột)
-                launchDesignEditor(imagesToLoad, imagesToLoad.length === 1);
-            } 
-            // B. NẾU KHÔNG CHỌN FILE NÀO (Mặc định lấy tất cả ảnh trong thư mục)
-            else {
-                imagesToLoad = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
-                if (imagesToLoad.length === 0) return showToast("Thư mục này không có ảnh nào!", true);
-                
-                launchDesignEditor(imagesToLoad, false);
-            }
-        });
-    }
-}, 1000); // Đợi load giao diện xong mới gắn sự kiện
-
-
-// -------------------------------------------------------------
-// 5. BẮT SỰ KIỆN CLICK CHO MENU 3 CHẤM (CLIPBOARD & EDIT SINGLE)
-// -------------------------------------------------------------
+// 3. BẮT SỰ KIỆN CLICK CHO TOÀN BỘ HỆ THỐNG
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('.ctx-action-btn');
     if (!btn) return;
@@ -5390,12 +5307,39 @@ document.addEventListener('click', (e) => {
     const action = btn.getAttribute('data-action');
     const targetItem = window.vlClipboard.currentTarget;
 
-    // A. XỬ LÝ BIÊN TẬP ẢNH ĐƠN (Từ menu 3 chấm)
+    // A. XỬ LÝ BIÊN TẬP ẢNH ĐƠN
     if (action === 'edit_single') {
         if (!targetItem || !targetItem.mimeType.includes('image')) return;
-        document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
         
-        launchDesignEditor([targetItem], true);
+        // Ẩn menu
+        document.querySelectorAll('.item-action-menu').forEach(m => m.classList.add('hidden'));
+        if (typeof closeFab === 'function') closeFab();
+
+        const imgUrl = targetItem.tempUrl ? targetItem.tempUrl : `https://drive.google.com/thumbnail?id=${targetItem.id}&sz=w2000`;
+        const genId = typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9);
+        
+        // Thiết lập giao diện Design chỉ với 1 ảnh
+        state.images = [{
+            id: genId,
+            src: imgUrl,
+            ratio: 'auto', panX: 50, panY: 50, selected: false, customName: targetItem.name, texts: [], wms: [],
+            filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
+        }];
+        state.layerOrder = [];
+        state.activeElementId = null;
+        
+        renderImages();
+        const overlayContainer = document.getElementById('watermark-overlay-container');
+        if (overlayContainer) overlayContainer.style.display = 'flex';
+        
+        // Tự động click ép về dạng 1 cột (Bấm 2 lần để chắc chắn kéo max xuống 1 cột)
+        setTimeout(() => {
+            const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
+            if (btnDecrease) {
+                btnDecrease.click(); 
+                setTimeout(() => btnDecrease.click(), 50); 
+            }
+        }, 150);
         return;
     }
 
@@ -5419,9 +5363,12 @@ document.addEventListener('click', (e) => {
         let tFolderId = currentFolderId;
         let tReplaceId = null;
 
+        // Nếu dán thay thế đè lên 1 File cụ thể
         if (action === 'paste' && targetItem && targetItem.type === 'file') {
             tReplaceId = targetItem.id;
-        } else if (action === 'paste' && targetItem && targetItem.type === 'folder') {
+        } 
+        // Nếu dán vào Mega Folder con
+        else if (action === 'paste' && targetItem && targetItem.type === 'folder') {
             tFolderId = targetItem.id;  
         }
 
@@ -5439,8 +5386,12 @@ document.addEventListener('click', (e) => {
             if (res.success) {
                 showToast("✅ Dán hoàn tất!");
                 window.vlClipboard.undoStack = { undoType: window.vlClipboard.mode, items: res.processedItems };
+                
+                // Kết thúc dán -> Rút bộ nhớ tạm
                 window.vlClipboard.mode = null;
                 window.vlClipboard.items = [];
+                
+                // Gọi Trạm radar quét cập nhật thay đổi
                 if (typeof masterSync === 'function') masterSync();
             } else { showToast("Lỗi: " + res.message, true); }
         }).catch(()=> showToast("Lỗi mạng khi Dán!", true));
@@ -5473,7 +5424,83 @@ document.addEventListener('click', (e) => {
     const headerDropdown = document.getElementById('headerDropdown');
     if (headerDropdown) headerDropdown.classList.add('hidden');
 });
-/// ==============================================================
+// ==============================================================
+// PATCH 43: NÚT CÂY BÚT CHỈ BIÊN TẬP CÁC ẢNH ĐƯỢC CHỌN (HOẶC TẤT CẢ)
+// ==============================================================
+setTimeout(() => {
+    const oldBtn = document.getElementById('btn-open-design');
+    if (oldBtn) {
+        // Nhân bản nút để xóa bỏ các Event Listener cũ bị chồng chéo
+        const newBtn = oldBtn.cloneNode(true);
+        oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+
+        newBtn.addEventListener('click', () => {
+            // Lọc ra toàn bộ ảnh trong thư mục hiện tại
+            let targetItems = currentDriveItems.filter(item => item.type !== 'folder' && item.mimeType && item.mimeType.includes('image'));
+
+            // Nếu người dùng đang tick chọn file, thì chỉ lấy các file được chọn đó
+            if (window.multiSelectState && window.multiSelectState.selectedIds.size > 0) {
+                targetItems = targetItems.filter(item => window.multiSelectState.selectedIds.has(item.id));
+            }
+
+            const driveImages = targetItems.map(item => ({
+                url: item.tempUrl ? item.tempUrl : `https://drive.google.com/thumbnail?id=${item.id}&sz=w2000`,
+                name: item.name // Truyền tên gốc để làm tên file lúc tải về
+            }));
+
+            // Xử lý báo lỗi nếu thư mục trống hoặc các file được chọn không phải là ảnh
+            if (driveImages.length === 0) {
+                if (typeof closeFab === 'function') closeFab();
+                showToast("Không có ảnh hợp lệ nào để biên tập!", true);
+                return;
+            }
+
+            // Làm sạch không gian làm việc và nạp ảnh vào
+            state.images = []; 
+            state.layerOrder = []; 
+            state.activeElementId = null;
+            
+            driveImages.forEach(img => {
+                state.images.push({
+                    id: typeof generateId === 'function' ? generateId() : Math.random().toString(36).substr(2, 9),
+                    src: img.url, ratio: 'auto', panX: 50, panY: 50, selected: false,
+                    customName: img.name || '',
+                    texts: [], wms: [],
+                    filterBrightness: 100, filterDarkness: 0, filterSharpness: 0, filterContrast: 100, filterSaturate: 100, filterRotate: 0
+                });
+            });
+
+            if (typeof renderImages === 'function') renderImages();
+            
+            const overlayContainer = document.getElementById('watermark-overlay-container');
+            if (overlayContainer) overlayContainer.style.display = 'flex';
+
+            // HIỆU ỨNG THÔNG MINH: Nếu chỉ có 1 ảnh được nạp, tự động ép khung lưới về 1 cột (Zoom to hết cỡ)
+            if (driveImages.length === 1) {
+                setTimeout(() => {
+                    const btnDecrease = document.querySelector('#design-grid-controls button[title="Giảm số cột (Phóng to)"]');
+                    if (btnDecrease) {
+                        btnDecrease.click();
+                        setTimeout(() => btnDecrease.click(), 50);
+                    }
+                }, 150);
+            }
+
+            // Phục hồi lại Patch đẩy lịch sử trình duyệt để sửa lỗi bấm nút Back (Trở về) trên điện thoại
+            setTimeout(() => {
+                if (overlayContainer && overlayContainer.style.display === 'flex') {
+                    if (!window.isDesignOverlayActive) {
+                        window.isDesignOverlayActive = true;
+                        folderStack.push({ id: 'dummy_design_state', name: 'Design Mode', scrollTop: 0 });
+                        history.pushState({ panel: 'design' }, '', '');
+                    }
+                }
+            }, 50);
+        });
+    }
+    console.log("✅ PATCH 43: Đã cập nhật Nút Cây Bút thông minh (Biết lấy ảnh đang chọn)!");
+}, 28000); // Cài đặt độ trễ 28s để chắc chắn các code khởi tạo nút đã chạy xong trước khi ghi đè
+// ==============================================================
 // PATCH 42 (BẢN FIX TỐI ƯU): CHIA SẺ ẢNH LÊN FACEBOOK KHÔNG BỊ ĐƠ
 // ==============================================================
 setTimeout(() => {
