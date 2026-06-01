@@ -71,7 +71,7 @@ async function handleCredentialResponse(response) {
 
         // Cập nhật trạng thái đang đối chiếu hệ thống lên giao diện
         if (errorMsgEl) {
-            errorMsgEl.innerText = "Đang xác thực quyền truy cập mây...";
+            errorMsgEl.innerText = "Đang xác thực quyền truy cập...";
             errorMsgEl.classList.remove("text-red-500");
             errorMsgEl.classList.add("text-blue-600");
             errorMsgEl.classList.remove("hidden");
