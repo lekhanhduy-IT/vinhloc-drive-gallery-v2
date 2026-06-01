@@ -100,7 +100,7 @@ async function handleCredentialResponse(response) {
         } else {
             // Bị từ chối: Xuất cảnh báo lỗi lên màn hình đăng nhập
             if (errorMsgEl) {
-                errorMsgEl.innerText = checkRes.message || "Tài khoản của bạn chưa được cấp quyền sử dụng hệ thống!";
+                errorMsgEl.innerText = checkRes.message || "Tài khoản chưa được cấp quyền sử dụng!";
                 errorMsgEl.classList.remove("text-blue-600");
                 errorMsgEl.classList.add("text-red-500");
             }
