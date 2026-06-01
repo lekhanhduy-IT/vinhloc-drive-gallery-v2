@@ -147,14 +147,17 @@ function renderGoogleLoginButton() {
         btn.innerHTML = '';
 
         google.accounts.id.renderButton(
-            btn,
-            {
-                theme: 'outline',
-                size: 'large',
-                width: 280,
-                shape: 'pill'
-            }
-        );
+    document.getElementById("google-login-btn"),
+    {
+        theme: "outline",
+        size: "large",
+        type: "standard",
+        shape: "pill",
+        text: "signin_with",
+        width: 320,
+        logo_alignment: "left"
+    }
+);
 
         wrapper.classList.remove('loading');
         wrapper.classList.add('ready');
