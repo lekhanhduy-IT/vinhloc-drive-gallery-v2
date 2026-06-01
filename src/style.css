@@ -138,8 +138,8 @@
 }
 
 #spider-brain-loader img {
-    width: 100px;
-    height: 100px;
+    width: 150px;
+    height: 150px;
     object-fit: cover;
     border-radius: 8px; /* Tùy chọn: làm cong nhẹ góc ảnh vuông */
     margin-bottom: 20px;
@@ -147,8 +147,8 @@
 
 #spider-brain-text {
     color: #ffffff;
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 14px;
+    font-weight: 200;
     font-family: 'Montserrat', sans-serif;
     letter-spacing: 0.5px;
 }
