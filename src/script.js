@@ -1,5 +1,5 @@
 // ==============================================================
-// SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN (CHỐNG CACHE PWA)
+// SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN
 // ==============================================================
 
 (function() {
@@ -30,49 +30,16 @@
     });
 
     if (currentVersion !== "Không rõ") {
-        // CẬP NHẬT CHỮ TRÊN GIAO DIỆN
-        const subtitleEl = document.getElementById("version-subtitle");
-        if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
-        
+        // THÊM 2 DÒNG NÀY ĐỂ CẬP NHẬT CHỮ TRÊN GIAO DIỆN
+    const subtitleEl = document.getElementById("version-subtitle");
+    if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
         const savedVersion = localStorage.getItem('vinhloc_app_version');
-        
         if (savedVersion && savedVersion !== currentVersion) {
-            console.log(`⚠️ BẮT UPDATE TỪ VÒNG NGOÀI: ${savedVersion} -> ${currentVersion}`);
-            
-            // Lưu ngay phiên bản mới
-            localStorage.setItem('vinhloc_app_version', currentVersion);
-
-            // Dọn dẹp sạch sẽ bộ nhớ để ép bật lại màn hình 30s & reset trạng thái đăng nhập
+            console.log(`⚠️ Đã bắt được bản cập nhật: ${savedVersion} -> ${currentVersion}`);
+            // Dọn dẹp sạch sẽ bộ nhớ để ép bật lại màn hình 30s
             localStorage.removeItem("vinhloc_loaded_accounts");
             localStorage.removeItem("vinhloc_device_patched");
-            localStorage.removeItem("vinhloc_authenticated_email"); 
-            localStorage.removeItem("vinhloc_spider_pwa_loaded");
-            localStorage.removeItem("vinhloc_spider_browser_loaded");
-
-            // HÀM ÉP TẢI LẠI CHỐNG CACHE TUYỆT ĐỐI
-            const forceReload = () => {
-                // Tiêu diệt bộ nhớ đệm của Service Worker/Trình duyệt
-                if (window.caches) {
-                    caches.keys().then(names => {
-                        for (let name of names) caches.delete(name);
-                    });
-                }
-                // Ép tải lại với tham số thời gian để bẻ gãy Cache của index.html
-                window.location.href = window.location.pathname + '?update=' + Date.now();
-            };
-
-            // Quét sạch LocalForage (nếu thư viện đã kịp nạp)
-            if (window.localforage) {
-                localforage.clear().then(forceReload).catch(forceReload);
-            } else {
-                forceReload();
-            }
-            
-            return; // CHẶN ĐỨNG việc chạy các script bên dưới, nhường quyền cho trình duyệt reload
-            
-        } else if (!savedVersion) {
-            // Lần đầu truy cập, lưu lại phiên bản
-            localStorage.setItem('vinhloc_app_version', currentVersion);
+            // Để nguyên phần sau cho Patch Check Version tự lo việc reload
         }
     }
 
@@ -4517,66 +4484,17 @@ try {
 // ==============================================================
 setTimeout(() => {
     const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
-    
     if (sidebarMenuContainer) {
-        // 1. Đi tìm số phiên bản đang chạy
-        let currentVersion = "Không rõ";
-        const scripts = document.querySelectorAll('script');
-        scripts.forEach(s => {
-            if (s.src && s.src.includes('script.js?v=')) {
-                const match = s.src.match(/v=([0-9.]+)/);
-                if (match && match[1]) currentVersion = match[1];
-            }
-        });
-
-        // 2. LOGIC BẢO MẬT: So sánh phiên bản và ép Đăng xuất nếu có bản mới
-        if (currentVersion !== "Không rõ") {
-            const savedVersion = localStorage.getItem('vinhloc_app_version');
-            
-            if (savedVersion && savedVersion !== currentVersion) {
-                console.log(`⚠️ Phát hiện bản cập nhật mới: ${savedVersion} -> ${currentVersion}`);
-                
-                // Lưu lại mốc phiên bản mới
-                localStorage.setItem('vinhloc_app_version', currentVersion);
-                
-                // Xóa toàn bộ thông tin đăng nhập và cờ màn hình chờ
-                localStorage.removeItem("vinhloc_authenticated_email");
-                localStorage.removeItem("vinhloc_spider_pwa_loaded");
-                localStorage.removeItem("vinhloc_spider_browser_loaded");
-                
-                // HÀM ÉP TẢI LẠI CHỐNG CACHE TUYỆT ĐỐI
-                const forceReload = () => {
-                    // Xóa sạch bộ nhớ đệm
-                    if (window.caches) {
-                        caches.keys().then(names => {
-                            for (let name of names) caches.delete(name);
-                        });
-                    }
-                    // Load lại trang và đính kèm thời gian thực để lừa trình duyệt đây là link mới
-                    window.location.href = window.location.pathname + '?update=' + Date.now();
-                };
-
-                // Dọn dẹp sạch sẽ bộ nhớ đệm của Nhện
-                if (window.localforage) {
-                    localforage.clear().then(forceReload).catch(forceReload);
-                } else {
-                    forceReload();
-                }
-                return; // Ngừng vẽ giao diện, nhường quyền cho tiến trình tải lại
-            } else if (!savedVersion) {
-                // Nếu vào lần đầu, ghi nhớ phiên bản hiện tại
-                localStorage.setItem('vinhloc_app_version', currentVersion);
-            }
-        }
-
-        // 3. Vẽ thông tin phiên bản ra giao diện
+        // Đọc phiên bản đã được lưu bởi đoạn Script Inline trong HTML
+        const displayVersion = localStorage.getItem('vinhloc_app_version') || "1.0.0";
+        
         const oldVerDiv = document.getElementById('app-version-display');
         if (oldVerDiv) oldVerDiv.remove();
 
         const versionDiv = document.createElement('div');
         versionDiv.id = 'app-version-display';
         versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px] text-red-400 tracking-widest opacity-80 cursor-default';
-        versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${currentVersion}`;
+        versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${displayVersion}`;
         
         sidebarMenuContainer.appendChild(versionDiv);
     }

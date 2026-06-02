@@ -2,11 +2,46 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
     <title>QL Ảnh</title>
-    
+    <script>
+        // CẬP NHẬT BIẾN NÀY MỖI KHI BẠN RA PHIÊN BẢN MỚI
+        const APP_LATEST_VERSION = "1.5.53"; 
+        
+        const currentSavedVersion = localStorage.getItem('vinhloc_app_version');
+        
+        if (currentSavedVersion && currentSavedVersion !== APP_LATEST_VERSION) {
+            console.log("Phát hiện bản cập nhật: " + APP_LATEST_VERSION + ". Đang xóa Cache...");
+            
+            // 1. Tiêu diệt Service Worker (Kẻ thù số 1 gây kẹt cache)
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) { 
+                        registration.unregister(); 
+                    }
+                });
+            }
+            
+            // 2. Xóa Cache Storage của trình duyệt (Nơi SW lưu file)
+            if (window.caches) {
+                caches.keys().then(function(names) {
+                    for (let name of names) caches.delete(name);
+                });
+            }
+
+            // 3. Xóa các biến LocalStorage cũ để ép nạp lại Não Nhện
+            localStorage.removeItem("vinhloc_authenticated_email");
+            localStorage.removeItem("vinhloc_spider_pwa_loaded");
+            localStorage.removeItem("vinhloc_spider_browser_loaded");
+            
+            // 4. Lưu mốc phiên bản mới
+            localStorage.setItem('vinhloc_app_version', APP_LATEST_VERSION);
+            
+            // 5. Reload lại trang với timestamp để chống cache URL
+            window.location.replace(window.location.pathname + '?update=' + Date.now());
+        } else if (!currentSavedVersion) {
+            localStorage.setItem('vinhloc_app_version', APP_LATEST_VERSION);
+        }
+    </script>
     <link rel="manifest" href="manifest.json?v=2">
     <link rel="icon" type="image/png" href="vlimage.png">
     <link rel="apple-touch-icon" href="vlimage.png">
@@ -30,16 +65,6 @@
 </head>
 
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
-    <script>
-    // ÉP XÓA SERVICE WORKER ĐỂ NGĂN CHẶN CACHE PWA ĐỘC HẠI
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            for (let registration of registrations) {
-                registration.unregister();
-            }
-        });
-    }
-</script>
 <div id="auth-overlay" class="fixed inset-0 flex flex-col items-center justify-center z-[99999999] p-6 text-center" style="background-color: #380ad7;">
     <div class="rounded-3xl p-8 w-11/12 max-w-md">
         
@@ -411,7 +436,7 @@
         </div>
     </div>
 
-    <script src="./src/script.js?v=1.5.54"></script>
+    <script src="./src/script.js?v=1.5.56"></script>
 
 </body>
 </html>
