@@ -1,7 +1,84 @@
 // ==============================================================
-// SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN
+// MASTER PATCH: HỆ THỐNG CẬP NHẬT PHIÊN BẢN ĐA THIẾT BỊ (VÁ LỖI PWA & CACHE)
 // ==============================================================
+(function() {
+    // Bắt sóng phiên bản ngay lập tức ở mili-giây số 0
+    let currentVersion = "Không rõ";
+    const scripts = document.querySelectorAll('script');
+    scripts.forEach(s => {
+        if (s.src && s.src.includes('script.js?v=')) {
+            const match = s.src.match(/v=([0-9.]+)/);
+            if (match && match[1]) currentVersion = match[1];
+        }
+    });
 
+    if (currentVersion !== "Không rõ") {
+        const savedVersion = localStorage.getItem('vinhloc_app_version');
+
+        // PHÁT HIỆN BẢN MỚI -> ĐÓNG BĂNG HỆ THỐNG & XÓA SẠCH MỌI CACHE
+        if (savedVersion && savedVersion !== currentVersion) {
+            console.log(`⚠️ BẮT BUỘC CẬP NHẬT: ${savedVersion} -> ${currentVersion}`);
+            
+            localStorage.setItem('vinhloc_app_version', currentVersion);
+            
+            localStorage.removeItem("vinhloc_authenticated_email");
+            localStorage.removeItem("vinhloc_spider_pwa_loaded");
+            localStorage.removeItem("vinhloc_spider_browser_loaded");
+            localStorage.removeItem("vinhloc_loaded_accounts");
+            localStorage.removeItem("vinhloc_device_patched");
+
+            const forceHardReload = () => {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        for(let registration of registrations) {
+                            registration.unregister();
+                        }
+                    });
+                }
+                
+                if (window.caches) {
+                    caches.keys().then(names => {
+                        for (let name of names) caches.delete(name);
+                    });
+                }
+                
+                window.location.href = window.location.pathname + '?update=' + Date.now();
+            };
+
+            if (window.localforage) {
+                localforage.clear().then(forceHardReload).catch(forceHardReload);
+            } else {
+                forceHardReload();
+            }
+            
+            return; 
+        } else if (!savedVersion) {
+            localStorage.setItem('vinhloc_app_version', currentVersion);
+        }
+        
+        // HIỂN THỊ SỐ PHIÊN BẢN LÊN GIAO DIỆN
+        document.addEventListener("DOMContentLoaded", () => {
+            const subtitleEl = document.getElementById("version-subtitle");
+            if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
+
+            const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
+            if (sidebarMenuContainer) {
+                const oldVerDiv = document.getElementById('app-version-display');
+                if (oldVerDiv) oldVerDiv.remove();
+
+                const versionDiv = document.createElement('div');
+                versionDiv.id = 'app-version-display';
+                versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px] text-red-400 tracking-widest opacity-80 cursor-default border-t border-blue-100';
+                versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${currentVersion}`;
+                sidebarMenuContainer.appendChild(versionDiv);
+            }
+        });
+    }
+})();
+
+// ==============================================================
+// GIỮ LẠI: SỬA LỖI TIMEOUT VÀ LOGIC MÀN HÌNH CHỜ
+// ==============================================================
 (function() {
     // 1. SỬA LỖI TÀNG HÌNH: Khắc phục Illegal Invocation của setTimeout
     window._isAppBooting = true;
@@ -13,37 +90,12 @@
                 delay = delay / 100; 
             }
         }
-        // CHÚ Ý: Bắt buộc dùng .call(window) để không làm sập các hàm của trình duyệt
         return originalSetTimeout.call(window, fn, delay, ...args);
     };
 
     originalSetTimeout.call(window, () => { window._isAppBooting = false; }, 2000); 
 
-    // 2. TỰ ĐỘNG BẮT PHIÊN BẢN MỚI NGAY TỪ GIÂY SỐ 0
-    let currentVersion = "Không rõ";
-    const scripts = document.querySelectorAll('script');
-    scripts.forEach(s => {
-        if (s.src && s.src.includes('script.js?v=')) {
-            const match = s.src.match(/v=([0-9.]+)/);
-            if (match && match[1]) currentVersion = match[1];
-        }
-    });
-
-    if (currentVersion !== "Không rõ") {
-        // THÊM 2 DÒNG NÀY ĐỂ CẬP NHẬT CHỮ TRÊN GIAO DIỆN
-    const subtitleEl = document.getElementById("version-subtitle");
-    if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
-        const savedVersion = localStorage.getItem('vinhloc_app_version');
-        if (savedVersion && savedVersion !== currentVersion) {
-            console.log(`⚠️ Đã bắt được bản cập nhật: ${savedVersion} -> ${currentVersion}`);
-            // Dọn dẹp sạch sẽ bộ nhớ để ép bật lại màn hình 30s
-            localStorage.removeItem("vinhloc_loaded_accounts");
-            localStorage.removeItem("vinhloc_device_patched");
-            // Để nguyên phần sau cho Patch Check Version tự lo việc reload
-        }
-    }
-
-    // 3. TÁI CẤU TRÚC LOGIC ĐĂNG NHẬP & MÀN HÌNH CHỜ
+    // 2. TÁI CẤU TRÚC LOGIC ĐĂNG NHẬP & MÀN HÌNH CHỜ
     window.initSpiderLoaderFlow = function() {
         const currentEmail = localStorage.getItem("vinhloc_authenticated_email");
         if (!currentEmail) return;
@@ -4479,26 +4531,6 @@ try {
 // ==============================================================
 // HIỂN THỊ SỐ PHIÊN BẢN & ÉP ĐĂNG NHẬP LẠI KHI CÓ CẬP NHẬT MỚI
 // ==============================================================
-// ==============================================================
-// HIỂN THỊ SỐ PHIÊN BẢN & ÉP ĐĂNG NHẬP LẠI KHI CÓ CẬP NHẬT MỚI (BẢN FIX CACHE)
-// ==============================================================
-setTimeout(() => {
-    const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
-    if (sidebarMenuContainer) {
-        // Đọc phiên bản đã được lưu bởi đoạn Script Inline trong HTML
-        const displayVersion = localStorage.getItem('vinhloc_app_version') || "1.0.0";
-        
-        const oldVerDiv = document.getElementById('app-version-display');
-        if (oldVerDiv) oldVerDiv.remove();
-
-        const versionDiv = document.createElement('div');
-        versionDiv.id = 'app-version-display';
-        versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px] text-red-400 tracking-widest opacity-80 cursor-default';
-        versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${displayVersion}`;
-        
-        sidebarMenuContainer.appendChild(versionDiv);
-    }
-}, 1500);
 // ==============================================================
 // PATCH 29: SỬ DỤNG BÀN PHÍM (CTRL +/-) ĐỂ PHÓNG TO/THU NHỎ LƯỚI
 // ==============================================================
