@@ -4479,9 +4479,6 @@ try {
 // ==============================================================
 // HIỂN THỊ SỐ PHIÊN BẢN & ÉP ĐĂNG NHẬP LẠI KHI CÓ CẬP NHẬT MỚI
 // ==============================================================
-// ==============================================================
-// HIỂN THỊ SỐ PHIÊN BẢN & ÉP ĐĂNG NHẬP LẠI KHI CÓ CẬP NHẬT MỚI (BẢN FIX CACHE)
-// ==============================================================
 setTimeout(() => {
     const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
     
@@ -4503,7 +4500,7 @@ setTimeout(() => {
             if (savedVersion && savedVersion !== currentVersion) {
                 console.log(`⚠️ Phát hiện bản cập nhật mới: ${savedVersion} -> ${currentVersion}`);
                 
-                // Lưu lại mốc phiên bản mới
+                // Lưu lại mốc phiên bản mới để không bị reload lặp vô hạn
                 localStorage.setItem('vinhloc_app_version', currentVersion);
                 
                 // Xóa toàn bộ thông tin đăng nhập và cờ màn hình chờ
@@ -4511,23 +4508,11 @@ setTimeout(() => {
                 localStorage.removeItem("vinhloc_spider_pwa_loaded");
                 localStorage.removeItem("vinhloc_spider_browser_loaded");
                 
-                // HÀM ÉP TẢI LẠI CHỐNG CACHE TUYỆT ĐỐI
-                const forceReload = () => {
-                    // Xóa sạch bộ nhớ đệm
-                    if (window.caches) {
-                        caches.keys().then(names => {
-                            for (let name of names) caches.delete(name);
-                        });
-                    }
-                    // Load lại trang và đính kèm thời gian thực để lừa trình duyệt đây là link mới
-                    window.location.href = window.location.pathname + '?update=' + Date.now();
-                };
-
-                // Dọn dẹp sạch sẽ bộ nhớ đệm của Nhện
+                // Dọn dẹp sạch sẽ bộ nhớ đệm của Nhện và tải lại trang để khóa hệ thống
                 if (window.localforage) {
-                    localforage.clear().then(forceReload).catch(forceReload);
+                    localforage.clear().then(() => window.location.reload());
                 } else {
-                    forceReload();
+                    window.location.reload();
                 }
                 return; // Ngừng vẽ giao diện, nhường quyền cho tiến trình tải lại
             } else if (!savedVersion) {
