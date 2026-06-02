@@ -19,6 +19,32 @@ function doPost(e) {
     let result = { success: false, message: "Hành động không hợp lệ" };
 
     switch (action) {
+      case 'spiderCrawlFull':
+  try {
+    // 1. Khởi tạo cục Não Nhện rỗng
+    let allData = { folders: {} };
+    
+    // 2. Lấy danh sách Folder con trong ROOT_FOLDER_ID
+    let rootFolder = DriveApp.getFolderById(ROOT_FOLDER_ID);
+    let folders = rootFolder.getFolders();
+    
+    while (folders.hasNext()) {
+        let f = folders.next();
+        let fId = f.getId();
+        // Cấu trúc data tương tự như cách bạn đang lưu folderDataCache
+        allData.folders[fId] = {
+            id: fId,
+            name: f.getName(),
+            type: 'folder'
+            // Bạn có thể bổ sung logic cào file con bên trong thư mục ở đây
+        };
+    }
+
+    result = { success: true, data: allData };
+  } catch (err) {
+    result = { success: false, message: err.toString() };
+  }
+  break;
 case 'verifyUser':
       try {
         const userEmail = payload.email; 

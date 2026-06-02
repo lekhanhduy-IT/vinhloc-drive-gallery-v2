@@ -1,25 +1,48 @@
-import { kv } from '@vercel/kv';
+import { Redis } from "@upstash/redis";
+
+const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
-    // URL Web App của Google Apps Script (Nhớ thay bằng URL thực tế của bạn)
-    const gasUrl = "URL_APPSCRIPT_CUA_BAN_O_DAY"; 
-    
-    try {
-        const response = await fetch(gasUrl, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'spiderCrawlFull' }) 
-        });
-        
-        const freshData = await response.json();
-        
-        if (freshData.success) {
-            // Cập nhật thành công, lưu đè dữ liệu mới vào bộ nhớ siêu tốc
-            await kv.set('vinhloc_global_cache', freshData.data);
-            res.status(200).json({ success: true, message: "Nhện đã cào và cập nhật Vercel KV thành công!" });
-        } else {
-            res.status(500).json({ error: "Google Apps Script từ chối cung cấp dữ liệu" });
-        }
-    } catch (error) {
-        res.status(500).json({ error: "Đứt cáp khi nhện đang cào data" });
+
+  const gasUrl =
+    "https://script.google.com/macros/s/AKfycbx3xI-bNWfeffsEH-iIc0yYfF9bHYvAiKZKWIfco6j7Z7GOtOAv7Q8WE1_y9xjen7c/exec";
+
+  try {
+
+    const response = await fetch(gasUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        action: "spiderCrawlFull"
+      })
+    });
+
+    const freshData = await response.json();
+
+    if (!freshData.success) {
+      return res.status(500).json({
+        error: "Apps Script không trả dữ liệu"
+      });
     }
+
+    await redis.set(
+      "vinhloc_global_cache",
+      freshData.data
+    );
+
+    return res.status(200).json({
+      success: true,
+      updatedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      error: error.message
+    });
+
+  }
+
 }

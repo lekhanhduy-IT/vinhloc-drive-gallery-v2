@@ -1,11 +1,21 @@
-import { kv } from '@vercel/kv';
+import { Redis } from "@upstash/redis";
+
+const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
-    try {
-        // Rút dữ liệu Não Nhện đã được cào sẵn từ KV
-        const cachedData = await kv.get('vinhloc_global_cache') || {};
-        res.status(200).json(cachedData);
-    } catch (error) {
-        res.status(500).json({ error: "Lỗi kết nối Não Nhện", details: error.message });
-    }
+  try {
+
+    const cachedData =
+      await redis.get("vinhloc_global_cache") || {};
+
+    return res.status(200).json(cachedData);
+
+  } catch (error) {
+
+    return res.status(500).json({
+      error: "Lỗi đọc Redis",
+      details: error.message
+    });
+
+  }
 }
