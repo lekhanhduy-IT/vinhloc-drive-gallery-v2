@@ -19,7 +19,57 @@ function doPost(e) {
     let result = { success: false, message: "Hành động không hợp lệ" };
 
     switch (action) {
-      // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC ---
+      
+case 'verifyUser':
+      try {
+        const userEmail = payload.email; 
+        if (!userEmail) return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không nhận được Email từ Google Sign-in" })).setMimeType(ContentService.MimeType.JSON);
+
+        const emailCheck = userEmail.trim().toLowerCase();
+
+        try {
+            // Lấy ID của Bộ nhớ dùng chung (Drive API v3)
+            const folderInfo = Drive.Files.get(ROOT_FOLDER_ID, { supportsAllDrives: true });
+            const driveId = folderInfo.driveId; 
+            
+            if (driveId) {
+                // SỬA LỖI Ở ĐÂY: Drive API v3 dùng .permissions thay vì .items, 
+                // và phải yêu cầu tham số fields để nó trả về emailAddress
+                const permissionResponse = Drive.Permissions.list(driveId, { 
+                    supportsAllDrives: true,
+                    fields: "permissions(emailAddress, role)" 
+                });
+                
+                const permissionsList = permissionResponse.permissions;
+                let foundEmails = []; 
+                
+                if (permissionsList && permissionsList.length > 0) {
+                    for (let i = 0; i < permissionsList.length; i++) {
+                        if (permissionsList[i].emailAddress) {
+                            foundEmails.push(permissionsList[i].emailAddress.toLowerCase());
+                        }
+                    }
+                }
+                
+                // ĐỐI CHIẾU
+                if (foundEmails.includes(emailCheck)) {
+                    return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Pass" })).setMimeType(ContentService.MimeType.JSON);
+                } else {
+                    return ContentService.createTextOutput(JSON.stringify({ 
+                        success: false, 
+                        message: `Tài khoản không được ủy quyền` 
+                    })).setMimeType(ContentService.MimeType.JSON);
+                }
+            } else {
+                return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Không lấy được ID Bộ nhớ dùng chung" })).setMimeType(ContentService.MimeType.JSON);
+            }
+        } catch (e) {
+            return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Lỗi quét API Drive v3: " + e.message })).setMimeType(ContentService.MimeType.JSON);
+        }
+
+      } catch(err) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Lỗi Server: " + err.message })).setMimeType(ContentService.MimeType.JSON);
+      }      // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC ---
       // --- PATCH: XỬ LÝ SAO CHÉP, DI CHUYỂN, DÁN, HOÀN TÁC (ĐÃ FIX LỖI) ---
       case 'clipboardOps':
         try {

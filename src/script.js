@@ -133,10 +133,20 @@ function initGoogleAuth() {
         return;
     }
 
-    google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleCredentialResponse
-    });
+    const loginBtnEl = document.getElementById("google-login-btn");
+    if (loginBtnEl) {
+        google.accounts.id.renderButton(
+            loginBtnEl,
+            { 
+                theme: "outline", 
+                size: "medium", // Đổi từ "large" sang "medium" để Google ngừng lấy email hiển thị
+                width: "100%", 
+                text: "signin_with", 
+                shape: "pill",
+                locale: "vi" // Ép ngôn ngữ luôn là tiếng Việt
+            }
+        );
+    }
 
     const loginBtnEl = document.getElementById("google-login-btn");
     if (loginBtnEl) {
