@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
     <title>QL Ảnh</title>
     
     <link rel="manifest" href="manifest.json?v=2">
@@ -10,7 +14,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="QL Ảnh">
-    <meta charset="UTF-8">
+    
+    
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
  
@@ -25,6 +30,16 @@
 </head>
 
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden relative">
+    <script>
+    // ÉP XÓA SERVICE WORKER ĐỂ NGĂN CHẶN CACHE PWA ĐỘC HẠI
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (let registration of registrations) {
+                registration.unregister();
+            }
+        });
+    }
+</script>
 <div id="auth-overlay" class="fixed inset-0 flex flex-col items-center justify-center z-[99999999] p-6 text-center" style="background-color: #380ad7;">
     <div class="rounded-3xl p-8 w-11/12 max-w-md">
         
@@ -396,7 +411,7 @@
         </div>
     </div>
 
-    <script src="./src/script.js?v=1.5.52"></script>
+    <script src="./src/script.js?v=1.5.54"></script>
 
 </body>
 </html>

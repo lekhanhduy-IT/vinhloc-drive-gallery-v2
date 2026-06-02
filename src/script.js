@@ -1,5 +1,5 @@
 // ==============================================================
-// SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN
+// SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN (CHỐNG CACHE PWA)
 // ==============================================================
 
 (function() {
@@ -30,16 +30,49 @@
     });
 
     if (currentVersion !== "Không rõ") {
-        // THÊM 2 DÒNG NÀY ĐỂ CẬP NHẬT CHỮ TRÊN GIAO DIỆN
-    const subtitleEl = document.getElementById("version-subtitle");
-    if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
+        // CẬP NHẬT CHỮ TRÊN GIAO DIỆN
+        const subtitleEl = document.getElementById("version-subtitle");
+        if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
+        
         const savedVersion = localStorage.getItem('vinhloc_app_version');
+        
         if (savedVersion && savedVersion !== currentVersion) {
-            console.log(`⚠️ Đã bắt được bản cập nhật: ${savedVersion} -> ${currentVersion}`);
-            // Dọn dẹp sạch sẽ bộ nhớ để ép bật lại màn hình 30s
+            console.log(`⚠️ BẮT UPDATE TỪ VÒNG NGOÀI: ${savedVersion} -> ${currentVersion}`);
+            
+            // Lưu ngay phiên bản mới
+            localStorage.setItem('vinhloc_app_version', currentVersion);
+
+            // Dọn dẹp sạch sẽ bộ nhớ để ép bật lại màn hình 30s & reset trạng thái đăng nhập
             localStorage.removeItem("vinhloc_loaded_accounts");
             localStorage.removeItem("vinhloc_device_patched");
-            // Để nguyên phần sau cho Patch Check Version tự lo việc reload
+            localStorage.removeItem("vinhloc_authenticated_email"); 
+            localStorage.removeItem("vinhloc_spider_pwa_loaded");
+            localStorage.removeItem("vinhloc_spider_browser_loaded");
+
+            // HÀM ÉP TẢI LẠI CHỐNG CACHE TUYỆT ĐỐI
+            const forceReload = () => {
+                // Tiêu diệt bộ nhớ đệm của Service Worker/Trình duyệt
+                if (window.caches) {
+                    caches.keys().then(names => {
+                        for (let name of names) caches.delete(name);
+                    });
+                }
+                // Ép tải lại với tham số thời gian để bẻ gãy Cache của index.html
+                window.location.href = window.location.pathname + '?update=' + Date.now();
+            };
+
+            // Quét sạch LocalForage (nếu thư viện đã kịp nạp)
+            if (window.localforage) {
+                localforage.clear().then(forceReload).catch(forceReload);
+            } else {
+                forceReload();
+            }
+            
+            return; // CHẶN ĐỨNG việc chạy các script bên dưới, nhường quyền cho trình duyệt reload
+            
+        } else if (!savedVersion) {
+            // Lần đầu truy cập, lưu lại phiên bản
+            localStorage.setItem('vinhloc_app_version', currentVersion);
         }
     }
 
