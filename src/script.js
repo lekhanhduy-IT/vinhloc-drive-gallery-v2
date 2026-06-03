@@ -4479,6 +4479,60 @@ try {
 // ==============================================================
 // HIỂN THỊ SỐ PHIÊN BẢN & ÉP ĐĂNG NHẬP LẠI KHI CÓ CẬP NHẬT MỚI
 // ==============================================================
+setTimeout(() => {
+    const sidebarMenuContainer = document.querySelector('#sidebar .flex-1');
+    
+    if (sidebarMenuContainer) {
+        // 1. Đi tìm số phiên bản đang chạy
+        let currentVersion = "Không rõ";
+        const scripts = document.querySelectorAll('script');
+        scripts.forEach(s => {
+            if (s.src && s.src.includes('script.js?v=')) {
+                const match = s.src.match(/v=([0-9.]+)/);
+                if (match && match[1]) currentVersion = match[1];
+            }
+        });
+
+        // 2. LOGIC BẢO MẬT: So sánh phiên bản và ép Đăng xuất nếu có bản mới
+        if (currentVersion !== "Không rõ") {
+            const savedVersion = localStorage.getItem('vinhloc_app_version');
+            
+            if (savedVersion && savedVersion !== currentVersion) {
+                console.log(`⚠️ Phát hiện bản cập nhật mới: ${savedVersion} -> ${currentVersion}`);
+                
+                // Lưu lại mốc phiên bản mới để không bị reload lặp vô hạn
+                localStorage.setItem('vinhloc_app_version', currentVersion);
+                
+                // Xóa toàn bộ thông tin đăng nhập và cờ màn hình chờ
+                localStorage.removeItem("vinhloc_authenticated_email");
+                localStorage.removeItem("vinhloc_spider_pwa_loaded");
+                localStorage.removeItem("vinhloc_spider_browser_loaded");
+                
+                // Dọn dẹp sạch sẽ bộ nhớ đệm của Nhện và tải lại trang để khóa hệ thống
+                if (window.localforage) {
+                    localforage.clear().then(() => window.location.reload());
+                } else {
+                    window.location.reload();
+                }
+                return; // Ngừng vẽ giao diện, nhường quyền cho tiến trình tải lại
+            } else if (!savedVersion) {
+                // Nếu vào lần đầu, ghi nhớ phiên bản hiện tại
+                localStorage.setItem('vinhloc_app_version', currentVersion);
+            }
+        }
+
+        // 3. Vẽ thông tin phiên bản ra giao diện
+        const oldVerDiv = document.getElementById('app-version-display');
+        if (oldVerDiv) oldVerDiv.remove();
+
+        const versionDiv = document.createElement('div');
+        versionDiv.id = 'app-version-display';
+        versionDiv.className = 'flex items-center gap-3 py-4 mt-2 pl-[24px] pr-[20px] text-[11px] text-red-400 tracking-widest opacity-80 cursor-default';
+        versionDiv.innerHTML = `<i class="fas fa-code-branch w-6 text-center"></i> Phiên bản ${currentVersion}`;
+        
+        sidebarMenuContainer.appendChild(versionDiv);
+    }
+}, 1500);
 // ==============================================================
 // PATCH 29: SỬ DỤNG BÀN PHÍM (CTRL +/-) ĐỂ PHÓNG TO/THU NHỎ LƯỚI
 // ==============================================================
