@@ -134,20 +134,20 @@ function initGoogleAuth() {
         return;
     }
 
-    // 1. Khởi tạo cấu hình Google Auth (Bước bị thiếu)
+    // 1. BẮT BUỘC PHẢI KHỞI TẠO CLIENT ID TRƯỚC
     google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse
     });
 
-    // 2. Render nút bấm (Đã xóa đoạn khai báo biến trùng lặp)
+    // 2. RENDER NÚT BẤM (Khai báo biến 1 lần duy nhất)
     const loginBtnEl = document.getElementById("google-login-btn");
     if (loginBtnEl) {
         google.accounts.id.renderButton(
             loginBtnEl,
             { 
                 theme: "outline", 
-                size: "medium", // Đổi từ "large" sang "medium" để Google ngừng lấy email hiển thị
+                size: "large",  
                 width: "100%", 
                 text: "signin_with", 
                 shape: "pill",
