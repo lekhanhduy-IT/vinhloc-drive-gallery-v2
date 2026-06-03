@@ -126,6 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Hàm khởi chạy và kết nối thư viện Google Sign-In định dạng nút bấm mặc định
+// Hàm khởi chạy và kết nối thư viện Google Sign-In định dạng nút bấm mặc định
 function initGoogleAuth() {
     if (typeof google === 'undefined') {
         // Nếu thư viện tải chậm do mạng, thử lại sau mỗi 500ms
@@ -133,6 +134,13 @@ function initGoogleAuth() {
         return;
     }
 
+    // 1. Khởi tạo cấu hình Google Auth (Bước bị thiếu)
+    google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse
+    });
+
+    // 2. Render nút bấm (Đã xóa đoạn khai báo biến trùng lặp)
     const loginBtnEl = document.getElementById("google-login-btn");
     if (loginBtnEl) {
         google.accounts.id.renderButton(
@@ -145,14 +153,6 @@ function initGoogleAuth() {
                 shape: "pill",
                 locale: "vi" // Ép ngôn ngữ luôn là tiếng Việt
             }
-        );
-    }
-
-    const loginBtnEl = document.getElementById("google-login-btn");
-    if (loginBtnEl) {
-        google.accounts.id.renderButton(
-            loginBtnEl,
-            { theme: "outline", size: "large", width: "100%", text: "signin_with", shape: "pill" }
         );
     }
 }
