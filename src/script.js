@@ -1,3 +1,97 @@
+// ==============================================================
+// SUPER PATCH (ĐÃ VÁ LỖI): TUA NHANH & KIỂM SOÁT PHIÊN BẢN
+// ==============================================================
+
+(function() {
+    // 1. SỬA LỖI TÀNG HÌNH: Khắc phục Illegal Invocation của setTimeout
+    window._isAppBooting = true;
+    const originalSetTimeout = window.setTimeout;
+    
+    window.setTimeout = function(fn, delay, ...args) {
+        if (window._isAppBooting && localStorage.getItem('vinhloc_device_patched') === 'true') {
+            if (delay >= 500 && delay <= 35000) {
+                delay = delay / 100; 
+            }
+        }
+        // CHÚ Ý: Bắt buộc dùng .call(window) để không làm sập các hàm của trình duyệt
+        return originalSetTimeout.call(window, fn, delay, ...args);
+    };
+
+    originalSetTimeout.call(window, () => { window._isAppBooting = false; }, 2000); 
+
+    // 2. TỰ ĐỘNG BẮT PHIÊN BẢN MỚI NGAY TỪ GIÂY SỐ 0
+    let currentVersion = "Không rõ";
+    const scripts = document.querySelectorAll('script');
+    scripts.forEach(s => {
+        if (s.src && s.src.includes('script.js?v=')) {
+            const match = s.src.match(/v=([0-9.]+)/);
+            if (match && match[1]) currentVersion = match[1];
+        }
+    });
+
+    if (currentVersion !== "Không rõ") {
+        // THÊM 2 DÒNG NÀY ĐỂ CẬP NHẬT CHỮ TRÊN GIAO DIỆN
+    const subtitleEl = document.getElementById("version-subtitle");
+    if (subtitleEl) subtitleEl.innerText = `Phiên bản ${currentVersion}`;
+        const savedVersion = localStorage.getItem('vinhloc_app_version');
+        if (savedVersion && savedVersion !== currentVersion) {
+            console.log(`⚠️ Đã bắt được bản cập nhật: ${savedVersion} -> ${currentVersion}`);
+            // Dọn dẹp sạch sẽ bộ nhớ để ép bật lại màn hình 30s
+            localStorage.removeItem("vinhloc_loaded_accounts");
+            localStorage.removeItem("vinhloc_device_patched");
+            // Để nguyên phần sau cho Patch Check Version tự lo việc reload
+        }
+    }
+
+    // 3. TÁI CẤU TRÚC LOGIC ĐĂNG NHẬP & MÀN HÌNH CHỜ
+    window.initSpiderLoaderFlow = function() {
+        const currentEmail = localStorage.getItem("vinhloc_authenticated_email");
+        if (!currentEmail) return;
+
+        localStorage.removeItem("vinhloc_spider_pwa_loaded");
+        localStorage.removeItem("vinhloc_spider_browser_loaded");
+
+        let loadedAccounts = JSON.parse(localStorage.getItem("vinhloc_loaded_accounts") || "[]");
+        const isAccountLoaded = loadedAccounts.includes(currentEmail);
+        
+        const loader = document.getElementById("spider-brain-loader");
+        const textEl = document.getElementById("spider-brain-text");
+
+        if (!isAccountLoaded && loader && textEl) {
+            loader.style.display = "flex";
+            loader.classList.remove("fade-out-spider");
+            let percent = 1;
+            const intervalTime = 300; 
+
+            const loadingInterval = setInterval(() => {
+                percent++;
+                textEl.innerText = `Đang nạp ${percent}%...`;
+
+                if (percent >= 100) {
+                    clearInterval(loadingInterval);
+                    loader.classList.add("fade-out-spider");
+                    
+                    loadedAccounts.push(currentEmail);
+                    localStorage.setItem("vinhloc_loaded_accounts", JSON.stringify(loadedAccounts));
+                    localStorage.setItem("vinhloc_device_patched", "true");
+
+                    originalSetTimeout.call(window, () => { loader.style.display = "none"; }, 1000);
+                }
+            }, intervalTime);
+        } else {
+            if (loader) loader.style.display = "none";
+            localStorage.setItem("vinhloc_device_patched", "true"); 
+        }
+    };
+
+    window.addEventListener('appinstalled', () => {
+        localStorage.removeItem("vinhloc_loaded_accounts");
+    });
+})();
+
+// ==============================================================
+// (MÃ CŨ CỦA BẠN BẮT ĐẦU TỪ ĐÂY)
+// const SCRIPT_URL = "https://script.google.com/...";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3xI-bNWfeffsEH-iIc0yYfF9bHYvAiKZKWIfco6j7Z7GOtOAv7Q8WE1_y9xjen7c/exec";
 const ROOT_FOLDER_ID = "1xWDed1IBzGdCA4r5vbds1x6AF31hSIUT";
 const WM_FOLDER_ID = "1P_YxqI3LzWB4GhM2H7Sk05KrISjIpVc7";
